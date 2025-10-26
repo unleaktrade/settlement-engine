@@ -8,6 +8,9 @@ skip-lint = false
 [programs.localnet]
 settlement_engine = "E2amAUcnxFqJPbekUWPEAYkdahFPAnWoCFwaz2bryUJF"
 
+[programs.devnet]
+settlement_engine = "E2amAUcnxFqJPbekUWPEAYkdahFPAnWoCFwaz2bryUJF"
+
 [registry]
 url = "https://api.apr.dev"
 
