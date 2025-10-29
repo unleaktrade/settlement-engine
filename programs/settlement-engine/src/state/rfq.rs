@@ -5,6 +5,7 @@ use anchor_lang::prelude::*;
 pub struct Rfq {
     pub config: Pubkey,             // reference to Config
     pub maker: Pubkey,              // RFQ owner
+    pub uuid: [u8; 16],             // RFQ UUID (16 bytes)
     pub state: RfqState,            // current RFQ status
     pub base_mint: Pubkey,          // token offered by maker
     pub quote_mint: Pubkey,         // token expected by maker

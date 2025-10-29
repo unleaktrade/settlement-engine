@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use crate::state::{config::Config, rfq::{Rfq, RfqState}};
 
 #[derive(Accounts)]
+#[instruction(uuid: [u8; 16])]
 pub struct InitRfq<'info> {
     #[account(mut)]
     pub maker: Signer<'info>,
@@ -12,7 +13,7 @@ pub struct InitRfq<'info> {
         init,
         payer = maker,
         space = 8 + Rfq::INIT_SPACE,
-        seeds = [Rfq::SEED_PREFIX, maker.key().as_ref()],
+        seeds = [Rfq::SEED_PREFIX, maker.key().as_ref(), uuid.as_ref()],
         bump,
     )]
     pub rfq: Account<'info, Rfq>,
@@ -25,6 +26,7 @@ pub struct InitRfq<'info> {
 
 pub fn handler(
     ctx: Context<InitRfq>,
+    uuid: [u8; 16],
     base_mint: Pubkey,
     quote_mint: Pubkey,
     bond_amount: u64,
@@ -39,6 +41,7 @@ pub fn handler(
     let rfq = &mut ctx.accounts.rfq;
     rfq.config = ctx.accounts.config.key();
     rfq.maker = ctx.accounts.maker.key();
+    rfq.uuid = uuid;
     rfq.state = RfqState::Draft;
     rfq.base_mint = base_mint;
     rfq.quote_mint = quote_mint;

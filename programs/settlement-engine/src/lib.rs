@@ -56,6 +56,7 @@ pub mod settlement_engine {
     // RFQ module
     pub fn init_rfq(
         ctx: Context<InitRfq>,
+        uuid: [u8; 16],
         base_mint: Pubkey,
         quote_mint: Pubkey,
         bond_amount: u64,
@@ -66,6 +67,7 @@ pub mod settlement_engine {
     ) -> Result<()> {
         init_rfq::handler(
             ctx,
+            uuid,
             base_mint,
             quote_mint,
             bond_amount,
