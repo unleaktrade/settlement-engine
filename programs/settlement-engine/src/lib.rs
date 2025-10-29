@@ -1,19 +1,13 @@
 use anchor_lang::prelude::*;
 
 pub mod errors;
-pub mod state;
 pub mod instructions;
+pub mod state;
 
 pub use errors::*;
 
-use crate::instructions::{init_config, update_config, close_config};
-use instructions::{
-    init_config::*,
-    update_config::*,
-    close_config::*,
-};
-
-
+use crate::instructions::{close_config, init_config, update_config};
+use instructions::{close_config::*, init_config::*, update_config::*};
 
 // Program ID
 declare_id!("E2amAUcnxFqJPbekUWPEAYkdahFPAnWoCFwaz2bryUJF");
@@ -22,7 +16,11 @@ declare_id!("E2amAUcnxFqJPbekUWPEAYkdahFPAnWoCFwaz2bryUJF");
 pub mod settlement_engine {
     use super::*;
 
-    pub fn init_config(ctx: Context<InitConfig>, usdc_mint: Pubkey, treasury_usdc_owner: Pubkey) -> Result<()> {
+    pub fn init_config(
+        ctx: Context<InitConfig>,
+        usdc_mint: Pubkey,
+        treasury_usdc_owner: Pubkey,
+    ) -> Result<()> {
         init_config::handler(ctx, usdc_mint, treasury_usdc_owner)
     }
 

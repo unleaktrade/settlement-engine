@@ -1,20 +1,16 @@
-use anchor_lang::prelude::*;
-
 use crate::state::config::Config;
+use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct InitConfig<'info> {
-    /// Payer for account creation
+    /// Admin is also the payer. This simplifies auth & testing.
     #[account(mut)]
-    pub payer: Signer<'info>,
-
-    /// Admin authority (must sign to set itself)
     pub admin: Signer<'info>,
 
     /// Global Config PDA
     #[account(
         init,
-        payer = payer,
+        payer = admin,
         space = 8 + Config::INIT_SPACE,
         seeds = [Config::SEED_PREFIX],
         bump,
@@ -24,8 +20,12 @@ pub struct InitConfig<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(ctx: Context<InitConfig>, usdc_mint: Pubkey, treasury_usdc_owner: Pubkey) -> Result<()> {
-    let bump = ctx.bumps.config; // Anchor 0.32 bump access
+pub fn handler(
+    ctx: Context<InitConfig>,
+    usdc_mint: Pubkey,
+    treasury_usdc_owner: Pubkey,
+) -> Result<()> {
+    let bump = ctx.bumps.config;
     let cfg = &mut ctx.accounts.config;
 
     cfg.admin = ctx.accounts.admin.key();

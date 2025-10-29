@@ -1,13 +1,10 @@
-use anchor_lang::prelude::*;
-
 use crate::state::config::Config;
 use crate::EngineError;
+use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct UpdateConfig<'info> {
-    /// Admin must sign
     pub admin: Signer<'info>,
-
     #[account(
         mut,
         seeds = [Config::SEED_PREFIX],
@@ -17,7 +14,6 @@ pub struct UpdateConfig<'info> {
     pub config: Account<'info, Config>,
 }
 
-/// Partial update pattern: pass Option<Pubkey> for fields you might change.
 pub fn handler(
     ctx: Context<UpdateConfig>,
     new_admin: Option<Pubkey>,

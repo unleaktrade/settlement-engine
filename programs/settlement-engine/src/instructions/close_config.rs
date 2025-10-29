@@ -5,6 +5,7 @@ use crate::EngineError;
 
 #[derive(Accounts)]
 pub struct CloseConfig<'info> {
+    #[account(mut)]
     pub admin: Signer<'info>,
 
     #[account(
