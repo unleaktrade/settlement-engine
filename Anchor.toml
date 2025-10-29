@@ -4,6 +4,7 @@ package_manager = "yarn"
 [features]
 resolution = true
 skip-lint = false
+seeds = true
 
 [programs.localnet]
 settlement_engine = "E2amAUcnxFqJPbekUWPEAYkdahFPAnWoCFwaz2bryUJF"

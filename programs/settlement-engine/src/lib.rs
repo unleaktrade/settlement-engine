@@ -1,45 +1,39 @@
 use anchor_lang::prelude::*;
 
+pub mod errors;
+pub mod instructions;
+pub mod state;
+
+pub use errors::*;
+
+use crate::instructions::{close_config, init_config, update_config};
+use instructions::{close_config::*, init_config::*, update_config::*};
+
+// Program ID
 declare_id!("E2amAUcnxFqJPbekUWPEAYkdahFPAnWoCFwaz2bryUJF");
 
 #[program]
 pub mod settlement_engine {
     use super::*;
 
-    pub fn initialize_rfq(ctx: Context<InitializeRfq>, uuid: [u8; 16]) -> Result<()> {
-        let rfq = &mut ctx.accounts.rfq;
-        rfq.owner = ctx.accounts.signer.key();
-        rfq.uuid = uuid;
-        rfq.created_at = Clock::get()?.unix_timestamp;
-        rfq.bump = ctx.bumps.rfq;
-        Ok(())
+    pub fn init_config(
+        ctx: Context<InitConfig>,
+        usdc_mint: Pubkey,
+        treasury_usdc_owner: Pubkey,
+    ) -> Result<()> {
+        init_config::handler(ctx, usdc_mint, treasury_usdc_owner)
     }
-}
 
-#[account]
-#[derive(InitSpace)]
-pub struct Rfq {
-    pub owner: Pubkey,    // 32
-    pub uuid: [u8; 16],   // 16
-    pub created_at: i64,  // 8
-    pub bump: u8,         // 1
-    // total data = 57; Anchor adds 8-byte discriminator
-}
+    pub fn update_config(
+        ctx: Context<UpdateConfig>,
+        new_admin: Option<Pubkey>,
+        new_usdc_mint: Option<Pubkey>,
+        new_treasury_usdc_owner: Option<Pubkey>,
+    ) -> Result<()> {
+        update_config::handler(ctx, new_admin, new_usdc_mint, new_treasury_usdc_owner)
+    }
 
-#[derive(Accounts)]
-#[instruction(uuid: [u8; 16])]
-pub struct InitializeRfq<'info> {
-    #[account(
-        init,
-        payer = signer,
-        space = 8 + Rfq::INIT_SPACE,
-        seeds = [b"rfq", signer.key().as_ref(), uuid.as_ref()],
-        bump
-    )]
-    pub rfq: Account<'info, Rfq>,
-
-    #[account(mut)]
-    pub signer: Signer<'info>,
-
-    pub system_program: Program<'info, System>,
+    pub fn close_config(ctx: Context<CloseConfig>) -> Result<()> {
+        close_config::handler(ctx)
+    }
 }
