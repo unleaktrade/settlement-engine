@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use anchor_lang::space::InitSpace;
 
 /// Global, singleton configuration for the deployment.
 /// PDA: seeds = ["config"], bump stored for signer seeds.
