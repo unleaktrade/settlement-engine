@@ -1,25 +1,25 @@
 use anchor_lang::prelude::*;
 
 pub mod errors;
-pub mod instructions;
 pub mod state;
+pub mod instructions;
 
 pub use errors::*;
 
-use instructions::{close_config::*, init_config::*, update_config::*};
+use instructions::{
+    init_config::*,
+    update_config::*,
+    close_config::*,
+};
 
-// NOTE: Replace with your declared program id
+// Program ID
 declare_id!("E2amAUcnxFqJPbekUWPEAYkdahFPAnWoCFwaz2bryUJF");
 
 #[program]
 pub mod settlement_engine {
     use super::*;
 
-    pub fn init_config(
-        ctx: Context<InitConfig>,
-        usdc_mint: Pubkey,
-        treasury_usdc_owner: Pubkey,
-    ) -> Result<()> {
+    pub fn init_config(ctx: Context<InitConfig>, usdc_mint: Pubkey, treasury_usdc_owner: Pubkey) -> Result<()> {
         init_config::handler(ctx, usdc_mint, treasury_usdc_owner)
     }
 
@@ -36,4 +36,3 @@ pub mod settlement_engine {
         close_config::handler(ctx)
     }
 }
-

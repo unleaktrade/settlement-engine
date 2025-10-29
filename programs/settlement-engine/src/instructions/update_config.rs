@@ -9,11 +9,11 @@ pub struct UpdateConfig<'info> {
     pub admin: Signer<'info>,
 
     #[account(
-mut,
-seeds = [Config::SEED_PREFIX],
-bump = config.bump,
-has_one = admin @ EngineError::Unauthorized,
-)]
+        mut,
+        seeds = [Config::SEED_PREFIX],
+        bump = config.bump,
+        has_one = admin @ EngineError::Unauthorized,
+    )]
     pub config: Account<'info, Config>,
 }
 
