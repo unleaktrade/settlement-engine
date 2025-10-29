@@ -6,11 +6,14 @@ pub mod instructions;
 
 pub use errors::*;
 
+use crate::instructions::{init_config, update_config, close_config};
 use instructions::{
     init_config::*,
     update_config::*,
     close_config::*,
 };
+
+
 
 // Program ID
 declare_id!("E2amAUcnxFqJPbekUWPEAYkdahFPAnWoCFwaz2bryUJF");
