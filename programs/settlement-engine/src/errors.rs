@@ -22,4 +22,6 @@ pub enum RfqError {
     NoSelection,
     #[msg("Nothing to close or claim")] 
     NothingToClose,
+    #[msg("Invalid Bond Vault account")] 
+    InvalidBondVault,
 }
