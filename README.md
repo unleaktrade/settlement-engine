@@ -8,7 +8,6 @@ It enforces trustless settlement, manages bonds, and encodes the entire **RFQ li
 > While every effort is made to keep this documentation accurate, the implementation may evolve faster than the README.  
 > Always refer to the latest program source and tests for the most up-to-date details.
 
-
 ---
 
 ## ⚙️ Architecture
