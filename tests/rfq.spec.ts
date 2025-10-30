@@ -25,12 +25,11 @@ async function fund(kp: Keypair, sol = 2) {
 }
 
 /** Derive RFQ PDA from (maker, uuid) */
-function rfqPda(maker: PublicKey, uuid16: Uint8Array): [PublicKey, number] {
-    return PublicKey.findProgramAddressSync(
-        [Buffer.from("rfq"), maker.toBuffer(), Buffer.from(uuid16)],
+const rfqPda = (maker: PublicKey, u16: Uint8Array) =>
+    PublicKey.findProgramAddressSync(
+        [Buffer.from("rfq"), maker.toBuffer(), Buffer.from(u16)],
         program.programId
     );
-}
 
 const uuidBytes = () => Uint8Array.from(uuidParse(uuidv4()));
 
@@ -186,7 +185,7 @@ describe("RFQ::initRfq", () => {
         const quoteMint = Keypair.generate().publicKey;
 
         // uuid 1
-        const u1 = uuidBytes(); 
+        const u1 = uuidBytes();
         const [pda1] = rfqPda(maker.publicKey, u1);
 
         await program.methods
