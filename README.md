@@ -3,6 +3,12 @@
 **UnleakTrade Settlement Engine** is the core **on-chain Solana program** that coordinates OTC (Over-The-Counter) trading flows between makers and takers.  
 It enforces trustless settlement, manages bonds, and encodes the entire **RFQ lifecycle** into verifiable, stateful Solana accounts.
 
+> ⚠️ **Disclaimer**  
+> This repository is under **active and fast-paced development**.  
+> While every effort is made to keep this documentation accurate, the implementation may evolve faster than the README.  
+> Always refer to the latest program source and tests for the most up-to-date details.
+
+
 ---
 
 ## ⚙️ Architecture
