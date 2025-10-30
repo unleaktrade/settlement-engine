@@ -9,7 +9,6 @@ import { expect } from "chai";
 anchor.setProvider(anchor.AnchorProvider.env());
 const provider = anchor.getProvider() as anchor.AnchorProvider;
 const program = anchor.workspace.SettlementEngine as Program<SettlementEngine>;
-
 // --- helpers ---------------------------------------------------------------
 
 async function confirm(signature: string) {
@@ -33,9 +32,7 @@ function rfqPda(maker: PublicKey, uuid16: Uint8Array): [PublicKey, number] {
     );
 }
 
-function generateUUID(): Uint8Array {
-    return Uint8Array.from(uuidParse(uuidv4()));
-}
+const uuidBytes = () => Uint8Array.from(uuidParse(uuidv4()));
 
 /** Ensure config exists (idempotent) */
 async function ensureConfig(admin: Keypair) {
@@ -46,10 +43,10 @@ async function ensureConfig(admin: Keypair) {
     try {
         await program.account.config.fetch(configPda);
     } catch {
-        const usdcMint = Keypair.generate().publicKey; // dummy
+        const usdcMintPK = Keypair.generate().publicKey; // dummy
         const treasury = Keypair.generate().publicKey; // dummy
         await program.methods
-            .initConfig(usdcMint, treasury)
+            .initConfig(usdcMintPK, treasury)
             .accounts({ admin: admin.publicKey })
             .signers([admin])
             .rpc();
@@ -72,8 +69,8 @@ describe("RFQ::initRfq", () => {
         const maker = Keypair.generate();
         await fund(maker);
 
-        const uuidBytes = generateUUID();
-        const [rfqAddr, bump] = rfqPda(maker.publicKey, uuidBytes);
+        const u = uuidBytes();
+        const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
 
         const baseMint = Keypair.generate().publicKey;
         const quoteMint = Keypair.generate().publicKey;
@@ -82,7 +79,7 @@ describe("RFQ::initRfq", () => {
 
         await program.methods
             .initRfq(
-                Array.from(uuidBytes),
+                Array.from(u),
                 baseMint,
                 quoteMint,
                 new anchor.BN(1_000_000),
@@ -104,7 +101,7 @@ describe("RFQ::initRfq", () => {
         const rfq = await program.account.rfq.fetch(rfqAddr);
         assert(rfq.maker.equals(maker.publicKey), "maker mismatch");
         assert.strictEqual(rfq.bump, bump, "bump mismatch");
-        assert.deepStrictEqual(rfq.uuid, Array.from(uuidBytes), "uuid mismatch");
+        assert.deepStrictEqual(rfq.uuid, Array.from(u), "uuid mismatch");
         assert(rfq.baseMint.equals(baseMint), "base mint mismatch");
         assert(rfq.quoteMint.equals(quoteMint), "quote mint mismatch");
         assert.strictEqual(Number(rfq.bondAmount), 1_000_000);
@@ -120,14 +117,14 @@ describe("RFQ::initRfq", () => {
         const maker = Keypair.generate();
         await fund(maker);
 
-        const uuidBytes = generateUUID();
-        const [rfqAddr] = rfqPda(maker.publicKey, uuidBytes);
+        const u = uuidBytes();
+        const [rfqAddr] = rfqPda(maker.publicKey, u);
 
         const baseMint = Keypair.generate().publicKey;
         const quoteMint = Keypair.generate().publicKey;
 
         await program.methods
-            .initRfq(Array.from(uuidBytes) as any, baseMint, quoteMint, new anchor.BN(123), 1, 1, 1, 1)
+            .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(123), 1, 1, 1, 1)
             .accounts({ maker: maker.publicKey, config: configPda, bondsVault: maker.publicKey })
             .signers([maker])
             .rpc();
@@ -136,7 +133,7 @@ describe("RFQ::initRfq", () => {
         let failed = false;
         try {
             await program.methods
-                .initRfq(Array.from(uuidBytes) as any, baseMint, quoteMint, new anchor.BN(456), 1, 1, 1, 1)
+                .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(456), 1, 1, 1, 1)
                 .accounts({ maker: maker.publicKey, config: configPda, bondsVault: maker.publicKey })
                 .signers([maker])
                 .rpc();
@@ -151,22 +148,22 @@ describe("RFQ::initRfq", () => {
         const makerB = Keypair.generate();
         await Promise.all([fund(makerA), fund(makerB)]);
 
-        const uuidBytes = generateUUID();
-        const [pdaA] = rfqPda(makerA.publicKey, uuidBytes);
-        const [pdaB] = rfqPda(makerB.publicKey, uuidBytes);
+        const u = uuidBytes();
+        const [pdaA] = rfqPda(makerA.publicKey, u);
+        const [pdaB] = rfqPda(makerB.publicKey, u);
         assert(!pdaA.equals(pdaB), "PDAs should differ across makers for same uuid");
 
         const baseMint = Keypair.generate().publicKey;
         const quoteMint = Keypair.generate().publicKey;
 
         await program.methods
-            .initRfq(Array.from(uuidBytes) as any, baseMint, quoteMint, new anchor.BN(1), 1, 1, 1, 1)
+            .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1), 1, 1, 1, 1)
             .accounts({ maker: makerA.publicKey, config: configPda, bondsVault: makerA.publicKey })
             .signers([makerA])
             .rpc();
 
         await program.methods
-            .initRfq(Array.from(uuidBytes) as any, baseMint, quoteMint, new anchor.BN(2), 1, 1, 1, 1)
+            .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(2), 1, 1, 1, 1)
             .accounts({ maker: makerB.publicKey, config: configPda, bondsVault: makerB.publicKey })
             .signers([makerB])
             .rpc();
@@ -176,9 +173,9 @@ describe("RFQ::initRfq", () => {
             program.account.rfq.fetch(pdaB),
         ]);
         assert(a.maker.equals(makerA.publicKey));
-        assert.deepStrictEqual(a.uuid, Array.from(uuidBytes), "uuid mismatch for rfq a");
+        assert.deepStrictEqual(a.uuid, Array.from(u), "uuid mismatch for rfq a");
         assert(b.maker.equals(makerB.publicKey));
-        assert.deepStrictEqual(b.uuid, Array.from(uuidBytes), "uuid mismatch for rfq b");
+        assert.deepStrictEqual(b.uuid, Array.from(u), "uuid mismatch for rfq b");
     });
 
     it("allows same maker with different uuids (multiple RFQs per maker)", async () => {
@@ -189,22 +186,22 @@ describe("RFQ::initRfq", () => {
         const quoteMint = Keypair.generate().publicKey;
 
         // uuid 1
-        const uuid1 = generateUUID();
-        const [pda1] = rfqPda(maker.publicKey, uuid1);
+        const u1 = uuidBytes(); 
+        const [pda1] = rfqPda(maker.publicKey, u1);
 
         await program.methods
-            .initRfq(Array.from(uuid1) as any, baseMint, quoteMint, new anchor.BN(11), 1, 1, 1, 1)
+            .initRfq(Array.from(u1) as any, baseMint, quoteMint, new anchor.BN(11), 1, 1, 1, 1)
             .accounts({ maker: maker.publicKey, config: configPda, bondsVault: maker.publicKey })
             .signers([maker])
             .rpc();
 
         // uuid 2
-        const uuid2 = generateUUID();
-        const [pda2] = rfqPda(maker.publicKey, uuid2);
+        const u2 = uuidBytes();
+        const [pda2] = rfqPda(maker.publicKey, u2);
         assert(!pda1.equals(pda2), "Different uuids must produce different PDAs for same maker");
 
         await program.methods
-            .initRfq(Array.from(uuid2) as any, baseMint, quoteMint, new anchor.BN(22), 1, 1, 1, 1)
+            .initRfq(Array.from(u2) as any, baseMint, quoteMint, new anchor.BN(22), 1, 1, 1, 1)
             .accounts({ maker: maker.publicKey, config: configPda, bondsVault: maker.publicKey })
             .signers([maker])
             .rpc();
@@ -214,8 +211,8 @@ describe("RFQ::initRfq", () => {
             program.account.rfq.fetch(pda2),
         ]);
         assert.strictEqual(Number(r1.bondAmount), 11);
-        assert.deepStrictEqual(r1.uuid, Array.from(uuid1), "uuid mismatch for rfq r1");
+        assert.deepStrictEqual(r1.uuid, Array.from(u1), "uuid mismatch for rfq r1");
         assert.strictEqual(Number(r2.bondAmount), 22);
-        assert.deepStrictEqual(r2.uuid, Array.from(uuid2), "uuid mismatch for rfq r2");
+        assert.deepStrictEqual(r2.uuid, Array.from(u2), "uuid mismatch for rfq r2");
     });
 });
