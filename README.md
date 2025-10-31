@@ -45,12 +45,13 @@ If one side fails to act, the program automatically allows third-party “cleane
 ---
 
 ## ↔️ Sequence Diagram
+
 ```mermaid
 sequenceDiagram
     actor Maker
-    box rgb(99, 102, 241) UmbraTrade
+    box rgb(99, 102, 241) UnleakTrade
     participant Escrow as Escrow Program
-    participant Wallet as UmbraTrade Treasury
+    participant Wallet as UnleakTrade Treasury
     participant API as Rest API
     end
     actor Taker1
@@ -117,8 +118,9 @@ sequenceDiagram
         Escrow->>Taker1: 80% of Maker bond
         Escrow->>Wallet: 20% retained
     end
-		Note over Escrow: Settlement is marked as COMPLETE
+  Note over Escrow: Settlement is marked as COMPLETE
 ```
+
 ---
 
 ## 💰 Bonding Mechanism
