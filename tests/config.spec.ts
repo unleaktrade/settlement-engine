@@ -30,7 +30,7 @@ const configPda = (programId: PublicKey) =>
   PublicKey.findProgramAddressSync([Buffer.from("config")], programId);
 
 describe("config account", () => {
-  it("init/update/close works with Anchor 0.32 client", async () => {
+  it("init/update/close works", async () => {
     const [cfgPda] = configPda(program.programId);
 
     const admin = Keypair.generate();
