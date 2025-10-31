@@ -44,6 +44,83 @@ If one side fails to act, the program automatically allows third-party “cleane
 
 ---
 
+## ↔️ Sequence Diagram
+```mermaid
+sequenceDiagram
+    actor Maker
+    box rgb(99, 102, 241) UmbraTrade
+    participant Escrow as Escrow Program
+    participant Wallet as UmbraTrade Treasury
+    participant API as Rest API
+    end
+    actor Taker1
+    actor Taker2
+
+    Note over Maker: Publish RFQ (includes TTL)
+    Maker->>Escrow: Submit RFQ
+    Maker->>Escrow: Deposit bond (USDC)
+    
+    Note over Escrow: Commit phase open — waiting for commits...
+
+    Note over Taker1,Taker2: Generate zk-proof via REST API
+    Taker1->>API: Request zk-proof (wallet, intent)
+    API-->>Taker1: zk-proof cert
+    Taker2->>API: Request zk-proof (wallet, intent)
+    API-->>Taker2: zk-proof cert
+
+    Note over Taker1: Submit commitment
+    Taker1->>Escrow: Commit hash + zk-proof
+    Taker1->>Escrow: Deposit bond (USDC)
+
+    Note over Taker2: Submit commitment
+    Taker2->>Escrow: Commit hash + zk-proof
+    Taker2->>Escrow: Deposit bond (USDC)
+
+    Note over Escrow: zk-verification for all commits<br/>Verify zk-proofs
+
+    alt Any invalid proof
+        Escrow-->>Taker1: Commit rejected
+        Escrow-->>Taker2: Commit rejected
+    else All valid
+        Escrow-->>Taker1: Commit accepted
+        Escrow-->>Taker2: Commit accepted
+    end
+
+    Note over Escrow: Commit phase ends — reveal phase starts
+
+    Taker1->>Escrow: Reveal bid details
+    Taker2->>Escrow: Reveal bid details
+
+    Note over Maker: Select best quote
+    Maker->>Escrow: Choose Taker1
+
+    Note over Escrow: TTL countdown active
+
+    Note over Maker: Deposit settlement asset
+    Maker->>Escrow: Deposit base asset (e.g. USDC, BONK)
+
+    Note over Taker1: Deposit settlement asset<br/>+ Pay fee (USDC)
+    Taker1->>Escrow: Deposit quote asset
+
+    Note over Escrow: Both sides funded — execute swap
+    Escrow->>Maker: Transfer quote asset
+    Escrow->>Taker1: Transfer based asset
+    Escrow->>Wallet: Transfer fee
+    Escrow->>Maker: Return bond
+    Escrow->>Taker1: Return bond
+    
+
+    alt TTL expired - Taker failed to deposit before TTL
+        Escrow->>Maker: 80% of Taker1 bond
+        Escrow->>Wallet: 20% retained
+    else TTL expired - Maker failed to deposit before TTL
+        Escrow->>Taker1: 80% of Maker bond
+        Escrow->>Wallet: 20% retained
+    end
+		Note over Escrow: Settlement is marked as COMPLETE
+```
+---
+
 ## 💰 Bonding Mechanism
 
 Every participant posts a **USDC bond** that ensures fair play:
