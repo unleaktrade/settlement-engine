@@ -1,7 +1,13 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { SettlementEngine } from "../target/types/settlement_engine";
-import { Keypair, PublicKey } from "@solana/web3.js";
+import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
+import {
+    createMint,
+    getAssociatedTokenAddressSync,
+    TOKEN_PROGRAM_ID,
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
 import { v4 as uuidv4, parse as uuidParse } from "uuid";
 import assert from "assert";
 import { expect } from "chai";
@@ -58,10 +64,37 @@ async function ensureConfig(admin: Keypair) {
 describe("RFQ::initRfq", () => {
     const admin = Keypair.generate();
     let configPda: PublicKey;
+    let usdcMint: PublicKey;
 
     before(async () => {
         await fund(admin);
-        configPda = await ensureConfig(admin);
+
+        // 1) Create a real USDC-like mint (6 decimals) owned by admin
+        usdcMint = await createMint(
+            provider.connection,
+            admin,                 // payer
+            admin.publicKey,       // mint authority
+            null,                  // freeze authority
+            6                      // decimals
+        );
+
+        // 2) Ensure config exists and points to that mint
+        [configPda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("config")],
+            program.programId
+        );
+        let needInit = false;
+        try {
+            await program.account.config.fetch(configPda);
+        } catch { needInit = true; }
+        if (needInit) {
+            const treasury = Keypair.generate().publicKey;
+            await program.methods
+                .initConfig(usdcMint, treasury)
+                .accounts({ admin: admin.publicKey })
+                .signers([admin])
+                .rpc();
+        }
     });
 
     it("creates RFQ PDA with uuid and stores fields", async () => {
@@ -70,6 +103,9 @@ describe("RFQ::initRfq", () => {
 
         const u = uuidBytes();
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
+
+        // bonds_vault = ATA(owner = rfq PDA, mint = usdcMint)
+        const bondsVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
 
         const baseMint = Keypair.generate().publicKey;
         const quoteMint = Keypair.generate().publicKey;
@@ -90,9 +126,7 @@ describe("RFQ::initRfq", () => {
             .accounts({
                 maker: maker.publicKey,
                 config: configPda,
-                // DO NOT pass rfq (auto-derived by Anchor),
-                // bondsVault placeholder until SPL escrow wired:
-                bondsVault: maker.publicKey,
+                usdcMint
             })
             .signers([maker])
             .rpc();
@@ -108,6 +142,7 @@ describe("RFQ::initRfq", () => {
         assert.strictEqual(rfq.revealTtlSecs, revealTTL);
         assert.strictEqual(rfq.selectionTtlSecs, selectionTTL);
         assert.strictEqual(rfq.fundTtlSecs, fundingTTL);
+        assert(rfq.bondsVault.equals(bondsVault), "bonds_vault mismatch");
         expect(rfq.state).to.have.property('draft');
         assert.ok(rfq.state.draft);
     });
@@ -124,7 +159,7 @@ describe("RFQ::initRfq", () => {
 
         await program.methods
             .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(123), 1, 1, 1, 1)
-            .accounts({ maker: maker.publicKey, config: configPda, bondsVault: maker.publicKey })
+            .accounts({ maker: maker.publicKey, config: configPda, usdcMint })
             .signers([maker])
             .rpc();
 
@@ -133,7 +168,7 @@ describe("RFQ::initRfq", () => {
         try {
             await program.methods
                 .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(456), 1, 1, 1, 1)
-                .accounts({ maker: maker.publicKey, config: configPda, bondsVault: maker.publicKey })
+                .accounts({ maker: maker.publicKey, config: configPda, usdcMint })
                 .signers([maker])
                 .rpc();
         } catch {
@@ -157,13 +192,13 @@ describe("RFQ::initRfq", () => {
 
         await program.methods
             .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1), 1, 1, 1, 1)
-            .accounts({ maker: makerA.publicKey, config: configPda, bondsVault: makerA.publicKey })
+            .accounts({ maker: makerA.publicKey, config: configPda, usdcMint })
             .signers([makerA])
             .rpc();
 
         await program.methods
             .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(2), 1, 1, 1, 1)
-            .accounts({ maker: makerB.publicKey, config: configPda, bondsVault: makerB.publicKey })
+            .accounts({ maker: makerB.publicKey, config: configPda, usdcMint })
             .signers([makerB])
             .rpc();
 
@@ -190,7 +225,7 @@ describe("RFQ::initRfq", () => {
 
         await program.methods
             .initRfq(Array.from(u1) as any, baseMint, quoteMint, new anchor.BN(11), 1, 1, 1, 1)
-            .accounts({ maker: maker.publicKey, config: configPda, bondsVault: maker.publicKey })
+            .accounts({ maker: maker.publicKey, config: configPda, usdcMint })
             .signers([maker])
             .rpc();
 
@@ -201,7 +236,7 @@ describe("RFQ::initRfq", () => {
 
         await program.methods
             .initRfq(Array.from(u2) as any, baseMint, quoteMint, new anchor.BN(22), 1, 1, 1, 1)
-            .accounts({ maker: maker.publicKey, config: configPda, bondsVault: maker.publicKey })
+            .accounts({ maker: maker.publicKey, config: configPda, usdcMint })
             .signers([maker])
             .rpc();
 
