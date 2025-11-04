@@ -3,20 +3,23 @@ use anchor_lang::prelude::*;
 #[account]
 #[derive(InitSpace)]
 pub struct Rfq {
-    pub config: Pubkey,             // reference to Config
-    pub maker: Pubkey,              // RFQ owner
-    pub uuid: [u8; 16],             // RFQ UUID (16 bytes)
-    pub state: RfqState,            // current RFQ status
-    pub base_mint: Pubkey,          // token offered by maker
-    pub quote_mint: Pubkey,         // token expected by maker
-    pub bond_amount: u64,           // bond in smallest USDC units
-    pub fund_ttl_secs: u32,         // funding TTL
-    pub commit_ttl_secs: u32,       // commit phase TTL
-    pub reveal_ttl_secs: u32,       // reveal phase TTL
-    pub selection_ttl_secs: u32,    // selection phase TTL
-    pub created_at: i64,            // unix timestamp
-    pub expires_at: i64,            // coarse max horizon (helper for cleaners)
-    pub selected_at: Option<i64>,   // set on select
+    pub config: Pubkey,        // reference to Config
+    pub maker: Pubkey,         // RFQ owner
+    pub uuid: [u8; 16],        // RFQ UUID (16 bytes)
+    pub state: RfqState,       // current RFQ status
+    pub base_mint: Pubkey,     // token offered by maker
+    pub base_amount: u64,      // amount of base tokens maker offers
+    pub quote_mint: Pubkey,    // token expected by maker
+    pub min_quote_amount: u64, // minimum acceptable quote in smallest units
+    pub bond_amount: u64,      // bond in smallest USDC units
+    pub taker_fee_usdc: u64,   // fixed fee in USDC paid by taker
+    pub fund_ttl_secs: u32,       // funding TTL
+    pub commit_ttl_secs: u32,     // commit phase TTL
+    pub reveal_ttl_secs: u32,     // reveal phase TTL
+    pub selection_ttl_secs: u32,  // selection phase TTL
+    pub created_at: i64,          // unix timestamp
+    pub expires_at: i64,          // coarse max horizon (helper for cleaners)
+    pub selected_at: Option<i64>, // set on select
     pub bump: u8,
 
     // activity counters
@@ -29,7 +32,7 @@ pub struct Rfq {
     pub taker_funded: bool,
 
     // escrow references (to be wired later)
-    pub bonds_vault: Pubkey,        // PDA of USDC escrow for maker bond
+    pub bonds_vault: Pubkey, // PDA of USDC escrow for maker bond
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, InitSpace)]

@@ -118,6 +118,9 @@ describe("RFQ::initRfq", () => {
                 baseMint,
                 quoteMint,
                 new anchor.BN(1_000_000),
+                new anchor.BN(1_000_000_000),
+                new anchor.BN(1_000_000_000),
+                new anchor.BN(1_000),
                 commitTTL,
                 revealTTL,
                 selectionTTL,
@@ -137,7 +140,10 @@ describe("RFQ::initRfq", () => {
         assert.deepStrictEqual(rfq.uuid, Array.from(u), "uuid mismatch");
         assert(rfq.baseMint.equals(baseMint), "base mint mismatch");
         assert(rfq.quoteMint.equals(quoteMint), "quote mint mismatch");
-        assert.strictEqual(Number(rfq.bondAmount), 1_000_000);
+        assert.ok(new anchor.BN(1_000_000).eq(rfq.bondAmount), "bond amount mismatch");
+        assert.ok(new anchor.BN(1_000_000_000).eq(rfq.baseAmount), "base amount mismatch");
+        assert.ok(new anchor.BN(1_000_000_000).eq(rfq.minQuoteAmount), "min quote amount mismatch");
+        assert.ok(new anchor.BN(1_000).eq(rfq.takerFeeUsdc), "taker fee mismatch");
         assert.strictEqual(rfq.commitTtlSecs, commitTTL);
         assert.strictEqual(rfq.revealTtlSecs, revealTTL);
         assert.strictEqual(rfq.selectionTtlSecs, selectionTTL);
@@ -158,7 +164,10 @@ describe("RFQ::initRfq", () => {
         const quoteMint = Keypair.generate().publicKey;
 
         await program.methods
-            .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(123), 1, 1, 1, 1)
+            .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
+                new anchor.BN(1_000_000_000),
+                new anchor.BN(1_000_000_000),
+                new anchor.BN(1_000), 1, 1, 1, 1)
             .accounts({ maker: maker.publicKey, config: configPda, usdcMint })
             .signers([maker])
             .rpc();
@@ -167,7 +176,10 @@ describe("RFQ::initRfq", () => {
         let failed = false;
         try {
             await program.methods
-                .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(456), 1, 1, 1, 1)
+                .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
+                    new anchor.BN(1_000_000_000),
+                    new anchor.BN(1_000_000_000),
+                    new anchor.BN(1_000), 1, 1, 1, 1)
                 .accounts({ maker: maker.publicKey, config: configPda, usdcMint })
                 .signers([maker])
                 .rpc();
@@ -191,13 +203,19 @@ describe("RFQ::initRfq", () => {
         const quoteMint = Keypair.generate().publicKey;
 
         await program.methods
-            .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1), 1, 1, 1, 1)
+            .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
+                new anchor.BN(1_000_000_000),
+                new anchor.BN(1_000_000_000),
+                new anchor.BN(1_000), 1, 1, 1, 1)
             .accounts({ maker: makerA.publicKey, config: configPda, usdcMint })
             .signers([makerA])
             .rpc();
 
         await program.methods
-            .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(2), 1, 1, 1, 1)
+            .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
+                new anchor.BN(1_000_000_000),
+                new anchor.BN(1_000_000_000),
+                new anchor.BN(1_000), 1, 1, 1, 1)
             .accounts({ maker: makerB.publicKey, config: configPda, usdcMint })
             .signers([makerB])
             .rpc();
@@ -224,7 +242,10 @@ describe("RFQ::initRfq", () => {
         const [pda1] = rfqPda(maker.publicKey, u1);
 
         await program.methods
-            .initRfq(Array.from(u1) as any, baseMint, quoteMint, new anchor.BN(11), 1, 1, 1, 1)
+            .initRfq(Array.from(u1) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
+                new anchor.BN(1_000_000_000),
+                new anchor.BN(1_000_000_000),
+                new anchor.BN(1_000), 1, 1, 1, 1)
             .accounts({ maker: maker.publicKey, config: configPda, usdcMint })
             .signers([maker])
             .rpc();
@@ -235,7 +256,10 @@ describe("RFQ::initRfq", () => {
         assert(!pda1.equals(pda2), "Different uuids must produce different PDAs for same maker");
 
         await program.methods
-            .initRfq(Array.from(u2) as any, baseMint, quoteMint, new anchor.BN(22), 1, 1, 1, 1)
+            .initRfq(Array.from(u2) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
+                new anchor.BN(1_000_000_000),
+                new anchor.BN(1_000_000_000),
+                new anchor.BN(1_000), 1, 1, 1, 1)
             .accounts({ maker: maker.publicKey, config: configPda, usdcMint })
             .signers([maker])
             .rpc();
@@ -244,9 +268,9 @@ describe("RFQ::initRfq", () => {
             program.account.rfq.fetch(pda1),
             program.account.rfq.fetch(pda2),
         ]);
-        assert.strictEqual(Number(r1.bondAmount), 11);
+        assert.ok(new anchor.BN(1_000_000).eq(r1.bondAmount), "bond amount mismatch");
         assert.deepStrictEqual(r1.uuid, Array.from(u1), "uuid mismatch for rfq r1");
-        assert.strictEqual(Number(r2.bondAmount), 22);
+        assert.ok(new anchor.BN(1_000_000).eq(r2.bondAmount), "bond amount mismatch");
         assert.deepStrictEqual(r2.uuid, Array.from(u2), "uuid mismatch for rfq r2");
     });
 });
