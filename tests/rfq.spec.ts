@@ -189,6 +189,33 @@ describe("RFQ::initRfq", () => {
         assert(failed, "re-initialization with same (maker, uuid) should fail");
     });
 
+    it("rejects RFQ with 0 bonds/fees/base/quote", async () => {
+        const maker = Keypair.generate();
+        await fund(maker);
+
+        const u = uuidBytes();
+        const [rfqAddr] = rfqPda(maker.publicKey, u);
+
+        const baseMint = Keypair.generate().publicKey;
+        const quoteMint = Keypair.generate().publicKey;
+
+        // 
+        let failed = false;
+        try {
+            await program.methods
+                .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(0),
+                    new anchor.BN(1_000_000_000),
+                    new anchor.BN(1_000_000_000),
+                    new anchor.BN(1_000), 1, 1, 1, 1)
+                .accounts({ maker: maker.publicKey, config: configPda, usdcMint })
+                .signers([maker])
+                .rpc();
+        } catch {
+            failed = true;
+        }
+        assert(failed, "cannot create RFQ with zero bond amount");
+    });
+
     it("allows same uuid with different makers (different PDA)", async () => {
         const makerA = Keypair.generate();
         const makerB = Keypair.generate();
