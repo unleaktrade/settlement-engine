@@ -1,4 +1,5 @@
 pub mod init_rfq;
+pub mod update_rfq;
 pub mod open_rfq;
 pub mod cancel_rfq;
 pub mod select_quote;

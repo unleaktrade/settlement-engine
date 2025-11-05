@@ -72,6 +72,12 @@ pub fn handler(
     require!(taker_fee_usdc > 0, RfqError::InvalidFeeAmount);
     require!(base_amount > 0, RfqError::InvalidBaseAmount);
     require!(min_quote_amount > 0, RfqError::InvalidMinQuoteAmount);
+
+    // Lifetime invariants
+    require!(commit_ttl_secs > 0, RfqError::InvalidParams);
+    require!(reveal_ttl_secs > 0, RfqError::InvalidParams);
+    require!(selection_ttl_secs > 0, RfqError::InvalidParams);
+    require!(fund_ttl_secs > 0, RfqError::InvalidParams);
     
     
     // --- Initialize RFQ -----------------------------------------------------
@@ -81,23 +87,26 @@ pub fn handler(
     rfq.uuid = uuid;
     rfq.state = RfqState::Draft;
     
+    // assets & economics
     rfq.base_mint = base_mint;
     rfq.quote_mint = quote_mint;
     rfq.bond_amount = bond_amount;
     rfq.base_amount = base_amount;
-    rfq.min_quote_amount = min_quote_amount;   
+    rfq.min_quote_amount = min_quote_amount;
     rfq.taker_fee_usdc = taker_fee_usdc;
     
+    // ttls
     rfq.commit_ttl_secs = commit_ttl_secs;
     rfq.reveal_ttl_secs = reveal_ttl_secs;
     rfq.selection_ttl_secs = selection_ttl_secs;
     rfq.fund_ttl_secs = fund_ttl_secs;
     
     let now = Clock::get()?.unix_timestamp;
+    // clocks
     rfq.created_at = now;
-    rfq.expires_at =
-        now + (commit_ttl_secs + reveal_ttl_secs + selection_ttl_secs + fund_ttl_secs) as i64;
+    rfq.opened_at = None;
     rfq.selected_at = None;
+    
     rfq.bump = bump;
 
     rfq.committed_count = 0;

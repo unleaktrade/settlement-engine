@@ -15,7 +15,8 @@ pub fn handler(ctx: Context<SelectQuote>, quote_key: Pubkey) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let rfq = &mut ctx.accounts.rfq;
     require!(rfq.state == RfqState::Revealed, RfqError::InvalidState);
-    require!(now <= rfq.selection_deadline(), RfqError::TooLate);
+    let selection_deadline = rfq.selection_deadline().ok_or(RfqError::InvalidState)?;
+    require!(now <= selection_deadline, RfqError::TooLate);
     require!(rfq.selected_quote.is_none(), RfqError::AlreadySelected);
 
     rfq.selected_quote = Some(quote_key);

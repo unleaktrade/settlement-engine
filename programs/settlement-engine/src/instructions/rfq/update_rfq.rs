@@ -1,0 +1,44 @@
+use anchor_lang::prelude::*;
+use crate::state::rfq::{Rfq, RfqState};
+use crate::RfqError;
+
+#[derive(Accounts)]
+pub struct UpdateRfq<'info> {
+    #[account(mut)]
+    pub maker: Signer<'info>,
+    #[account(mut, has_one = maker)]
+    pub rfq: Account<'info, Rfq>,
+}
+
+pub fn handler(
+    ctx: Context<UpdateRfq>,
+    // Option<>s so the maker can patch specific fields
+    new_base_mint: Option<Pubkey>,
+    new_quote_mint: Option<Pubkey>,
+    new_bond_amount: Option<u64>,
+    new_base_amount: Option<u64>,
+    new_min_quote_amount: Option<u64>,
+    new_taker_fee_usdc: Option<u64>,
+    new_commit_ttl_secs: Option<u32>,
+    new_reveal_ttl_secs: Option<u32>,
+    new_selection_ttl_secs: Option<u32>,
+    new_fund_ttl_secs: Option<u32>,
+) -> Result<()> {
+    let rfq = &mut ctx.accounts.rfq;
+    require!(rfq.state == RfqState::Draft, RfqError::InvalidState);
+
+    if let Some(v) = new_base_mint { rfq.base_mint = v; }
+    if let Some(v) = new_quote_mint { rfq.quote_mint = v; }
+
+    if let Some(v) = new_bond_amount { require!(v > 0, RfqError::InvalidParams); rfq.bond_amount = v; }
+    if let Some(v) = new_base_amount { require!(v > 0, RfqError::InvalidParams); rfq.base_amount = v; }
+    if let Some(v) = new_min_quote_amount { require!(v > 0, RfqError::InvalidParams); rfq.min_quote_amount = v; }
+    if let Some(v) = new_taker_fee_usdc { require!(v > 0, RfqError::InvalidParams); rfq.taker_fee_usdc = v; }
+
+    if let Some(v) = new_commit_ttl_secs { require!(v > 0, RfqError::InvalidParams); rfq.commit_ttl_secs = v; }
+    if let Some(v) = new_reveal_ttl_secs { require!(v > 0, RfqError::InvalidParams); rfq.reveal_ttl_secs = v; }
+    if let Some(v) = new_selection_ttl_secs { require!(v > 0, RfqError::InvalidParams); rfq.selection_ttl_secs = v; }
+    if let Some(v) = new_fund_ttl_secs { require!(v > 0, RfqError::InvalidParams); rfq.fund_ttl_secs = v; }
+
+    Ok(())
+}

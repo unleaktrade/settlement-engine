@@ -14,8 +14,22 @@ pub struct OpenRfq<'info> {
 }
 
 pub fn handler(ctx: Context<OpenRfq>) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
     let rfq = &mut ctx.accounts.rfq;
+
     require!(rfq.state == RfqState::Draft, RfqError::InvalidState);
+
+    // last-moment sanity (already enforced on init/update, but double-check)
+    require!(rfq.bond_amount > 0, RfqError::InvalidParams);
+    require!(rfq.base_amount > 0, RfqError::InvalidParams);
+    require!(rfq.min_quote_amount > 0, RfqError::InvalidParams);
+    require!(rfq.taker_fee_usdc > 0, RfqError::InvalidParams);
+    require!(rfq.commit_ttl_secs > 0, RfqError::InvalidParams);
+    require!(rfq.reveal_ttl_secs > 0, RfqError::InvalidParams);
+    require!(rfq.selection_ttl_secs > 0, RfqError::InvalidParams);
+    require!(rfq.fund_ttl_secs > 0, RfqError::InvalidParams);
+
+    rfq.opened_at = Some(now);
     rfq.state = RfqState::Open;
     Ok(())
 }

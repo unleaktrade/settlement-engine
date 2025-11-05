@@ -10,7 +10,7 @@ use crate::instructions::{
     close_config, init_config,
     rfq::{
         cancel_rfq, close_aborted, close_expired, close_ignored, init_rfq, mark_committed,
-        mark_funded, mark_revealed, open_rfq, select_quote, settle_rfq,
+        mark_funded, mark_revealed, open_rfq, select_quote, settle_rfq, update_rfq,
     },
     update_config,
 };
@@ -20,7 +20,7 @@ use instructions::{
     rfq::{
         cancel_rfq::*, close_aborted::*, close_expired::*, close_ignored::*, init_rfq::*,
         mark_committed::*, mark_funded::*, mark_revealed::*, open_rfq::*, select_quote::*,
-        settle_rfq::*,
+        settle_rfq::*, update_rfq::*,
     },
     update_config::*,
 };
@@ -81,6 +81,34 @@ pub mod settlement_engine {
             reveal_ttl_secs,
             selection_ttl_secs,
             fund_ttl_secs,
+        )
+    }
+
+    pub fn update_rfq(
+        ctx: Context<UpdateRfq>,
+        new_base_mint: Option<Pubkey>,
+        new_quote_mint: Option<Pubkey>,
+        new_bond_amount: Option<u64>,
+        new_base_amount: Option<u64>,
+        new_min_quote_amount: Option<u64>,
+        new_taker_fee_usdc: Option<u64>,
+        new_commit_ttl_secs: Option<u32>,
+        new_reveal_ttl_secs: Option<u32>,
+        new_selection_ttl_secs: Option<u32>,
+        new_fund_ttl_secs: Option<u32>,
+    ) -> Result<()> {
+        update_rfq::handler(
+            ctx,
+            new_base_mint,
+            new_quote_mint,
+            new_bond_amount,
+            new_base_amount,
+            new_min_quote_amount,
+            new_taker_fee_usdc,
+            new_commit_ttl_secs,
+            new_reveal_ttl_secs,
+            new_selection_ttl_secs,
+            new_fund_ttl_secs,
         )
     }
 

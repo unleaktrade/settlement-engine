@@ -22,6 +22,8 @@ pub enum RfqError {
     NoSelection,
     #[msg("Nothing to close or claim")] 
     NothingToClose,
+    #[msg("Invalid parameters")]
+    InvalidParams,
     #[msg("Invalid Bond Vault account")] 
     InvalidBondVault,
     #[msg("Invalid Bond Amount")] 
@@ -31,5 +33,5 @@ pub enum RfqError {
     #[msg("Invalid Base Amount")] 
     InvalidBaseAmount,
     #[msg("Invalid Min Quote Amount")] 
-    InvalidMinQuoteAmount
+    InvalidMinQuoteAmount,
 }

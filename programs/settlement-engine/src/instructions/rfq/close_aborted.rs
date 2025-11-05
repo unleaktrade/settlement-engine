@@ -13,7 +13,7 @@ pub fn handler(ctx: Context<CloseAborted>) -> Result<()> {
     let rfq = &mut ctx.accounts.rfq;
     require!(matches!(rfq.state, RfqState::Selected | RfqState::Funded), RfqError::InvalidState);
 
-    let Some(deadline) = rfq.funding_deadline() else { return err!(RfqError::InvalidState); };
+    let deadline = rfq.funding_deadline().ok_or(RfqError::InvalidState)?;
     require!(now > deadline, RfqError::TooEarly);
 
     rfq.state = RfqState::Aborted;
