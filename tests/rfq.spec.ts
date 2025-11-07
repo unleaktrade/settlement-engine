@@ -494,5 +494,49 @@ describe("RFQ::initRfq", () => {
         expect(rfq.state).to.have.property('open');
         assert.ok(rfq.state.open);
         expect(rfq.state.draft, "state should be open, not draft").to.be.undefined;
+
+        // Should fail to re-open
+        let failed = false;
+        try {
+            await program.methods
+                .openRfq()
+                .accounts({
+                    maker: maker.publicKey,
+                    rfq: rfqAddr,
+                    config: configPda,
+                })
+                .signers([maker])
+                .rpc();
+        } catch {
+            failed = true;
+        }
+        assert(failed, "re-open an existing RFQ should fail");
+
+        // Should fail to update after opened
+        failed = false;
+        try {
+            await program.methods
+                .updateRfq(
+                quoteMint, // flip base/quote mints
+                baseMint,
+                new anchor.BN(1_000_001),
+                new anchor.BN(1_000_000_001),
+                new anchor.BN(1_000_000_001),
+                new anchor.BN(1_001),
+                commitTTL + 1,
+                revealTTL + 1,
+                selectionTTL + 1,
+                null //skip funding TTL update
+            )
+            .accounts({
+                maker: maker.publicKey,
+                rfq: rfqAddr,
+            })
+            .signers([maker])
+            .rpc();
+        } catch {
+            failed = true;
+        }
+        assert(failed, "update on opened RFQ should fail");
     });
 });
