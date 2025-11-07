@@ -74,10 +74,10 @@ pub fn handler(
     require!(min_quote_amount > 0, RfqError::InvalidMinQuoteAmount);
 
     // Lifetime invariants
-    require!(commit_ttl_secs > 0, RfqError::InvalidParams);
-    require!(reveal_ttl_secs > 0, RfqError::InvalidParams);
-    require!(selection_ttl_secs > 0, RfqError::InvalidParams);
-    require!(fund_ttl_secs > 0, RfqError::InvalidParams);
+    require!(commit_ttl_secs > 0, RfqError::InvalidCommitTTL);
+    require!(reveal_ttl_secs > 0, RfqError::InvalidRevealTTL);
+    require!(selection_ttl_secs > 0, RfqError::InvalidSelectionTTL);
+    require!(fund_ttl_secs > 0, RfqError::InvalidFundingTTL);
     
     
     // --- Initialize RFQ -----------------------------------------------------

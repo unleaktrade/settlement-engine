@@ -34,4 +34,12 @@ pub enum RfqError {
     InvalidBaseAmount,
     #[msg("Invalid Min Quote Amount")] 
     InvalidMinQuoteAmount,
+    #[msg("Invalid TTL for Commit phase")] 
+    InvalidCommitTTL,
+    #[msg("Invalid TTL for Reveal phase")] 
+    InvalidRevealTTL,
+    #[msg("Invalid TTL for Selection phase")] 
+    InvalidSelectionTTL,
+    #[msg("Invalid TTL for Funding phase")] 
+    InvalidFundingTTL,
 }
