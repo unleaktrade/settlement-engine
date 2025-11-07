@@ -517,26 +517,88 @@ describe("RFQ::initRfq", () => {
         try {
             await program.methods
                 .updateRfq(
-                quoteMint, // flip base/quote mints
+                    quoteMint, // flip base/quote mints
+                    baseMint,
+                    new anchor.BN(1_000_001),
+                    new anchor.BN(1_000_000_001),
+                    new anchor.BN(1_000_000_001),
+                    new anchor.BN(1_001),
+                    commitTTL + 1,
+                    revealTTL + 1,
+                    selectionTTL + 1,
+                    null //skip funding TTL update
+                )
+                .accounts({
+                    maker: maker.publicKey,
+                    rfq: rfqAddr,
+                })
+                .signers([maker])
+                .rpc();
+        } catch {
+            failed = true;
+        }
+        assert(failed, "update on opened RFQ should fail");
+    });
+
+    it("should close RFQ", async () => {
+        const maker = Keypair.generate();
+        await fund(maker);
+
+        const u = uuidBytes();
+        const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
+
+        const bondsVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
+
+        const baseMint = Keypair.generate().publicKey;
+        const quoteMint = Keypair.generate().publicKey;
+
+        console.log("maker:", maker.publicKey.toBase58());
+        console.log("rfqAddr:", rfqAddr.toBase58());
+        console.log("bondsVault:", bondsVault.toBase58());
+        console.log("baseMint:", baseMint.toBase58());
+        console.log("quoteMint:", quoteMint.toBase58());
+
+        const commitTTL = 60, revealTTL = 60, selectionTTL = 60, fundingTTL = 60;
+
+        await program.methods
+            .initRfq(
+                Array.from(u),
                 baseMint,
-                new anchor.BN(1_000_001),
-                new anchor.BN(1_000_000_001),
-                new anchor.BN(1_000_000_001),
-                new anchor.BN(1_001),
-                commitTTL + 1,
-                revealTTL + 1,
-                selectionTTL + 1,
-                null //skip funding TTL update
+                quoteMint,
+                new anchor.BN(1_000_000),
+                new anchor.BN(1_000_000_000),
+                new anchor.BN(1_000_000_000),
+                new anchor.BN(1_000),
+                commitTTL,
+                revealTTL,
+                selectionTTL,
+                fundingTTL
             )
+            .accounts({
+                maker: maker.publicKey,
+                config: configPda,
+                usdcMint
+            })
+            .signers([maker])
+            .rpc();
+
+        await program.methods
+            .cancelRfq()
             .accounts({
                 maker: maker.publicKey,
                 rfq: rfqAddr,
             })
             .signers([maker])
             .rpc();
+
+        // Should not be able to fetch the RFQ anymore
+        let failed = false;
+        try {
+            await program.account.rfq.fetch(rfqAddr);
         } catch {
             failed = true;
         }
-        assert(failed, "update on opened RFQ should fail");
+        assert(failed, "RFQ should be cancelled and not fetchable anymore");
+
     });
 });
