@@ -31,5 +31,7 @@ pub fn handler(ctx: Context<OpenRfq>) -> Result<()> {
 
     rfq.opened_at = Some(now);
     rfq.state = RfqState::Open;
+
+    //TODO: deposit bond into bonds_vault ATA
     Ok(())
 }

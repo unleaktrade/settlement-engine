@@ -421,6 +421,78 @@ describe("RFQ::initRfq", () => {
         assert(rfq.bondsVault.equals(bondsVault), "bonds_vault mismatch");
         expect(rfq.state).to.have.property('draft');
         assert.ok(rfq.state.draft);
-        expect(rfq.state.open, "state should be draft, not opened").to.be.undefined;
+        expect(rfq.state.open, "state should be draft, not open").to.be.undefined;
+    });
+
+    it("opens RFQ", async () => {
+        const maker = Keypair.generate();
+        await fund(maker);
+
+        const u = uuidBytes();
+        const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
+
+        const bondsVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
+
+        const baseMint = Keypair.generate().publicKey;
+        const quoteMint = Keypair.generate().publicKey;
+
+        console.log("maker:", maker.publicKey.toBase58());
+        console.log("rfqAddr:", rfqAddr.toBase58());
+        console.log("bondsVault:", bondsVault.toBase58());
+        console.log("baseMint:", baseMint.toBase58());
+        console.log("quoteMint:", quoteMint.toBase58());
+
+        const commitTTL = 60, revealTTL = 60, selectionTTL = 60, fundingTTL = 60;
+
+        await program.methods
+            .initRfq(
+                Array.from(u),
+                baseMint,
+                quoteMint,
+                new anchor.BN(1_000_000),
+                new anchor.BN(1_000_000_000),
+                new anchor.BN(1_000_000_000),
+                new anchor.BN(1_000),
+                commitTTL,
+                revealTTL,
+                selectionTTL,
+                fundingTTL
+            )
+            .accounts({
+                maker: maker.publicKey,
+                config: configPda,
+                usdcMint
+            })
+            .signers([maker])
+            .rpc();
+
+        await program.methods
+            .openRfq()
+            .accounts({
+                maker: maker.publicKey,
+                rfq: rfqAddr,
+                config: configPda,
+            })
+            .signers([maker])
+            .rpc();
+
+        const rfq = await program.account.rfq.fetch(rfqAddr);
+        assert(rfq.maker.equals(maker.publicKey), "maker mismatch");
+        assert.strictEqual(rfq.bump, bump, "bump mismatch");
+        assert.deepStrictEqual(rfq.uuid, Array.from(u), "uuid mismatch");
+        assert(rfq.baseMint.equals(baseMint), "base mint mismatch");
+        assert(rfq.quoteMint.equals(quoteMint), "quote mint mismatch");
+        assert.ok(new anchor.BN(1_000_000).eq(rfq.bondAmount), "bond amount mismatch");
+        assert.ok(new anchor.BN(1_000_000_000).eq(rfq.baseAmount), "base amount mismatch");
+        assert.ok(new anchor.BN(1_000_000_000).eq(rfq.minQuoteAmount), "min quote amount mismatch");
+        assert.ok(new anchor.BN(1_000).eq(rfq.takerFeeUsdc), "taker fee mismatch");
+        assert.strictEqual(rfq.commitTtlSecs, commitTTL);
+        assert.strictEqual(rfq.revealTtlSecs, revealTTL);
+        assert.strictEqual(rfq.selectionTtlSecs, selectionTTL);
+        assert.strictEqual(rfq.fundTtlSecs, fundingTTL);
+        assert(rfq.bondsVault.equals(bondsVault), "bonds_vault mismatch");
+        expect(rfq.state).to.have.property('open');
+        assert.ok(rfq.state.open);
+        expect(rfq.state.draft, "state should be open, not draft").to.be.undefined;
     });
 });
