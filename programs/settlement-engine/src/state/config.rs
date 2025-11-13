@@ -8,7 +8,8 @@ pub struct Config {
     pub admin: Pubkey,               // admin authority
     pub usdc_mint: Pubkey,           // USDC mint for fees/bonds
     pub treasury_usdc_owner: Pubkey, // treasury USDC owner
-    pub bump: u8,                    // PDA bump
+    pub liquidity_guard: Pubkey, // liquidity guard public key (for ed25519 signatures verification)
+    pub bump: u8,                // PDA bump
 }
 
 impl Config {

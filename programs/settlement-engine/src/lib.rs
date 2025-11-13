@@ -17,8 +17,9 @@ pub mod settlement_engine {
         ctx: Context<InitConfig>,
         usdc_mint: Pubkey,
         treasury_usdc_owner: Pubkey,
+        liquidity_guard: Pubkey,
     ) -> Result<()> {
-        init_config::init_config_handler(ctx, usdc_mint, treasury_usdc_owner)
+        init_config::init_config_handler(ctx, usdc_mint, treasury_usdc_owner, liquidity_guard)
     }
 
     pub fn update_config(
@@ -26,8 +27,15 @@ pub mod settlement_engine {
         new_admin: Option<Pubkey>,
         new_usdc_mint: Option<Pubkey>,
         new_treasury_usdc_owner: Option<Pubkey>,
+        new_liquidity_guard: Option<Pubkey>,
     ) -> Result<()> {
-        update_config::update_config_handler(ctx, new_admin, new_usdc_mint, new_treasury_usdc_owner)
+        update_config::update_config_handler(
+            ctx,
+            new_admin,
+            new_usdc_mint,
+            new_treasury_usdc_owner,
+            new_liquidity_guard,
+        )
     }
 
     pub fn close_config(ctx: Context<CloseConfig>) -> Result<()> {

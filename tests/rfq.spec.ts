@@ -39,26 +39,6 @@ const rfqPda = (maker: PublicKey, u16: Uint8Array) =>
 
 const uuidBytes = () => Uint8Array.from(uuidParse(uuidv4()));
 
-/** Ensure config exists (idempotent) */
-async function ensureConfig(admin: Keypair) {
-    const [configPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("config")],
-        program.programId
-    );
-    try {
-        await program.account.config.fetch(configPda);
-    } catch {
-        const usdcMintPK = Keypair.generate().publicKey; // dummy
-        const treasury = Keypair.generate().publicKey; // dummy
-        await program.methods
-            .initConfig(usdcMintPK, treasury)
-            .accounts({ admin: admin.publicKey })
-            .signers([admin])
-            .rpc();
-    }
-    return configPda;
-}
-
 // --- tests (ONLY initRfq) --------------------------------------------------
 
 describe("RFQ::initRfq", () => {
@@ -89,8 +69,9 @@ describe("RFQ::initRfq", () => {
         } catch { needInit = true; }
         if (needInit) {
             const treasury = Keypair.generate().publicKey;
+            const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
             await program.methods
-                .initConfig(usdcMint, treasury)
+                .initConfig(usdcMint, treasury, liquidityGuard)
                 .accounts({ admin: admin.publicKey })
                 .signers([admin])
                 .rpc();
