@@ -20,7 +20,7 @@ pub struct InitConfig<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(
+pub fn init_config_handler(
     ctx: Context<InitConfig>,
     usdc_mint: Pubkey,
     treasury_usdc_owner: Pubkey,

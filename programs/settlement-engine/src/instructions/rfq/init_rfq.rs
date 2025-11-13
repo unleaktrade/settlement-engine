@@ -44,7 +44,7 @@ pub struct InitRfq<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>, // for ATA initialization
 }
 
-pub fn handler(
+pub fn init_rfq_handler(
     ctx: Context<InitRfq>,
     uuid: [u8; 16],
     base_mint: Pubkey,

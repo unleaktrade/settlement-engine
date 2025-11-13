@@ -10,7 +10,7 @@ pub struct UpdateRfq<'info> {
     pub rfq: Account<'info, Rfq>,
 }
 
-pub fn handler(
+pub fn update_rfq_handler(
     ctx: Context<UpdateRfq>,
     // Option<>s so the maker can patch specific fields
     new_base_mint: Option<Pubkey>,

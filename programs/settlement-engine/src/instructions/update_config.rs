@@ -14,7 +14,7 @@ pub struct UpdateConfig<'info> {
     pub config: Account<'info, Config>,
 }
 
-pub fn handler(
+pub fn update_config_handler(
     ctx: Context<UpdateConfig>,
     new_admin: Option<Pubkey>,
     new_usdc_mint: Option<Pubkey>,

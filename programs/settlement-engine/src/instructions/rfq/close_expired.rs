@@ -8,7 +8,7 @@ pub struct CloseExpired<'info> {
     pub rfq: Account<'info, Rfq>,
 }
 
-pub fn handler(ctx: Context<CloseExpired>) -> Result<()> {
+pub fn close_expired_handler(ctx: Context<CloseExpired>) -> Result<()> {
     let rfq = &mut ctx.accounts.rfq;
 
     // Only pre-selection/funding states can expire

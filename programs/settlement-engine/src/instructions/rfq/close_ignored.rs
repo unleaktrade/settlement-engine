@@ -9,7 +9,7 @@ pub struct CloseIgnored<'info> {
     pub rfq: Account<'info, Rfq>,
 }
 
-pub fn handler(ctx: Context<CloseIgnored>) -> Result<()> {
+pub fn close_ignored_handler(ctx: Context<CloseIgnored>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let rfq = &mut ctx.accounts.rfq;
 

@@ -13,7 +13,7 @@ pub struct OpenRfq<'info> {
     pub config: Account<'info, Config>,
 }
 
-pub fn handler(ctx: Context<OpenRfq>) -> Result<()> {
+pub fn open_rfq_handler(ctx: Context<OpenRfq>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let rfq = &mut ctx.accounts.rfq;
 

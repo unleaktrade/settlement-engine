@@ -11,7 +11,7 @@ pub struct SelectQuote<'info> {
     pub config: Account<'info, Config>,
 }
 
-pub fn handler(ctx: Context<SelectQuote>, quote_key: Pubkey) -> Result<()> {
+pub fn select_quote_handler(ctx: Context<SelectQuote>, quote_key: Pubkey) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let rfq = &mut ctx.accounts.rfq;
     require!(rfq.state == RfqState::Revealed, RfqError::InvalidState);

@@ -8,7 +8,7 @@ pub struct CloseAborted<'info> {
     pub rfq: Account<'info, Rfq>,
 }
 
-pub fn handler(ctx: Context<CloseAborted>) -> Result<()> {
+pub fn close_aborted_handler(ctx: Context<CloseAborted>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let rfq = &mut ctx.accounts.rfq;
     require!(

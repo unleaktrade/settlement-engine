@@ -10,7 +10,7 @@ pub struct CancelRfq<'info> {
     pub rfq: Account<'info, Rfq>,
 }
 
-pub fn handler(ctx: Context<CancelRfq>) -> Result<()> {
+pub fn cancel_rfq_handler(ctx: Context<CancelRfq>) -> Result<()> {
     let rfq = &ctx.accounts.rfq;
     require!(rfq.state == RfqState::Draft, RfqError::InvalidState);
     Ok(())
