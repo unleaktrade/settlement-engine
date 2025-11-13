@@ -30,7 +30,7 @@ const configPda = (programId: PublicKey) =>
   PublicKey.findProgramAddressSync([Buffer.from("config")], programId);
 
 describe("config account", () => {
-  it("init/update/close works with Anchor 0.32 client", async () => {
+  it("init/update/close works", async () => {
     const [cfgPda] = configPda(program.programId);
 
     const admin = Keypair.generate();
@@ -42,10 +42,11 @@ describe("config account", () => {
 
     const usdcMint = Keypair.generate().publicKey; // placeholder mint
     const treasury = Keypair.generate().publicKey;
+    const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
 
     // init_config (admin is both payer and signer)
     await program.methods
-      .initConfig(usdcMint, treasury)
+      .initConfig(usdcMint, treasury, liquidityGuard)
       .accounts({
         admin: admin.publicKey,
       })
@@ -60,7 +61,7 @@ describe("config account", () => {
 
     // update_config (must be signed by current admin)
     await program.methods
-      .updateConfig(newAdmin.publicKey, null, null)
+      .updateConfig(newAdmin.publicKey, null, null, null)
       .accounts({ admin: admin.publicKey, config: cfgPda })
       .signers([admin])
       .rpc();
@@ -69,11 +70,12 @@ describe("config account", () => {
     assert(cfg2.admin.equals(newAdmin.publicKey));
     console.log("rotated admin pubkey:", newAdmin.publicKey.toBase58());
 
-    // rotate mint + treasury with new admin
+    // rotate mint + treasury + liquidity guard with new admin
     const usdcMint2 = Keypair.generate().publicKey;
     const treasury2 = Keypair.generate().publicKey;
+    const liquidityGuard2 = Keypair.generate().publicKey;
     await program.methods
-      .updateConfig(null, usdcMint2, treasury2)
+      .updateConfig(null, usdcMint2, treasury2, liquidityGuard2)
       .accounts({ admin: newAdmin.publicKey, config: cfgPda })
       .signers([newAdmin])
       .rpc();
@@ -81,8 +83,12 @@ describe("config account", () => {
     const cfg3 = await program.account.config.fetch(cfgPda);
     assert(cfg3.usdcMint.equals(usdcMint2));
     assert(cfg3.treasuryUsdcOwner.equals(treasury2));
+    assert(cfg3.treasuryUsdcOwner.equals(treasury2));
+    assert(cfg3.liquidityGuard.equals(liquidityGuard2));
+    assert(!cfg3.liquidityGuard.equals(liquidityGuard));
     console.log("usdc mint:", cfg3.usdcMint.toBase58());
     console.log("treasury:", cfg3.treasuryUsdcOwner.toBase58());
+    console.log("liquidity guard:", cfg3.liquidityGuard.toBase58());
 
     // close_config (must be signed by current admin)
     await program.methods

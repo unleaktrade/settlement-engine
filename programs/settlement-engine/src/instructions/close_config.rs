@@ -18,6 +18,6 @@ pub struct CloseConfig<'info> {
     pub config: Account<'info, Config>,
 }
 
-pub fn handler(_ctx: Context<CloseConfig>) -> Result<()> {
+pub fn close_config_handler(_ctx: Context<CloseConfig>) -> Result<()> {
     Ok(())
 }

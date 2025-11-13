@@ -20,10 +20,11 @@ pub struct InitConfig<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(
+pub fn init_config_handler(
     ctx: Context<InitConfig>,
     usdc_mint: Pubkey,
     treasury_usdc_owner: Pubkey,
+    liquidity_guard: Pubkey,
 ) -> Result<()> {
     let bump = ctx.bumps.config;
     let cfg = &mut ctx.accounts.config;
@@ -31,6 +32,7 @@ pub fn handler(
     cfg.admin = ctx.accounts.admin.key();
     cfg.usdc_mint = usdc_mint;
     cfg.treasury_usdc_owner = treasury_usdc_owner;
+    cfg.liquidity_guard = liquidity_guard;
     cfg.bump = bump;
 
     Ok(())

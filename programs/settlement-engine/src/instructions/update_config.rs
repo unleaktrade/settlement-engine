@@ -14,11 +14,12 @@ pub struct UpdateConfig<'info> {
     pub config: Account<'info, Config>,
 }
 
-pub fn handler(
+pub fn update_config_handler(
     ctx: Context<UpdateConfig>,
     new_admin: Option<Pubkey>,
     new_usdc_mint: Option<Pubkey>,
     new_treasury_usdc_owner: Option<Pubkey>,
+    new_liquidity_guard: Option<Pubkey>,
 ) -> Result<()> {
     let cfg = &mut ctx.accounts.config;
 
@@ -30,6 +31,9 @@ pub fn handler(
     }
     if let Some(v) = new_treasury_usdc_owner {
         cfg.treasury_usdc_owner = v;
+    }
+    if let Some(v) = new_liquidity_guard {
+        cfg.liquidity_guard = v;
     }
 
     Ok(())
