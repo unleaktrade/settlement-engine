@@ -9,8 +9,8 @@ pub use errors::*;
 use crate::instructions::{
     close_config, init_config,
     rfq::{
-        cancel_rfq, close_aborted, close_expired, close_ignored, init_rfq, mark_committed,
-        mark_funded, mark_revealed, open_rfq, select_quote, settle_rfq, update_rfq,
+        cancel_rfq, close_aborted, close_expired, close_ignored, init_rfq, open_rfq, select_quote,
+        settle_rfq, update_rfq,
     },
     update_config,
 };
@@ -19,8 +19,7 @@ use instructions::{
     init_config::*,
     rfq::{
         cancel_rfq::*, close_aborted::*, close_expired::*, close_ignored::*, init_rfq::*,
-        mark_committed::*, mark_funded::*, mark_revealed::*, open_rfq::*, select_quote::*,
-        settle_rfq::*, update_rfq::*,
+        open_rfq::*, select_quote::*, settle_rfq::*, update_rfq::*,
     },
     update_config::*,
 };
@@ -119,19 +118,8 @@ pub mod settlement_engine {
         cancel_rfq::handler(ctx)
     }
 
-    pub fn mark_committed(ctx: Context<MarkCommitted>) -> Result<()> {
-        mark_committed::handler(ctx)
-    }
-    pub fn mark_revealed(ctx: Context<MarkRevealed>) -> Result<()> {
-        mark_revealed::handler(ctx)
-    }
-
     pub fn select_quote(ctx: Context<SelectQuote>, quote_key: Pubkey) -> Result<()> {
         select_quote::handler(ctx, quote_key)
-    }
-
-    pub fn mark_funded(ctx: Context<MarkFunded>, side: mark_funded::FundSide) -> Result<()> {
-        mark_funded::handler(ctx, side)
     }
 
     pub fn settle_rfq(ctx: Context<SettleRfq>) -> Result<()> {

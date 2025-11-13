@@ -1,6 +1,6 @@
-use anchor_lang::prelude::*;
 use crate::state::rfq::{Rfq, RfqState};
 use crate::RfqError;
+use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct UpdateRfq<'info> {
@@ -27,18 +27,46 @@ pub fn handler(
     let rfq = &mut ctx.accounts.rfq;
     require!(rfq.state == RfqState::Draft, RfqError::InvalidState);
 
-    if let Some(v) = new_base_mint { rfq.base_mint = v; }
-    if let Some(v) = new_quote_mint { rfq.quote_mint = v; }
+    if let Some(v) = new_base_mint {
+        rfq.base_mint = v;
+    }
+    if let Some(v) = new_quote_mint {
+        rfq.quote_mint = v;
+    }
 
-    if let Some(v) = new_bond_amount { require!(v > 0, RfqError::InvalidBondAmount); rfq.bond_amount = v; }
-    if let Some(v) = new_base_amount { require!(v > 0, RfqError::InvalidBaseAmount); rfq.base_amount = v; }
-    if let Some(v) = new_min_quote_amount { require!(v > 0, RfqError::InvalidMinQuoteAmount); rfq.min_quote_amount = v; }
-    if let Some(v) = new_taker_fee_usdc { require!(v > 0, RfqError::InvalidFeeAmount); rfq.taker_fee_usdc = v; }
+    if let Some(v) = new_bond_amount {
+        require!(v > 0, RfqError::InvalidBondAmount);
+        rfq.bond_amount = v;
+    }
+    if let Some(v) = new_base_amount {
+        require!(v > 0, RfqError::InvalidBaseAmount);
+        rfq.base_amount = v;
+    }
+    if let Some(v) = new_min_quote_amount {
+        require!(v > 0, RfqError::InvalidMinQuoteAmount);
+        rfq.min_quote_amount = v;
+    }
+    if let Some(v) = new_taker_fee_usdc {
+        require!(v > 0, RfqError::InvalidFeeAmount);
+        rfq.taker_fee_usdc = v;
+    }
 
-    if let Some(v) = new_commit_ttl_secs { require!(v > 0, RfqError::InvalidCommitTTL); rfq.commit_ttl_secs = v; }
-    if let Some(v) = new_reveal_ttl_secs { require!(v > 0, RfqError::InvalidRevealTTL); rfq.reveal_ttl_secs = v; }
-    if let Some(v) = new_selection_ttl_secs { require!(v > 0, RfqError::InvalidSelectionTTL); rfq.selection_ttl_secs = v; }
-    if let Some(v) = new_fund_ttl_secs { require!(v > 0, RfqError::InvalidFundingTTL); rfq.fund_ttl_secs = v; }
+    if let Some(v) = new_commit_ttl_secs {
+        require!(v > 0, RfqError::InvalidCommitTTL);
+        rfq.commit_ttl_secs = v;
+    }
+    if let Some(v) = new_reveal_ttl_secs {
+        require!(v > 0, RfqError::InvalidRevealTTL);
+        rfq.reveal_ttl_secs = v;
+    }
+    if let Some(v) = new_selection_ttl_secs {
+        require!(v > 0, RfqError::InvalidSelectionTTL);
+        rfq.selection_ttl_secs = v;
+    }
+    if let Some(v) = new_fund_ttl_secs {
+        require!(v > 0, RfqError::InvalidFundingTTL);
+        rfq.fund_ttl_secs = v;
+    }
 
     Ok(())
 }

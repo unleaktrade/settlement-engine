@@ -1,7 +1,7 @@
 // programs/settlement-engine/src/instructions/rfq/close_ignored.rs
-use anchor_lang::prelude::*;
 use crate::state::rfq::{Rfq, RfqState};
 use crate::RfqError;
+use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct CloseIgnored<'info> {

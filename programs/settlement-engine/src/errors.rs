@@ -2,44 +2,44 @@ use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum EngineError {
-    #[msg("Unauthorized: only admin can perform this action")] 
+    #[msg("Unauthorized: only admin can perform this action")]
     Unauthorized,
 }
 
 #[error_code]
 pub enum RfqError {
-    #[msg("Invalid RFQ state for this instruction")] 
+    #[msg("Invalid RFQ state for this instruction")]
     InvalidState,
-    #[msg("Deadline has not been reached yet")] 
+    #[msg("Deadline has not been reached yet")]
     TooEarly,
-    #[msg("Deadline passed")] 
+    #[msg("Deadline passed")]
     TooLate,
-    #[msg("Unauthorized caller for this action")] 
+    #[msg("Unauthorized caller for this action")]
     Unauthorized,
-    #[msg("RFQ already has a selected quote")] 
+    #[msg("RFQ already has a selected quote")]
     AlreadySelected,
-    #[msg("No quote selected")] 
+    #[msg("No quote selected")]
     NoSelection,
-    #[msg("Nothing to close or claim")] 
+    #[msg("Nothing to close or claim")]
     NothingToClose,
     #[msg("Invalid parameters")]
     InvalidParams,
-    #[msg("Invalid Bond Vault account")] 
+    #[msg("Invalid Bond Vault account")]
     InvalidBondVault,
-    #[msg("Invalid Bond Amount")] 
+    #[msg("Invalid Bond Amount")]
     InvalidBondAmount,
-    #[msg("Invalid Fee Amount")] 
+    #[msg("Invalid Fee Amount")]
     InvalidFeeAmount,
-    #[msg("Invalid Base Amount")] 
+    #[msg("Invalid Base Amount")]
     InvalidBaseAmount,
-    #[msg("Invalid Min Quote Amount")] 
+    #[msg("Invalid Min Quote Amount")]
     InvalidMinQuoteAmount,
-    #[msg("Invalid TTL for Commit phase")] 
+    #[msg("Invalid TTL for Commit phase")]
     InvalidCommitTTL,
-    #[msg("Invalid TTL for Reveal phase")] 
+    #[msg("Invalid TTL for Reveal phase")]
     InvalidRevealTTL,
-    #[msg("Invalid TTL for Selection phase")] 
+    #[msg("Invalid TTL for Selection phase")]
     InvalidSelectionTTL,
-    #[msg("Invalid TTL for Funding phase")] 
+    #[msg("Invalid TTL for Funding phase")]
     InvalidFundingTTL,
 }

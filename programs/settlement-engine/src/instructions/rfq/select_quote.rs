@@ -1,6 +1,6 @@
-use anchor_lang::prelude::*;
 use crate::state::rfq::{Rfq, RfqState};
-use crate::{RfqError, state::config::Config};
+use crate::{state::config::Config, RfqError};
+use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct SelectQuote<'info> {

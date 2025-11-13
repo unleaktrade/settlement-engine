@@ -1,10 +1,13 @@
+use crate::state::{
+    config::Config,
+    rfq::{Rfq, RfqState},
+};
+use crate::RfqError;
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    associated_token::{AssociatedToken, get_associated_token_address},
+    associated_token::{get_associated_token_address, AssociatedToken},
     token::{Mint, Token, TokenAccount},
 };
-use crate::state::{config::Config, rfq::{Rfq, RfqState}};
-use crate::RfqError;
 
 #[derive(Accounts)]
 #[instruction(uuid: [u8; 16])]
@@ -31,7 +34,7 @@ pub struct InitRfq<'info> {
     #[account(
         init_if_needed,
         payer = maker,
-        associated_token::mint = usdc_mint,       
+        associated_token::mint = usdc_mint,
         associated_token::authority = rfq,
     )]
     pub bonds_vault: Account<'info, TokenAccount>,
@@ -56,18 +59,18 @@ pub fn handler(
     fund_ttl_secs: u32,
 ) -> Result<()> {
     let bump = ctx.bumps.rfq;
-    
+
     // --- Optional runtime check (defense-in-depth) -------------------------
     // Ensure the passed `bonds_vault` really is the ATA(owner=rfq, mint=USDC).
     // This is redundant with the account constraint but makes intent explicit.
     let expected_vault =
-    get_associated_token_address(&ctx.accounts.rfq.key(), &ctx.accounts.config.usdc_mint);
+        get_associated_token_address(&ctx.accounts.rfq.key(), &ctx.accounts.config.usdc_mint);
     require_keys_eq!(
         ctx.accounts.bonds_vault.key(),
         expected_vault,
         RfqError::InvalidBondVault
     );
-    
+
     require!(bond_amount > 0, RfqError::InvalidBondAmount);
     require!(taker_fee_usdc > 0, RfqError::InvalidFeeAmount);
     require!(base_amount > 0, RfqError::InvalidBaseAmount);
@@ -78,15 +81,14 @@ pub fn handler(
     require!(reveal_ttl_secs > 0, RfqError::InvalidRevealTTL);
     require!(selection_ttl_secs > 0, RfqError::InvalidSelectionTTL);
     require!(fund_ttl_secs > 0, RfqError::InvalidFundingTTL);
-    
-    
+
     // --- Initialize RFQ -----------------------------------------------------
     let rfq = &mut ctx.accounts.rfq;
     rfq.config = ctx.accounts.config.key();
     rfq.maker = ctx.accounts.maker.key();
     rfq.uuid = uuid;
     rfq.state = RfqState::Draft;
-    
+
     // assets & economics
     rfq.base_mint = base_mint;
     rfq.quote_mint = quote_mint;
@@ -94,19 +96,19 @@ pub fn handler(
     rfq.base_amount = base_amount;
     rfq.min_quote_amount = min_quote_amount;
     rfq.taker_fee_usdc = taker_fee_usdc;
-    
+
     // ttls
     rfq.commit_ttl_secs = commit_ttl_secs;
     rfq.reveal_ttl_secs = reveal_ttl_secs;
     rfq.selection_ttl_secs = selection_ttl_secs;
     rfq.fund_ttl_secs = fund_ttl_secs;
-    
+
     let now = Clock::get()?.unix_timestamp;
     // clocks
     rfq.created_at = now;
     rfq.opened_at = None;
     rfq.selected_at = None;
-    
+
     rfq.bump = bump;
 
     rfq.committed_count = 0;
