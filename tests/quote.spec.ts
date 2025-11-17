@@ -162,7 +162,7 @@ describe("QUOTE", () => {
             fee_amount_usdc: new anchor.BN(1_000).toString(),
         };
 
-        const response = await fetchJson<CheckResponse>(`${liquidityGuardURL}/check`, {
+        const response = await fetchJson<CheckResult>(`${liquidityGuardURL}/check`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -170,20 +170,24 @@ describe("QUOTE", () => {
             body: JSON.stringify(payload),
         });
 
-        console.log("Liquidity Guard response:", response);
-        assert(response.rfq === rfqPDA.toBase58(), `unexpected rfq ${response.rfq}`);
-        assert(response.salt === Buffer.from(salt).toString("hex"), `unexpected salt ${response.salt}`);
-        assert(response.taker === taker.publicKey.toBase58(), `unexpected taker ${response.taker}`);
-        assert(response.quote_mint === quoteMint.toBase58(), `unexpected quote mint ${response.quote_mint}`);
-        assert(response.quote_amount === "1000000000", `unexpected quote amount ${response.quote_amount}`);
-        assert(response.bond_amount_usdc === "1000000", `unexpected bond amount ${response.bond_amount_usdc}`);
-        assert(response.fee_amount_usdc === "1000", `unexpected fee amount ${response.fee_amount_usdc}`);
-        assert(response.service_pubkey === liquidityGuard.toBase58(), `unexpected service pubkey ${response.service_pubkey}`);
-        assert(response.commit_hash.length > 0, `empty commit_hash`);
-        assert(response.service_signature.length > 0, `empty service_signature`);
-        assert(response.network === 'Devnet', `unexpected network: ${response.network}`);
-        assert(response.skip_fund_checks === true, `unexpected skip_fund_checks: ${response.skip_fund_checks}`);
-        assert(response.timestamp > 0, `invalid timestamp: ${response.timestamp}`);
+        if ("error" in response) {
+            throw new Error(`Liquidity Guard error: ${response.error}`);
+        } else {
+            console.log("Liquidity Guard response:", response);
+            assert(response.rfq === rfqPDA.toBase58(), `unexpected rfq ${response.rfq}`);
+            assert(response.salt === Buffer.from(salt).toString("hex"), `unexpected salt ${response.salt}`);
+            assert(response.taker === taker.publicKey.toBase58(), `unexpected taker ${response.taker}`);
+            assert(response.quote_mint === quoteMint.toBase58(), `unexpected quote mint ${response.quote_mint}`);
+            assert(response.quote_amount === "1000000000", `unexpected quote amount ${response.quote_amount}`);
+            assert(response.bond_amount_usdc === "1000000", `unexpected bond amount ${response.bond_amount_usdc}`);
+            assert(response.fee_amount_usdc === "1000", `unexpected fee amount ${response.fee_amount_usdc}`);
+            assert(response.service_pubkey === liquidityGuard.toBase58(), `unexpected service pubkey ${response.service_pubkey}`);
+            assert(response.commit_hash.length > 0, `empty commit_hash`);
+            assert(response.service_signature.length > 0, `empty service_signature`);
+            assert(response.network === 'Devnet', `unexpected network: ${response.network}`);
+            assert(response.skip_fund_checks === true, `unexpected skip_fund_checks: ${response.skip_fund_checks}`);
+            assert(response.timestamp > 0, `invalid timestamp: ${response.timestamp}`);
+        }
     });
 });
 
@@ -208,6 +212,7 @@ export interface ErrorResponse {
     error: string;
 }
 
+type CheckResult = CheckResponse | ErrorResponse;
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
     const res = await fetch(url, init);
