@@ -1,4 +1,5 @@
 import * as anchor from "@coral-xyz/anchor";
+import nacl from "tweetnacl";
 import { Program } from "@coral-xyz/anchor";
 import { SettlementEngine } from "../target/types/settlement_engine";
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
@@ -10,8 +11,6 @@ import {
 } from "@solana/spl-token";
 import { v4 as uuidv4, parse as uuidParse } from "uuid";
 import assert from "assert";
-import { expect } from "chai";
-import { config } from "process";
 
 anchor.setProvider(anchor.AnchorProvider.env());
 const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -46,10 +45,17 @@ const liquidityGuardURL = "https://liquidity-guard-devnet-skip-c644b6411603.hero
 describe("QUOTE", () => {
     const admin = Keypair.generate();
     const maker = Keypair.generate();
+    const baseMint = Keypair.generate().publicKey;
+    const quoteMint = Keypair.generate().publicKey;
+
+    const commitTTL = 3, revealTTL = 3, selectionTTL = 3, fundingTTL = 3;
+
+    const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
 
     let configPda: PublicKey;
     let usdcMint: PublicKey;
     let rfqPDA: PublicKey;
+    let rfqBump: number;
 
     before(async () => {
         await fund(admin);
@@ -77,7 +83,6 @@ describe("QUOTE", () => {
         } catch { needInit = true; }
         if (needInit) {
             const treasury = Keypair.generate().publicKey;
-            const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
             await program.methods
                 .initConfig(usdcMint, treasury, liquidityGuard)
                 .accounts({ admin: admin.publicKey })
@@ -86,21 +91,16 @@ describe("QUOTE", () => {
         }
 
         const u = uuidBytes();
-        const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
-
+        [rfqPDA, rfqBump] = rfqPda(maker.publicKey, u);
 
         needInit = false;
         try {
-            await program.account.rfq.fetch(rfqAddr);
+            await program.account.rfq.fetch(rfqPDA);
         } catch { needInit = true; }
         if (needInit) {
             // bonds_vault = ATA(owner = rfq PDA, mint = usdcMint)
-            const bondsVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
+            const bondsVault = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
 
-            const baseMint = Keypair.generate().publicKey;
-            const quoteMint = Keypair.generate().publicKey;
-
-            const commitTTL = 3, revealTTL = 3, selectionTTL = 3, fundingTTL = 3;
             await program.methods
                 .initRfq(
                     Array.from(u),
@@ -124,7 +124,7 @@ describe("QUOTE", () => {
                 .rpc();
         }
 
-        console.log("RFQ PDA:", rfqAddr.toBase58());
+        console.log("RFQ PDA:", rfqPDA.toBase58());
 
     });
 
@@ -136,8 +136,88 @@ describe("QUOTE", () => {
             .rpc();
     });
 
-    it("commits a quote", async () => {
+    it("should check a quote", async () => {
         const taker = Keypair.generate();
         await fund(taker);
+        console.log("Taker:", taker.publicKey.toBase58());
+
+        // sign RFQ id
+        const rfq = Buffer.from(rfqPDA.toBytes());
+        const salt = nacl.sign.detached(rfq, taker.secretKey);
+        console.log("salt:", Buffer.from(salt).toString("hex"));
+        const isValid = nacl.sign.detached.verify(
+            rfq,
+            salt,
+            taker.publicKey.toBytes()
+        );
+        assert(isValid, "signature failed to verify");
+
+        const payload = {
+            rfq: rfqPDA.toBase58(),
+            taker: taker.publicKey.toBase58(),
+            salt: Buffer.from(salt).toString("hex"),
+            quote_mint: quoteMint.toBase58(),
+            quote_amount: new anchor.BN(1_000_000_000).toString(),
+            bond_amount_usdc: new anchor.BN(1_000_000).toString(),
+            fee_amount_usdc: new anchor.BN(1_000).toString(),
+        };
+
+        const response = await fetchJson<CheckResponse>(`${liquidityGuardURL}/check`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+        });
+
+        console.log("Liquidity Guard response:", response);
+        assert(response.rfq === rfqPDA.toBase58(), `unexpected rfq ${response.rfq}`);
+        assert(response.salt === Buffer.from(salt).toString("hex"), `unexpected salt ${response.salt}`);
+        assert(response.taker === taker.publicKey.toBase58(), `unexpected taker ${response.taker}`);
+        assert(response.quote_mint === quoteMint.toBase58(), `unexpected quote mint ${response.quote_mint}`);
+        assert(response.quote_amount === "1000000000", `unexpected quote amount ${response.quote_amount}`);
+        assert(response.bond_amount_usdc === "1000000", `unexpected bond amount ${response.bond_amount_usdc}`);
+        assert(response.fee_amount_usdc === "1000", `unexpected fee amount ${response.fee_amount_usdc}`);
+        assert(response.service_pubkey === liquidityGuard.toBase58(), `unexpected service pubkey ${response.service_pubkey}`);
+        assert(response.commit_hash.length > 0, `empty commit_hash`);
+        assert(response.service_signature.length > 0, `empty service_signature`);
+        assert(response.network === 'Devnet', `unexpected network: ${response.network}`);
+        assert(response.skip_fund_checks === true, `unexpected skip_fund_checks: ${response.skip_fund_checks}`);
+        assert(response.timestamp > 0, `invalid timestamp: ${response.timestamp}`);
     });
 });
+
+export interface CheckResponse {
+    rfq: string;
+    salt: string;
+    taker: string;
+    usdc_mint: string;
+    quote_mint: string;
+    quote_amount: string;
+    bond_amount_usdc: string;
+    fee_amount_usdc: string;
+    service_pubkey: string;
+    commit_hash: string;
+    service_signature: string;
+    network: string;
+    skip_fund_checks: boolean;
+    timestamp: number;
+}
+
+export interface ErrorResponse {
+    error: string;
+}
+
+
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+    const res = await fetch(url, init);
+
+    if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(
+            `HTTP ${res.status}: ${JSON.stringify(errBody, null, 2)}`
+        );
+    }
+
+    return res.json() as Promise<T>;
+}
