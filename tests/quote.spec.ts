@@ -124,6 +124,15 @@ describe("QUOTE", () => {
                 .rpc();
         }
 
+        await program.methods.openRfq()
+            .accounts({
+                maker: maker.publicKey,
+                rfq: rfqPDA,
+                config: configPda,
+            })
+            .signers([maker])
+            .rpc();
+
         console.log("RFQ PDA:", rfqPDA.toBase58());
 
     });
@@ -136,17 +145,17 @@ describe("QUOTE", () => {
             .rpc();
     });
 
-    it("should check a quote", async () => {
+    it("should check a quote from liquidity guard", async () => {
         const taker = Keypair.generate();
         await fund(taker);
         console.log("Taker:", taker.publicKey.toBase58());
 
         // sign RFQ id
-        const rfq = Buffer.from(rfqPDA.toBytes());
-        const salt = nacl.sign.detached(rfq, taker.secretKey);
+        const rfqAddr = Buffer.from(rfqPDA.toBytes());
+        const salt = nacl.sign.detached(rfqAddr, taker.secretKey);
         console.log("salt:", Buffer.from(salt).toString("hex"));
         const isValid = nacl.sign.detached.verify(
-            rfq,
+            rfqAddr,
             salt,
             taker.publicKey.toBytes()
         );
@@ -183,11 +192,101 @@ describe("QUOTE", () => {
             assert(response.fee_amount_usdc === "1000", `unexpected fee amount ${response.fee_amount_usdc}`);
             assert(response.service_pubkey === liquidityGuard.toBase58(), `unexpected service pubkey ${response.service_pubkey}`);
             assert(response.commit_hash.length > 0, `empty commit_hash`);
-            assert(response.service_signature.length > 0, `empty service_signature`);
+            assert(response.liquidity_proof.length > 0, `empty liquidity_proof`);
             assert(response.network === 'Devnet', `unexpected network: ${response.network}`);
             assert(response.skip_fund_checks === true, `unexpected skip_fund_checks: ${response.skip_fund_checks}`);
             assert(response.timestamp > 0, `invalid timestamp: ${response.timestamp}`);
         }
+    });
+
+    it("should commit a quote", async () => {
+        const taker = Keypair.generate();
+        await fund(taker);
+        console.log("Taker:", taker.publicKey.toBase58());
+
+        // sign RFQ id
+        const rfqAddr = Buffer.from(rfqPDA.toBytes());
+        const salt = nacl.sign.detached(rfqAddr, taker.secretKey);
+        console.log("salt:", Buffer.from(salt).toString("hex"));
+        const isValid = nacl.sign.detached.verify(
+            rfqAddr,
+            salt,
+            taker.publicKey.toBytes()
+        );
+        assert(isValid, "signature failed to verify");
+
+        const payload = {
+            rfq: rfqPDA.toBase58(),
+            taker: taker.publicKey.toBase58(),
+            salt: Buffer.from(salt).toString("hex"),
+            quote_mint: quoteMint.toBase58(),
+            quote_amount: new anchor.BN(1_000_000_000).toString(),
+            bond_amount_usdc: new anchor.BN(1_000_000).toString(),
+            fee_amount_usdc: new anchor.BN(1_000).toString(),
+        };
+
+        const response = await fetchJson<CheckResult>(`${liquidityGuardURL}/check`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+        });
+
+        if ("error" in response) {
+            throw new Error(`Liquidity Guard error: ${response.error}`);
+        } else {
+            console.log("Liquidity Guard response:", response);
+            assert(response.rfq === rfqPDA.toBase58(), `unexpected rfq ${response.rfq}`);
+            assert(response.salt === Buffer.from(salt).toString("hex"), `unexpected salt ${response.salt}`);
+            assert(response.taker === taker.publicKey.toBase58(), `unexpected taker ${response.taker}`);
+            assert(response.commit_hash.length > 0, `empty commit_hash`);
+            assert(response.liquidity_proof.length > 0, `empty liquidity_proof`);
+        }
+
+        const rfq = await program.account.rfq.fetch(rfqPDA);
+        assert.ok(rfq.state.open);
+
+        const commit_hash = Buffer.from(response.commit_hash, "hex");
+        const liquidity_proof = Buffer.from(response.liquidity_proof, "hex");
+
+        await program.methods
+            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
+            .accounts({
+                taker: taker.publicKey,
+                config: configPda,
+                rfq: rfqPDA,
+                usdcMint: usdcMint,
+            })
+            .signers([taker])
+            .rpc();
+
+        const commited_rfq = await program.account.rfq.fetch(rfqPDA);
+        assert.ok(commited_rfq.state.committed);
+
+        const [quotePda, bumpQuote] = PublicKey.findProgramAddressSync(
+            [Buffer.from("quote"), rfqPDA.toBuffer(), taker.publicKey.toBuffer()],
+            program.programId
+        );
+        console.log("Quote PDA:", quotePda.toBase58());
+
+        const quote = await program.account.quote.fetch(quotePda);
+        assert(quote.taker.equals(taker.publicKey));
+        assert(quote.rfq.equals(rfqPDA));
+        assert.deepStrictEqual(quote.commitHash, Array.from(commit_hash));
+        assert.deepStrictEqual(quote.liquidityProof, Array.from(liquidity_proof));
+        assert.ok(quote.committedAt.toNumber() > 0);
+        assert.strictEqual(quote.bump, bumpQuote, "quote bump mismatch");
+
+        const [commitGuardPda, bumpCommit] = PublicKey.findProgramAddressSync(
+            [Buffer.from("commit-guard"), commit_hash],
+            program.programId
+        );
+        console.log("Commit Guard PDA:", commitGuardPda.toBase58());
+
+        const commitGuard = await program.account.commitGuard.fetch(commitGuardPda);
+        assert.strictEqual(commitGuard.bump, bumpCommit, "commit guard bump mismatch");
+        assert.ok(commitGuard.committedAt.eq(quote.committedAt), "committedAt mismatch");
     });
 });
 
@@ -202,7 +301,7 @@ export interface CheckResponse {
     fee_amount_usdc: string;
     service_pubkey: string;
     commit_hash: string;
-    service_signature: string;
+    liquidity_proof: string;
     network: string;
     skip_fund_checks: boolean;
     timestamp: number;
