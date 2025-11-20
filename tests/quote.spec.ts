@@ -48,7 +48,7 @@ describe("QUOTE", () => {
     const baseMint = Keypair.generate().publicKey;
     const quoteMint = Keypair.generate().publicKey;
 
-    const commitTTL = 3, revealTTL = 3, selectionTTL = 3, fundingTTL = 3;
+    const commitTTL = 30, revealTTL = 30, selectionTTL = 30, fundingTTL = 30;
 
     const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
 
@@ -287,6 +287,44 @@ describe("QUOTE", () => {
         const commitGuard = await program.account.commitGuard.fetch(commitGuardPda);
         assert.strictEqual(commitGuard.bump, bumpCommit, "commit guard bump mismatch");
         assert.ok(commitGuard.committedAt.eq(quote.committedAt), "committedAt mismatch");
+
+        // test commit guard prevents re-use of hash
+        const taker2 = Keypair.generate();
+        await fund(taker2);
+        console.log("Taker2:", taker2.publicKey.toBase58());
+        let failed = false;
+        try {
+            await program.methods
+                .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
+                .accounts({
+                    taker: taker2.publicKey,
+                    config: configPda,
+                    rfq: rfqPDA,
+                    usdcMint: usdcMint,
+                })
+                .signers([taker2])
+                .rpc();
+        } catch {
+            failed = true;
+        }
+        assert(failed, "commit-guard / commit quote with same hash should fail");
+
+        failed = false;
+        try {
+            await program.methods
+                .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
+                .accounts({
+                    taker: taker.publicKey,
+                    config: configPda,
+                    rfq: rfqPDA,
+                    usdcMint: usdcMint,
+                })
+                .signers([taker])
+                .rpc();
+        } catch {
+            failed = true;
+        }
+        assert(failed, "same taker should not commit quote twice");
     });
 });
 
