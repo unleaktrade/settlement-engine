@@ -2,6 +2,9 @@ use anchor_lang::prelude::*;
 // use anchor_spl::{
 //     token::{self, Mint, Token, TokenAccount, Transfer},
 // };
+use anchor_lang::solana_program::sysvar::instructions::{
+    load_current_index_checked, load_instruction_at_checked, ID as INSTRUCTIONS_ID,
+};
 use anchor_spl::token::Mint;
 
 use crate::{
@@ -10,7 +13,7 @@ use crate::{
         quote::*,
         rfq::{Rfq, RfqState},
     },
-    RfqError,
+    QuoteError, RfqError,
 };
 
 #[derive(Accounts)]
@@ -71,6 +74,10 @@ pub struct CommitQuote<'info> {
 
     /// Needed because we `init` PDAs (quote, commit_guard)
     pub system_program: Program<'info, System>,
+
+    /// CHECK: Address asserted to be the instructions sysvar
+    #[account(address = INSTRUCTIONS_ID)]
+    pub instruction_sysvar: AccountInfo<'info>,
 }
 
 pub fn commit_quote_handler(
@@ -78,6 +85,17 @@ pub fn commit_quote_handler(
     commit_hash: [u8; 32],
     liquidity_proof: [u8; 64],
 ) -> Result<()> {
+    // Verify preflighted Ed25519 signature
+    // Safely get prior instruction
+    let current_index = load_current_index_checked(&ctx.accounts.instruction_sysvar)?;
+    let prev_index = current_index
+        .checked_sub(1)
+        .ok_or(QuoteError::NoEd25519Instruction)?;
+    let ed25519_ix =
+        load_instruction_at_checked(prev_index as usize, &ctx.accounts.instruction_sysvar)?;
+    msg!("Prev ix program_id: {}", ed25519_ix.program_id);
+
+    // Process Commit Quote
     let now = Clock::get()?.unix_timestamp;
     let rfq = &mut ctx.accounts.rfq;
 
@@ -89,7 +107,7 @@ pub fn commit_quote_handler(
     let Some(commit_deadline) = rfq.commit_deadline() else {
         return err!(RfqError::InvalidState);
     };
-    require!(now <= commit_deadline, RfqError::TooLate);
+    require!(now <= commit_deadline, QuoteError::CommitTooLate);
 
     // let bond_amount = rfq.bond_amount;
     // require!(bond_amount > 0, RfqError::InvalidState);

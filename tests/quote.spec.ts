@@ -249,6 +249,8 @@ describe("QUOTE", () => {
 
         const commit_hash = Buffer.from(response.commit_hash, "hex");
         const liquidity_proof = Buffer.from(response.liquidity_proof, "hex");
+        if (commit_hash.length !== 32) throw new Error("commit_hash must be 32 bytes");
+        if (liquidity_proof.length !== 64) throw new Error("liquidity_proof sig must be 64 bytes");
 
         await program.methods
             .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
@@ -257,6 +259,7 @@ describe("QUOTE", () => {
                 config: configPda,
                 rfq: rfqPDA,
                 usdcMint: usdcMint,
+                instruction_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
             })
             .signers([taker])
             .rpc();
@@ -301,6 +304,7 @@ describe("QUOTE", () => {
                     config: configPda,
                     rfq: rfqPDA,
                     usdcMint: usdcMint,
+                    instruction_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
                 })
                 .signers([taker2])
                 .rpc();
@@ -318,6 +322,7 @@ describe("QUOTE", () => {
                     config: configPda,
                     rfq: rfqPDA,
                     usdcMint: usdcMint,
+                    instruction_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
                 })
                 .signers([taker])
                 .rpc();
