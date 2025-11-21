@@ -11,6 +11,7 @@ import {
 } from "@solana/spl-token";
 import { v4 as uuidv4, parse as uuidParse } from "uuid";
 import assert from "assert";
+import { error } from "console";
 
 anchor.setProvider(anchor.AnchorProvider.env());
 const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -318,37 +319,43 @@ describe("QUOTE", () => {
         const taker2 = Keypair.generate();
         await fund(taker2);
         console.log("Taker2:", taker2.publicKey.toBase58());
+        const commitQuoteIx2 = await program.methods
+            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
+            .accounts({
+                taker: taker2.publicKey,
+                config: configPda,
+                rfq: rfqPDA,
+                usdcMint: usdcMint,
+                instruction_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+            }).instruction();
+
+        const tx2 = new anchor.web3.Transaction();
+        tx2.add(ed25519Ix);
+        tx2.add(commitQuoteIx2);
         let failed = false;
         try {
-            await program.methods
-                .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
-                .accounts({
-                    taker: taker2.publicKey,
-                    config: configPda,
-                    rfq: rfqPDA,
-                    usdcMint: usdcMint,
-                    instruction_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
-                })
-                .signers([taker2])
-                .rpc();
+            await provider.sendAndConfirm(tx2, [taker2], { skipPreflight: false });
         } catch {
             failed = true;
         }
         assert(failed, "commit-guard / commit quote with same hash should fail");
 
         failed = false;
+        const commitQuoteIx3 = await program.methods
+            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
+            .accounts({
+                taker: taker.publicKey,
+                config: configPda,
+                rfq: rfqPDA,
+                usdcMint: usdcMint,
+                instruction_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+            }).instruction();
+
+        const tx3 = new anchor.web3.Transaction();
+        tx3.add(ed25519Ix);
+        tx3.add(commitQuoteIx3);
         try {
-            await program.methods
-                .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
-                .accounts({
-                    taker: taker.publicKey,
-                    config: configPda,
-                    rfq: rfqPDA,
-                    usdcMint: usdcMint,
-                    instruction_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
-                })
-                .signers([taker])
-                .rpc();
+            await provider.sendAndConfirm(tx3, [taker], { skipPreflight: false });
         } catch {
             failed = true;
         }
