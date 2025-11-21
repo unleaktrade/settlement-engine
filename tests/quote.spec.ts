@@ -361,6 +361,79 @@ describe("QUOTE", () => {
         }
         assert(failed, "same taker should not commit quote twice");
     });
+
+    it("should fail committing quote with invalid liquidity proof", async () => {
+        const taker = Keypair.generate();
+        await fund(taker);
+        console.log("Taker:", taker.publicKey.toBase58());
+        // sign RFQ id
+        const rfqAddr = Buffer.from(rfqPDA.toBytes());
+        const salt = nacl.sign.detached(rfqAddr, taker.secretKey);
+        console.log("salt:", Buffer.from(salt).toString("hex"));
+
+        const payload = {
+            rfq: rfqPDA.toBase58(),
+            taker: taker.publicKey.toBase58(),
+            salt: Buffer.from(salt).toString("hex"),
+            quote_mint: quoteMint.toBase58(),
+            quote_amount: new anchor.BN(1_000_000_000).toString(),
+            bond_amount_usdc: new anchor.BN(1_000_000).toString(),
+            fee_amount_usdc: new anchor.BN(1_000).toString(),
+        };
+        const response = await fetchJson<CheckResult>(`${liquidityGuardURL}/check`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+        });
+
+        if ("error" in response) {
+            throw new Error(`Liquidity Guard error: ${response.error}`);
+        }
+
+        const rfq = await program.account.rfq.fetch(rfqPDA);
+        assert.ok(rfq.state.committed); // it was committed in previous test
+
+        const commit_hash = Buffer.from(response.commit_hash, "hex");
+        const liquidity_proof = Buffer.from(response.liquidity_proof, "hex");
+        if (commit_hash.length !== 32) throw new Error("commit_hash must be 32 bytes");
+        if (liquidity_proof.length !== 64) throw new Error("liquidity_proof sig must be 64 bytes");
+        liquidity_proof[0] ^= 0xFF; // invalidate proof
+        liquidity_proof[1] ^= 0xFF; // invalidate proof
+
+        // Create Ed25519 verification instruction using the helper
+        const ed25519Ix = Ed25519Program.createInstructionWithPublicKey({
+            publicKey: liquidityGuard.toBytes(),
+            message: commit_hash,
+            signature: liquidity_proof,
+        });
+
+        const commitQuoteIx1 = await program.methods
+            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
+            .accounts({
+                taker: taker.publicKey,
+                config: configPda,
+                rfq: rfqPDA,
+                usdcMint: usdcMint,
+                instruction_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+            })
+            .instruction();
+
+        const tx = new anchor.web3.Transaction();
+        // Add ONLY these two instructions, in this exact order:
+        tx.add(ed25519Ix);
+        tx.add(commitQuoteIx1);
+
+        let failed = false;
+        try {
+            await provider.sendAndConfirm(tx, [taker], { skipPreflight: false });
+        } catch {
+            failed = true;
+        }
+        assert(failed, "commitQuote with invalid liquidity proof should fail");
+
+    });
 });
 
 export interface CheckResponse {
