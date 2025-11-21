@@ -2,7 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import nacl from "tweetnacl";
 import { Program } from "@coral-xyz/anchor";
 import { SettlementEngine } from "../target/types/settlement_engine";
-import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
+import { Ed25519Program, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import {
     createMint,
     getAssociatedTokenAddressSync,
@@ -252,7 +252,22 @@ describe("QUOTE", () => {
         if (commit_hash.length !== 32) throw new Error("commit_hash must be 32 bytes");
         if (liquidity_proof.length !== 64) throw new Error("liquidity_proof sig must be 64 bytes");
 
-        await program.methods
+        // Create Ed25519 verification instruction using the helper
+        const ed25519Ix = Ed25519Program.createInstructionWithPublicKey({
+            publicKey: liquidityGuard.toBytes(),
+            message: commit_hash,
+            signature: liquidity_proof,
+        });
+
+        // Peek at the data to confirm offsets (little‑endian u16 fields)
+        const data = ed25519Ix.data;
+        const sigOffset = data.readUInt16LE(2);
+        const pubkeyOffset = data.readUInt16LE(6);
+        const msgOffset = data.readUInt16LE(10);
+        const msgSize = data.readUInt16LE(12);
+        console.log('OFFSETS:', { sigOffset, pubkeyOffset, msgOffset, msgSize });
+
+        const commitQuoteIx1 = await program.methods
             .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
             .accounts({
                 taker: taker.publicKey,
@@ -261,8 +276,16 @@ describe("QUOTE", () => {
                 usdcMint: usdcMint,
                 instruction_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
             })
-            .signers([taker])
-            .rpc();
+            .instruction();
+
+        const tx = new anchor.web3.Transaction();
+        // Add ONLY these two instructions, in this exact order:
+        tx.add(ed25519Ix);
+        tx.add(commitQuoteIx1);
+
+        // Send and confirm
+        const txSig = await provider.sendAndConfirm(tx, [taker], { skipPreflight: false });
+        console.log("Transaction signature:", txSig);
 
         const commited_rfq = await program.account.rfq.fetch(rfqPDA);
         assert.ok(commited_rfq.state.committed);
