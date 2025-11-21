@@ -95,6 +95,76 @@ pub fn commit_quote_handler(
         load_instruction_at_checked(prev_index as usize, &ctx.accounts.instruction_sysvar)?;
     msg!("Prev ix program_id: {}", ed25519_ix.program_id);
 
+    // Must be native Ed25519
+    let expected = Pubkey::from_str_const("Ed25519SigVerify111111111111111111111111111");
+    require_keys_eq!(
+        ed25519_ix.program_id,
+        expected,
+        QuoteError::InvalidEd25519Program
+    );
+
+    // Parse Ed25519 instruction
+    let data = &ed25519_ix.data;
+    require!(data.len() >= 112, QuoteError::InvalidEd25519Data);
+    require!(data[0] == 1, QuoteError::InvalidSignatureCount);
+
+    let sig_offset = u16::from_le_bytes([data[2], data[3]]) as usize;
+    let sig_ix_index = u16::from_le_bytes([data[4], data[5]]);
+    let pubkey_offset = u16::from_le_bytes([data[6], data[7]]) as usize;
+    let pubkey_ix_index = u16::from_le_bytes([data[8], data[9]]);
+    let msg_offset = u16::from_le_bytes([data[10], data[11]]) as usize;
+    let msg_size = u16::from_le_bytes([data[12], data[13]]) as usize;
+    let msg_ix_index = u16::from_le_bytes([data[14], data[15]]);
+
+    msg!("sig_ix_index={}", sig_ix_index);
+    msg!("pubkey_ix_index={}", pubkey_ix_index);
+    msg!("msg_ix_index={}", msg_ix_index);
+    msg!("sig_offset={}", sig_offset);
+    msg!("pubkey_offset={}", pubkey_offset);
+    msg!("msg_offset={}", msg_offset);
+    msg!("msg_size={}", msg_size);
+
+    // Enforce same-instruction sourcing (prevents cross-instruction substitution)
+    require!(sig_ix_index == 0xFFFF, QuoteError::InvalidOffset);
+    require!(pubkey_ix_index == 0xFFFF, QuoteError::InvalidOffset);
+    require!(msg_ix_index == 0xFFFF, QuoteError::InvalidOffset);
+    require!(msg_size == 32, QuoteError::InvalidMessageSize);
+
+    // Bounds
+    require!(
+        data.len().saturating_sub(sig_offset) >= 64,
+        QuoteError::InvalidEd25519Data
+    );
+    require!(
+        data.len().saturating_sub(pubkey_offset) >= 32,
+        QuoteError::InvalidEd25519Data
+    );
+    require!(
+        data.len().saturating_sub(msg_offset) >= 32,
+        QuoteError::InvalidEd25519Data
+    );
+
+    // Authorized Liquidity Guard signer check
+    let pubkey_bytes = &data[pubkey_offset..pubkey_offset + 32];
+    require!(
+        pubkey_bytes == ctx.accounts.config.liquidity_guard.as_ref(),
+        QuoteError::UnauthorizedSigner
+    );
+
+    // Bind exact 32-byte message
+    let verified_hash_slice = &data[msg_offset..msg_offset + 32];
+    require!(
+        verified_hash_slice == &commit_hash,
+        QuoteError::CommitHashMismatch
+    );
+
+    // Bind exact 64-byte signature (liquidity_proof)
+    let verified_signature_slice = &data[sig_offset..sig_offset + 64];
+    require!(
+        verified_signature_slice == &liquidity_proof,
+        QuoteError::LiquidityProofSignatureMismatch
+    );
+
     // Process Commit Quote
     let now = Clock::get()?.unix_timestamp;
     let rfq = &mut ctx.accounts.rfq;

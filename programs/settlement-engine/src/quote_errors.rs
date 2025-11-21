@@ -8,7 +8,6 @@ pub enum EngineError {
 
 #[error_code]
 pub enum QuoteError {
-
     #[msg("Commit Deadline passed")]
     CommitTooLate,
     #[msg("No Ed25519 instruction found")]
@@ -23,8 +22,10 @@ pub enum QuoteError {
     InvalidOffset,
     #[msg("Invalid message size")]
     InvalidMessageSize,
-    #[msg("Unauthorized signer - not the expected public key")]
+    #[msg("Unauthorized liquidity guard signer - not the expected public key")]
     UnauthorizedSigner,
-    #[msg("Message hash mismatch")]
-    MessageHashMismatch,
+    #[msg("Commit hash mismatch")]
+    CommitHashMismatch,
+    #[msg("Liquidity proof signature mismatch")]
+    LiquidityProofSignatureMismatch,
 }

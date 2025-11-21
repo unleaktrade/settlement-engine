@@ -362,7 +362,7 @@ describe("QUOTE", () => {
         assert(failed, "same taker should not commit quote twice");
     });
 
-    it("should fail committing quote with invalid liquidity proof", async () => {
+    it("should fail committing quote with invalid liquidity proof (invalid ED25519 signature)", async () => {
         const taker = Keypair.generate();
         await fund(taker);
         console.log("Taker:", taker.publicKey.toBase58());
@@ -421,7 +421,6 @@ describe("QUOTE", () => {
             .instruction();
 
         const tx = new anchor.web3.Transaction();
-        // Add ONLY these two instructions, in this exact order:
         tx.add(ed25519Ix);
         tx.add(commitQuoteIx1);
 
@@ -432,7 +431,6 @@ describe("QUOTE", () => {
             failed = true;
         }
         assert(failed, "commitQuote with invalid liquidity proof should fail");
-
     });
 });
 
