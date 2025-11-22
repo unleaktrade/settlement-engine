@@ -49,7 +49,7 @@ describe("QUOTE", () => {
     const baseMint = Keypair.generate().publicKey;
     const quoteMint = Keypair.generate().publicKey;
 
-    const commitTTL = 30, revealTTL = 30, selectionTTL = 30, fundingTTL = 30;
+    const commitTTL = 5, revealTTL = 5, selectionTTL = 5, fundingTTL = 5;
 
     const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
 
