@@ -15,6 +15,7 @@ pub struct Quote {
     pub committed_at: i64,
     pub revealed_at: Option<i64>,
     pub is_valid: bool,
+    pub quote_amount: Option<u64>,
 
     pub bump: u8,
 }

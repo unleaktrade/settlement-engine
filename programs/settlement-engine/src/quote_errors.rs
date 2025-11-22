@@ -34,4 +34,6 @@ pub enum QuoteError {
     LiquidityProofSignatureMismatch,
     #[msg("Quote amount is invalid (too low)")]
     InvalidQuoteAmount,
+    #[msg("Quote has already been revealed")]
+    QuoteAlreadyRevealed,
 }

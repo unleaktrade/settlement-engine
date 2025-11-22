@@ -12,6 +12,7 @@ import {
 import { v4 as uuidv4, parse as uuidParse } from "uuid";
 import assert from "assert";
 import { error } from "console";
+import { config } from "process";
 
 anchor.setProvider(anchor.AnchorProvider.env());
 const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -57,6 +58,7 @@ describe("QUOTE", () => {
     let usdcMint: PublicKey;
     let rfqPDA: PublicKey;
     let rfqBump: number;
+    let validTaker: Keypair;
 
     before(async () => {
         await fund(admin);
@@ -305,6 +307,7 @@ describe("QUOTE", () => {
         assert.ok(quote.committedAt.toNumber() > 0);
         assert(quote.isValid === false, "quote should not be valid before reveal");
         assert(quote.revealedAt === null, "revealedAt should be None before reveal");
+        assert(quote.quoteAmount === null, "quoteAmount should be None before reveal");
         assert.strictEqual(quote.bump, bumpQuote, "quote bump mismatch");
 
         const [commitGuardPda, bumpCommit] = PublicKey.findProgramAddressSync(
@@ -316,6 +319,8 @@ describe("QUOTE", () => {
         const commitGuard = await program.account.commitGuard.fetch(commitGuardPda);
         assert.strictEqual(commitGuard.bump, bumpCommit, "commit guard bump mismatch");
         assert.ok(commitGuard.committedAt.eq(quote.committedAt), "committedAt mismatch");
+        // save valid taker for reveal test
+        validTaker = taker;
 
         // test commit guard prevents re-use of hash
         const taker2 = Keypair.generate();
@@ -433,6 +438,31 @@ describe("QUOTE", () => {
             failed = true;
         }
         assert(failed, "commitQuote with invalid liquidity proof should fail");
+    });
+
+    it("should reveal a quote", async () => {
+        const taker = validTaker;
+        const [quotePda, bumpQuote] = PublicKey.findProgramAddressSync(
+            [Buffer.from("quote"), rfqPDA.toBuffer(), taker.publicKey.toBuffer()],
+            program.programId
+        );
+        console.log("Quote PDA:", quotePda.toBase58());
+
+        const rfqAddr = Buffer.from(rfqPDA.toBytes());
+        const salt = nacl.sign.detached(rfqAddr, taker.secretKey);
+        console.log("salt:", Buffer.from(salt).toString("hex"));
+        const isValid = nacl.sign.detached.verify(
+            rfqAddr,
+            salt,
+            taker.publicKey.toBytes()
+        );
+        assert(isValid, "signature failed to verify");
+
+        await program.methods
+            .revealQuote(Array.from(salt), new anchor.BN(1_000_000_000))
+            .accounts({ rfq: rfqPDA, quote: quotePda, taker: taker.publicKey, config: configPda })
+            .signers([taker])
+            .rpc();
     });
 });
 

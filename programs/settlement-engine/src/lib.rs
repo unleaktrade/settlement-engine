@@ -118,6 +118,14 @@ pub mod settlement_engine {
         commit_quote::commit_quote_handler(ctx, commit_hash, liquidity_proof)
     }
 
+    pub fn reveal_quote(
+        ctx: Context<RevealQuote>,
+        salt: [u8; 64],
+        quote_amount: u64,
+    ) -> Result<()> {
+        reveal_quote::reveal_quote_handler(ctx, salt, quote_amount)
+    }
+
     // pub fn select_quote(ctx: Context<SelectQuote>, quote_key: Pubkey) -> Result<()> {
     //     select_quote::select_quote_handler(ctx, quote_key)
     // }

@@ -208,6 +208,7 @@ pub fn commit_quote_handler(
     quote.committed_at = now;
     quote.revealed_at = None;
     quote.is_valid = false;
+    quote.quote_amount = None; // to be filled on reveal
 
     rfq.state = RfqState::Committed;
     rfq.committed_count = rfq.committed_count.saturating_add(1);
