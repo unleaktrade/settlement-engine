@@ -41,7 +41,7 @@ const uuidBytes = () => Uint8Array.from(uuidParse(uuidv4()));
 
 // --- tests (ONLY initRfq) --------------------------------------------------
 
-describe("RFQ::initRfq", () => {
+describe("RFQ", () => {
     const admin = Keypair.generate();
     let configPda: PublicKey;
     let usdcMint: PublicKey;
@@ -76,6 +76,14 @@ describe("RFQ::initRfq", () => {
                 .signers([admin])
                 .rpc();
         }
+    });
+
+    after(async () => {
+        await program.methods
+            .closeConfig()
+            .accounts({ admin: admin.publicKey, config: configPda })
+            .signers([admin])
+            .rpc();
     });
 
     it("creates RFQ PDA with uuid and stores fields", async () => {

@@ -1,5 +1,5 @@
 use crate::state::config::Config;
-use crate::EngineError;
+use crate::RfqError;
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
@@ -9,7 +9,7 @@ pub struct UpdateConfig<'info> {
         mut,
         seeds = [Config::SEED_PREFIX],
         bump = config.bump,
-        has_one = admin @ EngineError::Unauthorized,
+        has_one = admin @ RfqError::Unauthorized,
     )]
     pub config: Account<'info, Config>,
 }

@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 use crate::state::config::Config;
-use crate::EngineError;
+use crate::RfqError;
 
 #[derive(Accounts)]
 pub struct CloseConfig<'info> {
@@ -13,7 +13,7 @@ pub struct CloseConfig<'info> {
         close = admin,                    // rent refund to admin
         seeds = [Config::SEED_PREFIX],
         bump = config.bump,
-        has_one = admin @ EngineError::Unauthorized,
+        has_one = admin @ RfqError::Unauthorized,
     )]
     pub config: Account<'info, Config>,
 }
