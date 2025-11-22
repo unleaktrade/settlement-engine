@@ -206,6 +206,8 @@ pub fn commit_quote_handler(
     quote.commit_hash = commit_hash;
     quote.liquidity_proof = liquidity_proof;
     quote.committed_at = now;
+    quote.revealed_at = None;
+    quote.is_valid = false;
 
     rfq.state = RfqState::Committed;
     rfq.committed_count = rfq.committed_count.saturating_add(1);

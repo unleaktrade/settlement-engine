@@ -95,7 +95,7 @@ pub fn init_rfq_handler(
     rfq.bond_amount = bond_amount;
     rfq.base_amount = base_amount;
     rfq.min_quote_amount = min_quote_amount;
-    rfq.taker_fee_usdc = taker_fee_usdc;
+    rfq.fee_amount = taker_fee_usdc;
 
     // ttls
     rfq.commit_ttl_secs = commit_ttl_secs;

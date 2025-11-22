@@ -132,7 +132,7 @@ describe("RFQ", () => {
         assert.ok(new anchor.BN(1_000_000).eq(rfq.bondAmount), "bond amount mismatch");
         assert.ok(new anchor.BN(1_000_000_000).eq(rfq.baseAmount), "base amount mismatch");
         assert.ok(new anchor.BN(1_000_000_000).eq(rfq.minQuoteAmount), "min quote amount mismatch");
-        assert.ok(new anchor.BN(1_000).eq(rfq.takerFeeUsdc), "taker fee mismatch");
+        assert.ok(new anchor.BN(1_000).eq(rfq.feeAmount), "taker fee mismatch");
         assert.strictEqual(rfq.commitTtlSecs, commitTTL);
         assert.strictEqual(rfq.revealTtlSecs, revealTTL);
         assert.strictEqual(rfq.selectionTtlSecs, selectionTTL);
@@ -402,7 +402,7 @@ describe("RFQ", () => {
         assert.ok(new anchor.BN(1_000_001).eq(rfq.bondAmount), "bond amount mismatch");
         assert.ok(new anchor.BN(1_000_000_001).eq(rfq.baseAmount), "base amount mismatch");
         assert.ok(new anchor.BN(1_000_000_001).eq(rfq.minQuoteAmount), "min quote amount mismatch");
-        assert.ok(new anchor.BN(1_001).eq(rfq.takerFeeUsdc), "taker fee mismatch");
+        assert.ok(new anchor.BN(1_001).eq(rfq.feeAmount), "taker fee mismatch");
         assert.strictEqual(rfq.commitTtlSecs, commitTTL + 1);
         assert.strictEqual(rfq.revealTtlSecs, revealTTL + 1);
         assert.strictEqual(rfq.selectionTtlSecs, selectionTTL + 1);
@@ -474,7 +474,7 @@ describe("RFQ", () => {
         assert.ok(new anchor.BN(1_000_000).eq(rfq.bondAmount), "bond amount mismatch");
         assert.ok(new anchor.BN(1_000_000_000).eq(rfq.baseAmount), "base amount mismatch");
         assert.ok(new anchor.BN(1_000_000_000).eq(rfq.minQuoteAmount), "min quote amount mismatch");
-        assert.ok(new anchor.BN(1_000).eq(rfq.takerFeeUsdc), "taker fee mismatch");
+        assert.ok(new anchor.BN(1_000).eq(rfq.feeAmount), "taker fee mismatch");
         assert.strictEqual(rfq.commitTtlSecs, commitTTL);
         assert.strictEqual(rfq.revealTtlSecs, revealTTL);
         assert.strictEqual(rfq.selectionTtlSecs, selectionTTL);

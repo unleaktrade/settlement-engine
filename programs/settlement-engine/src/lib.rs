@@ -1,11 +1,11 @@
 use anchor_lang::prelude::*;
-use rfq_errors::*;
-use quote_errors::*;
 use instructions::*;
+use quote_errors::*;
+use rfq_errors::*;
 
-pub mod rfq_errors;
-pub mod quote_errors;
 pub mod instructions;
+pub mod quote_errors;
+pub mod rfq_errors;
 pub mod state;
 
 // Program ID

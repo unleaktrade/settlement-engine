@@ -10,6 +10,10 @@ pub enum EngineError {
 pub enum QuoteError {
     #[msg("Commit Deadline passed")]
     CommitTooLate,
+    #[msg("Reveal Deadline passed")]
+    RevealTooLate,
+    #[msg("Reveal attempted too early")]
+    RevealTooEarly,
     #[msg("No Ed25519 instruction found")]
     NoEd25519Instruction,
     #[msg("Invalid Ed25519 program ID")]
@@ -28,4 +32,6 @@ pub enum QuoteError {
     CommitHashMismatch,
     #[msg("Liquidity proof signature mismatch")]
     LiquidityProofSignatureMismatch,
+    #[msg("Quote amount is invalid (too low)")]
+    InvalidQuoteAmount,
 }

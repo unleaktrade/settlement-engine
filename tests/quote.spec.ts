@@ -303,6 +303,8 @@ describe("QUOTE", () => {
         assert.deepStrictEqual(quote.commitHash, Array.from(commit_hash));
         assert.deepStrictEqual(quote.liquidityProof, Array.from(liquidity_proof));
         assert.ok(quote.committedAt.toNumber() > 0);
+        assert(quote.isValid === false, "quote should not be valid before reveal");
+        assert(quote.revealedAt === null, "revealedAt should be None before reveal");
         assert.strictEqual(quote.bump, bumpQuote, "quote bump mismatch");
 
         const [commitGuardPda, bumpCommit] = PublicKey.findProgramAddressSync(

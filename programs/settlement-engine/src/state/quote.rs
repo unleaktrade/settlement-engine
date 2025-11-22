@@ -13,6 +13,8 @@ pub struct Quote {
     pub commit_hash: [u8; 32],
     pub liquidity_proof: [u8; 64],
     pub committed_at: i64,
+    pub revealed_at: Option<i64>,
+    pub is_valid: bool,
 
     pub bump: u8,
 }
