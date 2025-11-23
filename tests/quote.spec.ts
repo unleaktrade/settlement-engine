@@ -11,8 +11,6 @@ import {
 } from "@solana/spl-token";
 import { v4 as uuidv4, parse as uuidParse } from "uuid";
 import assert from "assert";
-import { error } from "console";
-import { config } from "process";
 
 anchor.setProvider(anchor.AnchorProvider.env());
 const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -169,7 +167,7 @@ describe("QUOTE", () => {
             taker: taker.publicKey.toBase58(),
             salt: Buffer.from(salt).toString("hex"),
             quote_mint: quoteMint.toBase58(),
-            quote_amount: new anchor.BN(1_000_000_000).toString(),
+            quote_amount: new anchor.BN(1_000_000_001).toString(),
             bond_amount_usdc: new anchor.BN(1_000_000).toString(),
             fee_amount_usdc: new anchor.BN(1_000).toString(),
         };
@@ -190,7 +188,7 @@ describe("QUOTE", () => {
             assert(response.salt === Buffer.from(salt).toString("hex"), `unexpected salt ${response.salt}`);
             assert(response.taker === taker.publicKey.toBase58(), `unexpected taker ${response.taker}`);
             assert(response.quote_mint === quoteMint.toBase58(), `unexpected quote mint ${response.quote_mint}`);
-            assert(response.quote_amount === "1000000000", `unexpected quote amount ${response.quote_amount}`);
+            assert(response.quote_amount === "1000000001", `unexpected quote amount ${response.quote_amount}`);
             assert(response.bond_amount_usdc === "1000000", `unexpected bond amount ${response.bond_amount_usdc}`);
             assert(response.fee_amount_usdc === "1000", `unexpected fee amount ${response.fee_amount_usdc}`);
             assert(response.service_pubkey === liquidityGuard.toBase58(), `unexpected service pubkey ${response.service_pubkey}`);
@@ -223,7 +221,7 @@ describe("QUOTE", () => {
             taker: taker.publicKey.toBase58(),
             salt: Buffer.from(salt).toString("hex"),
             quote_mint: quoteMint.toBase58(),
-            quote_amount: new anchor.BN(1_000_000_000).toString(),
+            quote_amount: new anchor.BN(1_000_000_001).toString(),
             bond_amount_usdc: new anchor.BN(1_000_000).toString(),
             fee_amount_usdc: new anchor.BN(1_000).toString(),
         };
@@ -383,7 +381,7 @@ describe("QUOTE", () => {
             taker: taker.publicKey.toBase58(),
             salt: Buffer.from(salt).toString("hex"),
             quote_mint: quoteMint.toBase58(),
-            quote_amount: new anchor.BN(1_000_000_000).toString(),
+            quote_amount: new anchor.BN(1_000_000_001).toString(),
             bond_amount_usdc: new anchor.BN(1_000_000).toString(),
             fee_amount_usdc: new anchor.BN(1_000).toString(),
         };
@@ -459,10 +457,23 @@ describe("QUOTE", () => {
         assert(isValid, "signature failed to verify");
 
         await program.methods
-            .revealQuote(Array.from(salt), new anchor.BN(1_000_000_000))
+            .revealQuote(Array.from(salt), new anchor.BN(1_000_000_001))
             .accounts({ rfq: rfqPDA, quote: quotePda, taker: taker.publicKey, config: configPda })
             .signers([taker])
             .rpc();
+
+        const [quote, rfq] = await Promise.all([
+            program.account.quote.fetch(quotePda),
+            program.account.rfq.fetch(rfqPDA),
+        ]);
+        assert(quote.taker.equals(taker.publicKey));
+        assert(quote.rfq.equals(rfqPDA));
+        assert.strictEqual(quote.bump, bumpQuote, "quote bump mismatch");
+        assert.ok(quote.isValid, "quote should be valid after reveal");
+        assert.ok(quote.revealedAt.toNumber() > 0, "revealedAt should be set after reveal");
+        assert.ok(quote.quoteAmount.eq(new anchor.BN(1_000_000_001)), "quoteAmount mismatch");
+        assert.ok(rfq.state.revealed);
+        assert.strictEqual(rfq.revealedCount, 1, "rfq revealedCount should be 1");
     });
 });
 
