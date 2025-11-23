@@ -245,7 +245,7 @@ describe("QUOTE", () => {
             assert(response.liquidity_proof.length > 0, `empty liquidity_proof`);
         }
 
-        const rfq = await program.account.rfq.fetch(rfqPDA);
+        let rfq = await program.account.rfq.fetch(rfqPDA);
         assert.ok(rfq.state.open);
 
         const commit_hash = Buffer.from(response.commit_hash, "hex");
@@ -307,6 +307,9 @@ describe("QUOTE", () => {
         assert(quote.revealedAt === null, "revealedAt should be None before reveal");
         assert(quote.quoteAmount === null, "quoteAmount should be None before reveal");
         assert.strictEqual(quote.bump, bumpQuote, "quote bump mismatch");
+
+        rfq = await program.account.rfq.fetch(rfqPDA);
+        assert.strictEqual(rfq.committedCount, 1, "rfq revealedCount should be 1");
 
         const [commitGuardPda, bumpCommit] = PublicKey.findProgramAddressSync(
             [Buffer.from("commit-guard"), commit_hash],
