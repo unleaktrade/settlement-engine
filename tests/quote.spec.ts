@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import nacl from "tweetnacl";
-import { Program } from "@coral-xyz/anchor";
+import { Program, ProgramError } from "@coral-xyz/anchor";
 import { SettlementEngine } from "../target/types/settlement_engine";
 import { Ed25519Program, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import {
@@ -471,6 +471,20 @@ describe("QUOTE", () => {
         }
         assert(failed, "revealQuote should fail before commit deadline");
 
+        failed = false;
+        try {
+            const fakeSalt = salt.slice();
+            fakeSalt[0] ^= 0xFF; // invalidate salt
+            await program.methods
+                .revealQuote(Array.from(fakeSalt), new anchor.BN(1_000_000_001))
+                .accounts({ rfq: rfqPDA, quote: quotePda, taker: taker.publicKey, config: configPda })
+                .signers([taker])
+                .rpc();
+        } catch {
+            failed = true;
+        }
+        assert(failed, "revealQuote should fail with wrong salt");
+
         console.log(`Waiting ${commitTTL} seconds for commit TTL to expire...`);
         await sleep(commitTTL * 1000); // wait until commit TTL passes
         console.log("Reveal period begins...");
@@ -493,6 +507,18 @@ describe("QUOTE", () => {
         assert.ok(quote.quoteAmount.eq(new anchor.BN(1_000_000_001)), "quoteAmount mismatch");
         assert.ok(rfq.state.revealed);
         assert.strictEqual(rfq.revealedCount, 1, "rfq revealedCount should be 1");
+
+        failed = false;
+        try {
+            await program.methods
+                .revealQuote(Array.from(salt), new anchor.BN(1_000_000_001))
+                .accounts({ rfq: rfqPDA, quote: quotePda, taker: taker.publicKey, config: configPda })
+                .signers([taker])
+                .rpc();
+        } catch {
+            failed = true;
+        }
+        assert(failed, "revealQuote should fail because already revealed");
     });
 });
 
