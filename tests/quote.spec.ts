@@ -303,9 +303,8 @@ describe("QUOTE", () => {
         assert.deepStrictEqual(quote.commitHash, Array.from(commit_hash));
         assert.deepStrictEqual(quote.liquidityProof, Array.from(liquidity_proof));
         assert.ok(quote.committedAt.toNumber() > 0);
-        assert(quote.isValid === false, "quote should not be valid before reveal");
-        assert(quote.revealedAt === null, "revealedAt should be None before reveal");
-        assert(quote.quoteAmount === null, "quoteAmount should be None before reveal");
+        assert(quote.revealedAt === null || quote.revealedAt === undefined, "revealedAt should be None before reveal");
+        assert(quote.quoteAmount === null || quote.quoteAmount === null, "quoteAmount should be None before reveal");
         assert.strictEqual(quote.bump, bumpQuote, "quote bump mismatch");
 
         rfq = await program.account.rfq.fetch(rfqPDA);
@@ -502,7 +501,6 @@ describe("QUOTE", () => {
         assert(quote.taker.equals(taker.publicKey));
         assert(quote.rfq.equals(rfqPDA));
         assert.strictEqual(quote.bump, bumpQuote, "quote bump mismatch");
-        assert.ok(quote.isValid, "quote should be valid after reveal");
         assert.ok(quote.revealedAt.toNumber() > 0, "revealedAt should be set after reveal");
         assert.ok(quote.quoteAmount.eq(new anchor.BN(1_000_000_001)), "quoteAmount mismatch");
         assert.ok(rfq.state.revealed);

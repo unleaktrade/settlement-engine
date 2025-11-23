@@ -14,7 +14,6 @@ pub struct Quote {
     pub liquidity_proof: [u8; 64],
     pub committed_at: i64,
     pub revealed_at: Option<i64>,
-    pub is_valid: bool,
     pub quote_amount: Option<u64>,
 
     pub bump: u8,
@@ -22,6 +21,10 @@ pub struct Quote {
 
 impl Quote {
     pub const SEED_PREFIX: &'static [u8] = b"quote";
+
+    pub fn is_valid(&self) -> bool {
+        self.revealed_at.is_some()
+    }
 }
 
 /// Tiny PDA keyed by commit_hash to forbid reuse of the same hash.

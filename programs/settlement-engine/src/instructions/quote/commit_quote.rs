@@ -207,7 +207,6 @@ pub fn commit_quote_handler(
     quote.liquidity_proof = liquidity_proof;
     quote.committed_at = now;
     quote.revealed_at = None;
-    quote.is_valid = false;
     quote.quote_amount = None; // to be filled on reveal
 
     rfq.state = RfqState::Committed;

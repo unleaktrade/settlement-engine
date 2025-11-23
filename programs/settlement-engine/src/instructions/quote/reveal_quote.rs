@@ -98,7 +98,6 @@ pub fn reveal_quote_handler(
     );
 
     // Mark as valid reveal
-    quote.is_valid = true;
     quote.revealed_at = Some(now);
     quote.quote_amount = Some(quote_amount);
 
