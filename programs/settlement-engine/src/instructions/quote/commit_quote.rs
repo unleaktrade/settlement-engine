@@ -90,7 +90,7 @@ pub fn commit_quote_handler(
     let current_index = load_current_index_checked(&ctx.accounts.instruction_sysvar)?;
     let prev_index = current_index
         .checked_sub(1)
-        .ok_or(QuoteError::NoEd25519Instruction)?;
+        .ok_or_else(|| QuoteError::NoEd25519Instruction)?;
     let ed25519_ix =
         load_instruction_at_checked(prev_index as usize, &ctx.accounts.instruction_sysvar)?;
     msg!("Prev ix program_id: {}", ed25519_ix.program_id);
