@@ -48,7 +48,7 @@ pub fn update_rfq_handler(
     }
     if let Some(v) = new_taker_fee_usdc {
         require!(v > 0, RfqError::InvalidFeeAmount);
-        rfq.taker_fee_usdc = v;
+        rfq.fee_amount = v;
     }
 
     if let Some(v) = new_commit_ttl_secs {

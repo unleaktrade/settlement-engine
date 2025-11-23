@@ -1,9 +1,11 @@
 use anchor_lang::prelude::*;
-use errors::*;
 use instructions::*;
+use quote_errors::*;
+use rfq_errors::*;
 
-pub mod errors;
 pub mod instructions;
+pub mod quote_errors;
+pub mod rfq_errors;
 pub mod state;
 
 // Program ID
@@ -108,21 +110,37 @@ pub mod settlement_engine {
         cancel_rfq::cancel_rfq_handler(ctx)
     }
 
-    pub fn select_quote(ctx: Context<SelectQuote>, quote_key: Pubkey) -> Result<()> {
-        select_quote::select_quote_handler(ctx, quote_key)
+    pub fn commit_quote(
+        ctx: Context<CommitQuote>,
+        commit_hash: [u8; 32],
+        liquidity_proof: [u8; 64],
+    ) -> Result<()> {
+        commit_quote::commit_quote_handler(ctx, commit_hash, liquidity_proof)
     }
 
-    pub fn settle_rfq(ctx: Context<SettleRfq>) -> Result<()> {
-        settle_rfq::settle_rfq_handler(ctx)
+    pub fn reveal_quote(
+        ctx: Context<RevealQuote>,
+        salt: [u8; 64],
+        quote_amount: u64,
+    ) -> Result<()> {
+        reveal_quote::reveal_quote_handler(ctx, salt, quote_amount)
     }
 
-    pub fn close_ignored(ctx: Context<CloseIgnored>) -> Result<()> {
-        close_ignored::close_ignored_handler(ctx)
-    }
-    pub fn close_expired(ctx: Context<CloseExpired>) -> Result<()> {
-        close_expired::close_expired_handler(ctx)
-    }
-    pub fn close_aborted(ctx: Context<CloseAborted>) -> Result<()> {
-        close_aborted::close_aborted_handler(ctx)
-    }
+    // pub fn select_quote(ctx: Context<SelectQuote>, quote_key: Pubkey) -> Result<()> {
+    //     select_quote::select_quote_handler(ctx, quote_key)
+    // }
+
+    // pub fn settle_rfq(ctx: Context<SettleRfq>) -> Result<()> {
+    //     settle_rfq::settle_rfq_handler(ctx)
+    // }
+
+    // pub fn close_ignored(ctx: Context<CloseIgnored>) -> Result<()> {
+    //     close_ignored::close_ignored_handler(ctx)
+    // }
+    // pub fn close_expired(ctx: Context<CloseExpired>) -> Result<()> {
+    //     close_expired::close_expired_handler(ctx)
+    // }
+    // pub fn close_aborted(ctx: Context<CloseAborted>) -> Result<()> {
+    //     close_aborted::close_aborted_handler(ctx)
+    // }
 }

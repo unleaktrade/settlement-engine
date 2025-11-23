@@ -14,6 +14,8 @@ pub enum RfqError {
     TooEarly,
     #[msg("Deadline passed")]
     TooLate,
+    #[msg("Commit Deadline passed")]
+    CommitTooLate,
     #[msg("Unauthorized caller for this action")]
     Unauthorized,
     #[msg("RFQ already has a selected quote")]

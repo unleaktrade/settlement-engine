@@ -17,7 +17,7 @@ pub struct Rfq {
     pub bond_amount: u64,      // maker bond in USDC
     pub base_amount: u64,      // exact base tokens maker will deliver
     pub min_quote_amount: u64, // minimum quote taker must deliver
-    pub taker_fee_usdc: u64,   // fixed fee taker pays (USDC)
+    pub fee_amount: u64,       // fixed fee taker pays (USDC)
 
     // TTLs (seconds) – ALL relative to opened_at (not created_at)
     pub commit_ttl_secs: u32,

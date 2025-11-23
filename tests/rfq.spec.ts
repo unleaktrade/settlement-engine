@@ -41,7 +41,7 @@ const uuidBytes = () => Uint8Array.from(uuidParse(uuidv4()));
 
 // --- tests (ONLY initRfq) --------------------------------------------------
 
-describe("RFQ::initRfq", () => {
+describe("RFQ", () => {
     const admin = Keypair.generate();
     let configPda: PublicKey;
     let usdcMint: PublicKey;
@@ -76,6 +76,14 @@ describe("RFQ::initRfq", () => {
                 .signers([admin])
                 .rpc();
         }
+    });
+
+    after(async () => {
+        await program.methods
+            .closeConfig()
+            .accounts({ admin: admin.publicKey, config: configPda })
+            .signers([admin])
+            .rpc();
     });
 
     it("creates RFQ PDA with uuid and stores fields", async () => {
@@ -124,7 +132,7 @@ describe("RFQ::initRfq", () => {
         assert.ok(new anchor.BN(1_000_000).eq(rfq.bondAmount), "bond amount mismatch");
         assert.ok(new anchor.BN(1_000_000_000).eq(rfq.baseAmount), "base amount mismatch");
         assert.ok(new anchor.BN(1_000_000_000).eq(rfq.minQuoteAmount), "min quote amount mismatch");
-        assert.ok(new anchor.BN(1_000).eq(rfq.takerFeeUsdc), "taker fee mismatch");
+        assert.ok(new anchor.BN(1_000).eq(rfq.feeAmount), "taker fee mismatch");
         assert.strictEqual(rfq.commitTtlSecs, commitTTL);
         assert.strictEqual(rfq.revealTtlSecs, revealTTL);
         assert.strictEqual(rfq.selectionTtlSecs, selectionTTL);
@@ -394,7 +402,7 @@ describe("RFQ::initRfq", () => {
         assert.ok(new anchor.BN(1_000_001).eq(rfq.bondAmount), "bond amount mismatch");
         assert.ok(new anchor.BN(1_000_000_001).eq(rfq.baseAmount), "base amount mismatch");
         assert.ok(new anchor.BN(1_000_000_001).eq(rfq.minQuoteAmount), "min quote amount mismatch");
-        assert.ok(new anchor.BN(1_001).eq(rfq.takerFeeUsdc), "taker fee mismatch");
+        assert.ok(new anchor.BN(1_001).eq(rfq.feeAmount), "taker fee mismatch");
         assert.strictEqual(rfq.commitTtlSecs, commitTTL + 1);
         assert.strictEqual(rfq.revealTtlSecs, revealTTL + 1);
         assert.strictEqual(rfq.selectionTtlSecs, selectionTTL + 1);
@@ -466,7 +474,7 @@ describe("RFQ::initRfq", () => {
         assert.ok(new anchor.BN(1_000_000).eq(rfq.bondAmount), "bond amount mismatch");
         assert.ok(new anchor.BN(1_000_000_000).eq(rfq.baseAmount), "base amount mismatch");
         assert.ok(new anchor.BN(1_000_000_000).eq(rfq.minQuoteAmount), "min quote amount mismatch");
-        assert.ok(new anchor.BN(1_000).eq(rfq.takerFeeUsdc), "taker fee mismatch");
+        assert.ok(new anchor.BN(1_000).eq(rfq.feeAmount), "taker fee mismatch");
         assert.strictEqual(rfq.commitTtlSecs, commitTTL);
         assert.strictEqual(rfq.revealTtlSecs, revealTTL);
         assert.strictEqual(rfq.selectionTtlSecs, selectionTTL);

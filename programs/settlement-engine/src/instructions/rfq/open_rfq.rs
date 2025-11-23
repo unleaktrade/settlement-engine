@@ -23,7 +23,7 @@ pub fn open_rfq_handler(ctx: Context<OpenRfq>) -> Result<()> {
     require!(rfq.bond_amount > 0, RfqError::InvalidParams);
     require!(rfq.base_amount > 0, RfqError::InvalidParams);
     require!(rfq.min_quote_amount > 0, RfqError::InvalidParams);
-    require!(rfq.taker_fee_usdc > 0, RfqError::InvalidParams);
+    require!(rfq.fee_amount > 0, RfqError::InvalidParams);
     require!(rfq.commit_ttl_secs > 0, RfqError::InvalidParams);
     require!(rfq.reveal_ttl_secs > 0, RfqError::InvalidParams);
     require!(rfq.selection_ttl_secs > 0, RfqError::InvalidParams);
