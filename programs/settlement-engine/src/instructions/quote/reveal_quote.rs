@@ -56,13 +56,13 @@ pub fn reveal_quote_handler(
         RfqError::InvalidState
     );
 
-    // match (rfq.reveal_deadline(), rfq.commit_deadline()) {
-    //     (Some(reveal_deadline), Some(commit_deadline)) => {
-    //         require!(now <= reveal_deadline, QuoteError::RevealTooLate);
-    //         require!(now >= commit_deadline, QuoteError::RevealTooEarly);
-    //     }
-    //     _ => return err!(RfqError::InvalidState),
-    // }
+    match (rfq.reveal_deadline(), rfq.commit_deadline()) {
+        (Some(reveal_deadline), Some(commit_deadline)) => {
+            require!(now <= reveal_deadline, QuoteError::RevealTooLate);
+            require!(now >= commit_deadline, QuoteError::RevealTooEarly);
+        }
+        _ => return err!(RfqError::InvalidState),
+    }
 
     // Recompute commit_hash EXACTLY the same way liquidity-guard did.
     // This must match the Rust code in:

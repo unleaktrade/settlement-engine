@@ -456,6 +456,22 @@ describe("QUOTE", () => {
         );
         assert(isValid, "signature failed to verify");
 
+        let failed = false;
+        try {
+            await program.methods
+                .revealQuote(Array.from(salt), new anchor.BN(1_000_000_001))
+                .accounts({ rfq: rfqPDA, quote: quotePda, taker: taker.publicKey, config: configPda })
+                .signers([taker])
+                .rpc();
+        } catch {
+            failed = true;
+        }
+        assert(failed, "revealQuote should fail before commit deadline");
+
+        console.log(`Waiting ${commitTTL} seconds for commit TTL to expire...`);
+        await sleep(commitTTL * 1000); // wait until commit TTL passes
+        console.log("Reveal period begins...");
+
         await program.methods
             .revealQuote(Array.from(salt), new anchor.BN(1_000_000_001))
             .accounts({ rfq: rfqPDA, quote: quotePda, taker: taker.publicKey, config: configPda })
@@ -512,3 +528,8 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 
     return res.json() as Promise<T>;
 }
+
+function sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
