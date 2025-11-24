@@ -23,13 +23,25 @@ pub struct Settlement {
     pub created_at: i64,
     pub settled_at: Option<i64>,
 
-    // funding flags
-    pub maker_funded: bool,
-    pub taker_funded: bool,
+    // funding timestamps
+    pub maker_funded_at: Option<i64>,
+    pub taker_funded_at: Option<i64>,
 
     pub bump: u8,
 }
 
 impl Settlement {
     pub const SEED_PREFIX: &'static [u8] = b"settlement";
+
+    pub fn is_complete(&self) -> bool {
+        self.maker_funded() && self.taker_funded() && self.settled_at.is_some()
+    }
+
+    pub fn maker_funded(&self) -> bool {
+        self.maker_funded_at.is_some()
+    }
+
+    pub fn taker_funded(&self) -> bool {
+        self.taker_funded_at.is_some()
+    }
 }
