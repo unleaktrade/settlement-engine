@@ -21,7 +21,7 @@ pub struct SelectQuote<'info> {
     #[account(
         mut,
         has_one = rfq,
-        constraint = quote.is_revealed() @ RfqError::InvalidState,)]
+        constraint = quote.is_revealed() @ QuoteError::InvalidState,)]
     pub quote: Account<'info, Quote>,
 
     #[account(
