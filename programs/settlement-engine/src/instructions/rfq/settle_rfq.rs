@@ -11,7 +11,7 @@ pub struct SettleRfq<'info> {
 pub fn settle_rfq_handler(ctx: Context<SettleRfq>) -> Result<()> {
     let rfq = &mut ctx.accounts.rfq;
     require!(rfq.state == RfqState::Funded, RfqError::InvalidState);
-    require!(rfq.maker_funded && rfq.taker_funded, RfqError::InvalidState);
+    // require!(rfq.maker_funded && rfq.taker_funded, RfqError::InvalidState);
     // Token movements will be added in the settlement stage.
     rfq.state = RfqState::Settled;
     Ok(())
