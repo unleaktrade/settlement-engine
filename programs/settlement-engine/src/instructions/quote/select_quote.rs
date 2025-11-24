@@ -1,6 +1,6 @@
 use crate::state::rfq::{Rfq, RfqState};
 use crate::state::Quote;
-use crate::{state::config::Config, RfqError};
+use crate::{state::config::Config, RfqError, QuoteError};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
@@ -10,12 +10,22 @@ pub struct SelectQuote<'info> {
 
     pub config: Account<'info, Config>,
 
-    #[account(mut, has_one = maker, has_one = config)]
+    #[account(
+        mut, 
+        has_one = maker, 
+        has_one = config,
+        constraint = matches!(rfq.state, RfqState::Revealed) @ RfqError::InvalidState,)]
     pub rfq: Account<'info, Rfq>,
 
-    //@TODO: add constraints
+    #[account(
+        mut,
+        has_one = rfq,
+        constraint = !quote.is_revealed() @ QuoteError::QuoteAlreadyRevealed,
+    )]
     pub quote: Account<'info, Quote>,
     //@TODO: create settlement account
+
+     pub system_program: Program<'info, System>,
 }
 
 pub fn select_quote_handler(ctx: Context<SelectQuote>, quote_key: Pubkey) -> Result<()> {

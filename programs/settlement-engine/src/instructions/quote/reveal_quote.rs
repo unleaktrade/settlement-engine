@@ -46,12 +46,6 @@ pub fn reveal_quote_handler(
     let rfq = &mut ctx.accounts.rfq;
     let quote = &mut ctx.accounts.quote;
 
-    // control if quote is already revealed checking relealed_at
-    // require!(
-    //     quote.revealed_at.is_none(),
-    //     QuoteError::QuoteAlreadyRevealed
-    // );
-
     match (rfq.reveal_deadline(), rfq.commit_deadline()) {
         (Some(reveal_deadline), Some(commit_deadline)) => {
             require!(now <= reveal_deadline, QuoteError::RevealTooLate);
