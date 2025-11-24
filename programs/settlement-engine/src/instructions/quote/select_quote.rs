@@ -1,4 +1,5 @@
 use crate::state::rfq::{Rfq, RfqState};
+use crate::state::Quote;
 use crate::{state::config::Config, RfqError};
 use anchor_lang::prelude::*;
 
@@ -6,9 +7,15 @@ use anchor_lang::prelude::*;
 pub struct SelectQuote<'info> {
     #[account(mut)]
     pub maker: Signer<'info>,
+
+    pub config: Account<'info, Config>,
+
     #[account(mut, has_one = maker, has_one = config)]
     pub rfq: Account<'info, Rfq>,
-    pub config: Account<'info, Config>,
+
+    //@TODO: add constraints
+    pub quote: Account<'info, Quote>,
+    //@TODO: create settlement account
 }
 
 pub fn select_quote_handler(ctx: Context<SelectQuote>, quote_key: Pubkey) -> Result<()> {

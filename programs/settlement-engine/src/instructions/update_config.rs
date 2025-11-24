@@ -5,6 +5,7 @@ use anchor_lang::prelude::*;
 #[derive(Accounts)]
 pub struct UpdateConfig<'info> {
     pub admin: Signer<'info>,
+
     #[account(
         mut,
         seeds = [Config::SEED_PREFIX],
