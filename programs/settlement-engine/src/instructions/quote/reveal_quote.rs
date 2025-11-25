@@ -20,6 +20,7 @@ pub struct RevealQuote<'info> {
     #[account(
         mut,
         has_one = config,
+        constraint = matches!(rfq.state, RfqState::Committed | RfqState::Revealed) @ RfqError::InvalidState,
     )]
     pub rfq: Account<'info, Rfq>,
 
@@ -29,6 +30,7 @@ pub struct RevealQuote<'info> {
         bump = quote.bump,
         has_one = rfq,
         has_one = taker,
+        constraint = !quote.is_revealed() @ QuoteError::QuoteAlreadyRevealed,
     )]
     pub quote: Account<'info, Quote>,
 }
@@ -44,22 +46,10 @@ pub fn reveal_quote_handler(
     let rfq = &mut ctx.accounts.rfq;
     let quote = &mut ctx.accounts.quote;
 
-    // control if quote is already revealed checking relealed_at
-    require!(
-        quote.revealed_at.is_none(),
-        QuoteError::QuoteAlreadyRevealed
-    );
-
-    // RFQ must be in reveal-capable state
-    require!(
-        matches!(rfq.state, RfqState::Committed | RfqState::Revealed),
-        RfqError::InvalidState
-    );
-
     match (rfq.reveal_deadline(), rfq.commit_deadline()) {
         (Some(reveal_deadline), Some(commit_deadline)) => {
             require!(now <= reveal_deadline, QuoteError::RevealTooLate);
-            require!(now >= commit_deadline, QuoteError::RevealTooEarly);
+            require!(now > commit_deadline, QuoteError::RevealTooEarly);
         }
         _ => return err!(RfqError::InvalidState),
     }

@@ -114,8 +114,7 @@ pub fn init_rfq_handler(
     rfq.committed_count = 0;
     rfq.revealed_count = 0;
     rfq.selected_quote = None;
-    rfq.maker_funded = false;
-    rfq.taker_funded = false;
+    rfq.settlement = None;
 
     rfq.bonds_vault = ctx.accounts.bonds_vault.key();
 

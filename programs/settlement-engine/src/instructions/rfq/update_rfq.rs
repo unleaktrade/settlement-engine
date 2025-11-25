@@ -6,7 +6,13 @@ use anchor_lang::prelude::*;
 pub struct UpdateRfq<'info> {
     #[account(mut)]
     pub maker: Signer<'info>,
-    #[account(mut, has_one = maker)]
+
+    #[account(
+        mut,
+        seeds = [Rfq::SEED_PREFIX, maker.key().as_ref(), rfq.uuid.as_ref()],
+        bump = rfq.bump,
+        has_one = maker,
+        constraint = matches!(rfq.state, RfqState::Draft) @ RfqError::InvalidState,)]
     pub rfq: Account<'info, Rfq>,
 }
 
@@ -25,7 +31,6 @@ pub fn update_rfq_handler(
     new_fund_ttl_secs: Option<u32>,
 ) -> Result<()> {
     let rfq = &mut ctx.accounts.rfq;
-    require!(rfq.state == RfqState::Draft, RfqError::InvalidState);
 
     if let Some(v) = new_base_mint {
         rfq.base_mint = v;

@@ -126,9 +126,9 @@ pub mod settlement_engine {
         reveal_quote::reveal_quote_handler(ctx, salt, quote_amount)
     }
 
-    // pub fn select_quote(ctx: Context<SelectQuote>, quote_key: Pubkey) -> Result<()> {
-    //     select_quote::select_quote_handler(ctx, quote_key)
-    // }
+    pub fn select_quote(ctx: Context<SelectQuote>) -> Result<()> {
+        select_quote::select_quote_handler(ctx)
+    }
 
     // pub fn settle_rfq(ctx: Context<SettleRfq>) -> Result<()> {
     //     settle_rfq::settle_rfq_handler(ctx)

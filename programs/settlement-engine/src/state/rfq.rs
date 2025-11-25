@@ -39,8 +39,7 @@ pub struct Rfq {
 
     // selection & funding flags
     pub selected_quote: Option<Pubkey>,
-    pub maker_funded: bool,
-    pub taker_funded: bool,
+    pub settlement: Option<Pubkey>,
 
     // escrow references
     pub bonds_vault: Pubkey, // ATA(owner = rfq PDA, mint = Config.usdc_mint)
@@ -65,6 +64,10 @@ impl Rfq {
 
     pub fn is_draft(&self) -> bool {
         matches!(self.state, RfqState::Draft)
+    }
+
+    pub fn has_selection(&self) -> bool {
+        matches!(self.state, RfqState::Selected) && self.selected_at.is_some()
     }
 
     pub fn opened(&self) -> Option<i64> {
@@ -110,10 +113,5 @@ impl Rfq {
                         + self.fund_ttl_secs) as i64,
             ),
         }
-    }
-
-    /// Convenience for future handlers
-    pub fn quote_meets_floor(&self, q: u64) -> bool {
-        q >= self.min_quote_amount
     }
 }

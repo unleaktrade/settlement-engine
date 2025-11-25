@@ -10,8 +10,6 @@ pub mod init_rfq;
 pub use init_rfq::*;
 pub mod open_rfq;
 pub use open_rfq::*;
-pub mod select_quote;
-pub use select_quote::*;
 pub mod settle_rfq;
 pub use settle_rfq::*;
 pub mod update_rfq;

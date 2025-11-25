@@ -36,4 +36,6 @@ pub enum QuoteError {
     InvalidQuoteAmount,
     #[msg("Quote has already been revealed")]
     QuoteAlreadyRevealed,
+    #[msg("Invalid QUOTE state for this instruction")]
+    InvalidState,
 }

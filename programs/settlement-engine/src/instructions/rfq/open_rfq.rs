@@ -7,7 +7,13 @@ pub struct OpenRfq<'info> {
     #[account(mut)]
     pub maker: Signer<'info>,
 
-    #[account(mut, has_one = maker, has_one = config)]
+    #[account(
+        mut,
+        seeds = [Rfq::SEED_PREFIX, maker.key().as_ref(), rfq.uuid.as_ref()],
+        bump = rfq.bump,
+        has_one = maker,
+        has_one = config,
+        constraint = matches!(rfq.state, RfqState::Draft) @ RfqError::InvalidState,)]
     pub rfq: Account<'info, Rfq>,
 
     pub config: Account<'info, Config>,
@@ -16,8 +22,6 @@ pub struct OpenRfq<'info> {
 pub fn open_rfq_handler(ctx: Context<OpenRfq>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let rfq = &mut ctx.accounts.rfq;
-
-    require!(rfq.state == RfqState::Draft, RfqError::InvalidState);
 
     // last-moment sanity (already enforced on init/update, but double-check)
     require!(rfq.bond_amount > 0, RfqError::InvalidParams);

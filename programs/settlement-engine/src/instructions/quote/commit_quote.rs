@@ -28,6 +28,7 @@ pub struct CommitQuote<'info> {
     #[account(
         mut,
         has_one = config,
+        constraint = matches!(rfq.state, RfqState::Open | RfqState::Committed) @ RfqError::InvalidState,
     )]
     pub rfq: Account<'info, Rfq>,
 
@@ -168,11 +169,6 @@ pub fn commit_quote_handler(
     // Process Commit Quote
     let now = Clock::get()?.unix_timestamp;
     let rfq = &mut ctx.accounts.rfq;
-
-    require!(
-        matches!(rfq.state, RfqState::Open | RfqState::Committed),
-        RfqError::InvalidState
-    );
 
     let Some(commit_deadline) = rfq.commit_deadline() else {
         return err!(RfqError::InvalidState);

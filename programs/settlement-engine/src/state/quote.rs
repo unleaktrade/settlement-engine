@@ -22,7 +22,7 @@ pub struct Quote {
 impl Quote {
     pub const SEED_PREFIX: &'static [u8] = b"quote";
 
-    pub fn is_valid(&self) -> bool {
+    pub fn is_revealed(&self) -> bool {
         self.revealed_at.is_some()
     }
 }
