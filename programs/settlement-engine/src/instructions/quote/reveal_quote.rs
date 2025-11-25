@@ -49,7 +49,7 @@ pub fn reveal_quote_handler(
     match (rfq.reveal_deadline(), rfq.commit_deadline()) {
         (Some(reveal_deadline), Some(commit_deadline)) => {
             require!(now <= reveal_deadline, QuoteError::RevealTooLate);
-            require!(now >= commit_deadline, QuoteError::RevealTooEarly);
+            require!(now > commit_deadline, QuoteError::RevealTooEarly);
         }
         _ => return err!(RfqError::InvalidState),
     }

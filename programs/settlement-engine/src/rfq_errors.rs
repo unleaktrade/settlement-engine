@@ -44,4 +44,8 @@ pub enum RfqError {
     InvalidSelectionTTL,
     #[msg("Invalid TTL for Funding phase")]
     InvalidFundingTTL,
+    #[msg("Selection attempted too early")]
+    SelectionTooEarly,
+    #[msg("Selection deadline passed")]
+    SelectionTooLate,
 }

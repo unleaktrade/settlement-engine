@@ -518,6 +518,77 @@ describe("QUOTE", () => {
         }
         assert(failed, "revealQuote should fail because already revealed");
     });
+
+    it("should select a quote and create settlement account", async () => {
+        const taker = validTaker;
+        const [quotePda, bumpQuote] = PublicKey.findProgramAddressSync(
+            [Buffer.from("quote"), rfqPDA.toBuffer(), taker.publicKey.toBuffer()],
+            program.programId
+        );
+        const [settlementPda, bumpSettlement] = PublicKey.findProgramAddressSync(
+            [Buffer.from("settlement"), rfqPDA.toBuffer()],
+            program.programId
+        );
+        console.log(`Waiting ${revealTTL} seconds for reveal TTL to expire...`);
+        await sleep(revealTTL * 1000); // wait until reveal TTL passes
+        console.log("Selection period begins...");
+
+        await program.methods.selectQuote()
+            .accounts({
+                maker: maker.publicKey,
+                rfq: rfqPDA,
+                quote: quotePda,
+                config: configPda,
+            })
+            .signers([maker])
+            .rpc();
+
+        console.log("Quote PDA:", quotePda.toBase58());
+        console.log("Rfq PFA:", rfqPDA.toBase58());
+        console.log("Settlement PDA:", settlementPda.toBase58());
+
+        const [quote, rfq] = await Promise.all([
+            program.account.quote.fetch(quotePda),
+            program.account.rfq.fetch(rfqPDA),
+        ]);
+
+        const settlement = await program.account.settlement.fetch(settlementPda);
+
+        assert.ok(rfq.state.selected, "rfq state should be selected");
+        assert.ok(rfq.selectedAt!.toNumber() > 0, "rfq selectedAt should be set");
+        assert.strictEqual(quote.bump, bumpQuote, "quote bump mismatch");
+        assert.ok(rfq.selectedQuote!.equals(quotePda), "rfq selectedQuote mismatch");
+        assert.ok(rfq.settlement!.equals(settlementPda), "rfq settlement mismatch");
+
+        assert(settlement.rfq.equals(rfqPDA), "settlement rfq mismatch");
+        assert.strictEqual(settlement.bump, bumpSettlement, "settlement bump mismatch");
+        assert(settlement.baseMint.equals(rfq.baseMint), "settlement baseMint mismatch");
+        assert(settlement.quoteMint.equals(rfq.quoteMint), "settlement quoteMint mismatch");
+        assert(settlement.baseAmount.eq(rfq.baseAmount), "settlement baseAmount mismatch");
+        assert(settlement.quoteAmount!.eq(quote.quoteAmount!), "settlement quoteAmount mismatch");
+        assert(settlement.bondAmount.eq(rfq.bondAmount), "settlement bondAmount mismatch");
+        assert(settlement.feeAmount.eq(rfq.feeAmount), "settlement feeAmount mismatch");
+        assert.ok(settlement.createdAt!.toNumber() > 0, "settlement createdAt should be set");
+        assert.strictEqual(settlement.settledAt, null, "settlement settledAt should be None");
+        assert.strictEqual(settlement.makerFundedAt, null, "settlement makerFundedAt should be None");
+        assert.strictEqual(settlement.takerFundedAt, null, "settlement takerFundedAt should be None");
+
+        let failed = false;
+        try {
+            await program.methods.selectQuote()
+                .accounts({
+                    maker: maker.publicKey,
+                    rfq: rfqPDA,
+                    quote: quotePda,
+                    config: configPda,
+                })
+                .signers([maker])
+                .rpc();
+        } catch {
+            failed = true;
+        }
+        assert(failed, "selectQuote should fail because already selected");
+    });
 });
 
 export interface CheckResponse {
