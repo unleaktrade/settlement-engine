@@ -529,6 +529,23 @@ describe("QUOTE", () => {
             [Buffer.from("settlement"), rfqPDA.toBuffer()],
             program.programId
         );
+
+        let failed = false;
+        try {
+            await program.methods.selectQuote()
+                .accounts({
+                    maker: maker.publicKey,
+                    rfq: rfqPDA,
+                    quote: quotePda,
+                    config: configPda,
+                })
+                .signers([maker])
+                .rpc();
+        } catch {
+            failed = true;
+        }
+        assert(failed, "selectQuote should fail because too early");
+
         console.log(`Waiting ${revealTTL} seconds for reveal TTL to expire...`);
         await sleep(revealTTL * 1000); // wait until reveal TTL passes
         console.log("Selection period begins...");
@@ -573,7 +590,7 @@ describe("QUOTE", () => {
         assert.strictEqual(settlement.makerFundedAt, null, "settlement makerFundedAt should be None");
         assert.strictEqual(settlement.takerFundedAt, null, "settlement takerFundedAt should be None");
 
-        let failed = false;
+        failed = false;
         try {
             await program.methods.selectQuote()
                 .accounts({
@@ -587,7 +604,7 @@ describe("QUOTE", () => {
         } catch {
             failed = true;
         }
-        assert(failed, "selectQuote should fail because already selected");
+        assert(failed, "selectQuote should fail because already selected and settlement already created");
     });
 });
 
