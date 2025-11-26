@@ -39,6 +39,8 @@ pub struct InitRfq<'info> {
     )]
     pub bonds_fees_vault: Account<'info, TokenAccount>,
 
+    // pub maker_payment_ata: Account<'info, TokenAccount>,
+
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>, // for token account initialization
     pub associated_token_program: Program<'info, AssociatedToken>, // for ATA initialization

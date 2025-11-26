@@ -23,6 +23,7 @@ pub struct CommitQuote<'info> {
     #[account(mut)]
     pub taker: Signer<'info>,
 
+    /// Global config account
     pub config: Account<'info, Config>,
 
     #[account(

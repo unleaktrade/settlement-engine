@@ -272,10 +272,10 @@ describe("QUOTE", () => {
             .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
             .accounts({
                 taker: taker.publicKey,
-                config: configPda,
                 rfq: rfqPDA,
                 usdcMint: usdcMint,
-                instruction_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+                config: configPda,
+                instructionSysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
             })
             .instruction();
 
@@ -333,7 +333,7 @@ describe("QUOTE", () => {
                 config: configPda,
                 rfq: rfqPDA,
                 usdcMint: usdcMint,
-                instruction_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+                instructionSysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
             }).instruction();
 
         const tx2 = new anchor.web3.Transaction();
@@ -355,7 +355,7 @@ describe("QUOTE", () => {
                 config: configPda,
                 rfq: rfqPDA,
                 usdcMint: usdcMint,
-                instruction_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+                instructionSysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
             }).instruction();
 
         const tx3 = new anchor.web3.Transaction();
@@ -423,7 +423,7 @@ describe("QUOTE", () => {
                 config: configPda,
                 rfq: rfqPDA,
                 usdcMint: usdcMint,
-                instruction_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+                instructionSysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
             })
             .instruction();
 
@@ -538,6 +538,7 @@ describe("QUOTE", () => {
                     rfq: rfqPDA,
                     quote: quotePda,
                     config: configPda,
+                    usdcMint: usdcMint,
                 })
                 .signers([maker])
                 .rpc();
@@ -556,6 +557,7 @@ describe("QUOTE", () => {
                 rfq: rfqPDA,
                 quote: quotePda,
                 config: configPda,
+                usdcMint: usdcMint,
             })
             .signers([maker])
             .rpc();
@@ -598,6 +600,7 @@ describe("QUOTE", () => {
                     rfq: rfqPDA,
                     quote: quotePda,
                     config: configPda,
+                    usdcMint: usdcMint,
                 })
                 .signers([maker])
                 .rpc();
