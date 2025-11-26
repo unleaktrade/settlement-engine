@@ -37,7 +37,7 @@ pub struct InitRfq<'info> {
         associated_token::mint = usdc_mint,
         associated_token::authority = rfq,
     )]
-    pub bonds_vault: Account<'info, TokenAccount>,
+    pub bonds_fees_vault: Account<'info, TokenAccount>,
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>, // for token account initialization
@@ -66,7 +66,7 @@ pub fn init_rfq_handler(
     let expected_vault =
         get_associated_token_address(&ctx.accounts.rfq.key(), &ctx.accounts.config.usdc_mint);
     require_keys_eq!(
-        ctx.accounts.bonds_vault.key(),
+        ctx.accounts.bonds_fees_vault.key(),
         expected_vault,
         RfqError::InvalidBondVault
     );
@@ -116,7 +116,7 @@ pub fn init_rfq_handler(
     rfq.selected_quote = None;
     rfq.settlement = None;
 
-    rfq.bonds_vault = ctx.accounts.bonds_vault.key();
+    rfq.bonds_fees_vault = ctx.accounts.bonds_fees_vault.key();
 
     Ok(())
 }

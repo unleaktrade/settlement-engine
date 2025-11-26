@@ -93,8 +93,8 @@ describe("RFQ", () => {
         const u = uuidBytes();
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
 
-        // bonds_vault = ATA(owner = rfq PDA, mint = usdcMint)
-        const bondsVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
+        // bonds_fees_vault = ATA(owner = rfq PDA, mint = usdcMint)
+        const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
 
         const baseMint = Keypair.generate().publicKey;
         const quoteMint = Keypair.generate().publicKey;
@@ -137,7 +137,7 @@ describe("RFQ", () => {
         assert.strictEqual(rfq.revealTtlSecs, revealTTL);
         assert.strictEqual(rfq.selectionTtlSecs, selectionTTL);
         assert.strictEqual(rfq.fundTtlSecs, fundingTTL);
-        assert(rfq.bondsVault.equals(bondsVault), "bonds_vault mismatch");
+        assert(rfq.bondsFeesVault.equals(bondsFeesVault), "bonds_fees_vault mismatch");
         expect(rfq.state).to.have.property('draft');
         assert.ok(rfq.state.draft);
         expect(rfq.state.open, "state should be draft, not opened").to.be.undefined;
@@ -338,14 +338,14 @@ describe("RFQ", () => {
         const u = uuidBytes();
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
 
-        const bondsVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
+        const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
 
         const baseMint = Keypair.generate().publicKey;
         const quoteMint = Keypair.generate().publicKey;
 
         console.log("maker:", maker.publicKey.toBase58());
         console.log("rfqAddr:", rfqAddr.toBase58());
-        console.log("bondsVault:", bondsVault.toBase58());
+        console.log("bondsFeesVault:", bondsFeesVault.toBase58());
         console.log("baseMint:", baseMint.toBase58());
         console.log("quoteMint:", quoteMint.toBase58());
 
@@ -407,7 +407,7 @@ describe("RFQ", () => {
         assert.strictEqual(rfq.revealTtlSecs, revealTTL + 1);
         assert.strictEqual(rfq.selectionTtlSecs, selectionTTL + 1);
         assert.strictEqual(rfq.fundTtlSecs, fundingTTL); // unchanged
-        assert(rfq.bondsVault.equals(bondsVault), "bonds_vault mismatch");
+        assert(rfq.bondsFeesVault.equals(bondsFeesVault), "bonds_fees_vault mismatch");
         expect(rfq.state).to.have.property('draft');
         assert.ok(rfq.state.draft);
         expect(rfq.state.open, "state should be draft, not open").to.be.undefined;
@@ -420,14 +420,14 @@ describe("RFQ", () => {
         const u = uuidBytes();
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
 
-        const bondsVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
+        const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
 
         const baseMint = Keypair.generate().publicKey;
         const quoteMint = Keypair.generate().publicKey;
 
         console.log("maker:", maker.publicKey.toBase58());
         console.log("rfqAddr:", rfqAddr.toBase58());
-        console.log("bondsVault:", bondsVault.toBase58());
+        console.log("bondsFeesVault:", bondsFeesVault.toBase58());
         console.log("baseMint:", baseMint.toBase58());
         console.log("quoteMint:", quoteMint.toBase58());
 
@@ -479,7 +479,7 @@ describe("RFQ", () => {
         assert.strictEqual(rfq.revealTtlSecs, revealTTL);
         assert.strictEqual(rfq.selectionTtlSecs, selectionTTL);
         assert.strictEqual(rfq.fundTtlSecs, fundingTTL);
-        assert(rfq.bondsVault.equals(bondsVault), "bonds_vault mismatch");
+        assert(rfq.bondsFeesVault.equals(bondsFeesVault), "bonds_fees_vault mismatch");
         expect(rfq.state).to.have.property('open');
         assert.ok(rfq.state.open);
         expect(rfq.state.draft, "state should be open, not draft").to.be.undefined;
@@ -536,14 +536,14 @@ describe("RFQ", () => {
         const u = uuidBytes();
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
 
-        const bondsVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
+        const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
 
         const baseMint = Keypair.generate().publicKey;
         const quoteMint = Keypair.generate().publicKey;
 
         console.log("maker:", maker.publicKey.toBase58());
         console.log("rfqAddr:", rfqAddr.toBase58());
-        console.log("bondsVault:", bondsVault.toBase58());
+        console.log("bondsFeesVault:", bondsFeesVault.toBase58());
         console.log("baseMint:", baseMint.toBase58());
         console.log("quoteMint:", quoteMint.toBase58());
 
