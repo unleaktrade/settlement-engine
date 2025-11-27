@@ -475,7 +475,7 @@ describe("RFQ", () => {
         //     makerPaymentAtaInfo.address.equals(makerPaymentAta),
         //     "maker payment ATA mismatch"
         // );
-        
+
         // mint the bonds to maker's payment ATA
         await mintTo(
             provider.connection,
