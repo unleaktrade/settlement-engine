@@ -64,14 +64,14 @@ pub fn open_rfq_handler(ctx: Context<OpenRfq>) -> Result<()> {
     require!(rfq.selection_ttl_secs > 0, RfqError::InvalidParams);
     require!(rfq.fund_ttl_secs > 0, RfqError::InvalidParams);
 
-    let cpi_accounts = Transfer {
-        from: ctx.accounts.maker_payment_ata.to_account_info(),
-        to: ctx.accounts.bonds_fees_vault.to_account_info(),
-        authority: ctx.accounts.maker.to_account_info(),
-    };
-    let cpi_program = ctx.accounts.token_program.to_account_info();
-    let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
-    token::transfer(cpi_ctx, rfq.bond_amount)?;
+    // let cpi_accounts = Transfer {
+    //     from: ctx.accounts.maker_payment_ata.to_account_info(),
+    //     to: ctx.accounts.bonds_fees_vault.to_account_info(),
+    //     authority: ctx.accounts.maker.to_account_info(),
+    // };
+    // let cpi_program = ctx.accounts.token_program.to_account_info();
+    // let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+    // token::transfer(cpi_ctx, rfq.bond_amount)?;
 
     rfq.bonds_fees_vault = Some(ctx.accounts.bonds_fees_vault.key());
     rfq.maker_payment_ata = Some(ctx.accounts.maker_payment_ata.key());

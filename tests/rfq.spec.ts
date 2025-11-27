@@ -93,7 +93,7 @@ describe("RFQ", () => {
         const u = uuidBytes();
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
 
-      
+
 
         const baseMint = Keypair.generate().publicKey;
         const quoteMint = Keypair.generate().publicKey;
@@ -338,14 +338,11 @@ describe("RFQ", () => {
         const u = uuidBytes();
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
 
-        const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
-
         const baseMint = Keypair.generate().publicKey;
         const quoteMint = Keypair.generate().publicKey;
 
         console.log("maker:", maker.publicKey.toBase58());
         console.log("rfqAddr:", rfqAddr.toBase58());
-        console.log("bondsFeesVault:", bondsFeesVault.toBase58());
         console.log("baseMint:", baseMint.toBase58());
         console.log("quoteMint:", quoteMint.toBase58());
 
@@ -407,7 +404,8 @@ describe("RFQ", () => {
         assert.strictEqual(rfq.revealTtlSecs, revealTTL + 1);
         assert.strictEqual(rfq.selectionTtlSecs, selectionTTL + 1);
         assert.strictEqual(rfq.fundTtlSecs, fundingTTL); // unchanged
-        assert(rfq.bondsFeesVault.equals(bondsFeesVault), "bonds_fees_vault mismatch");
+        assert.strictEqual(rfq.bondsFeesVault, null, "bonds_fees_vault should be None before open");
+        assert.strictEqual(rfq.makerPaymentAta, null, "maker_payment_ata should be None before open");
         expect(rfq.state).to.have.property('draft');
         assert.ok(rfq.state.draft);
         expect(rfq.state.open, "state should be draft, not open").to.be.undefined;
@@ -421,6 +419,7 @@ describe("RFQ", () => {
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
 
         const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
+        const makerPaymentAta = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
 
         const baseMint = Keypair.generate().publicKey;
         const quoteMint = Keypair.generate().publicKey;
@@ -461,6 +460,12 @@ describe("RFQ", () => {
                 maker: maker.publicKey,
                 rfq: rfqAddr,
                 config: configPda,
+                bondsFeesVault,
+                makerPaymentAta,
+                usdcMint,
+                tokenProgram: TOKEN_PROGRAM_ID,
+                associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+                systemProgram: SystemProgram.programId,
             })
             .signers([maker])
             .rpc();
@@ -480,6 +485,7 @@ describe("RFQ", () => {
         assert.strictEqual(rfq.selectionTtlSecs, selectionTTL);
         assert.strictEqual(rfq.fundTtlSecs, fundingTTL);
         assert(rfq.bondsFeesVault.equals(bondsFeesVault), "bonds_fees_vault mismatch");
+        assert(rfq.makerPaymentAta.equals(makerPaymentAta), "maker_payment_ata mismatch");
         expect(rfq.state).to.have.property('open');
         assert.ok(rfq.state.open);
         expect(rfq.state.draft, "state should be open, not draft").to.be.undefined;
@@ -493,6 +499,12 @@ describe("RFQ", () => {
                     maker: maker.publicKey,
                     rfq: rfqAddr,
                     config: configPda,
+                    bondsFeesVault,
+                    makerPaymentAta,
+                    usdcMint,
+                    tokenProgram: TOKEN_PROGRAM_ID,
+                    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+                    systemProgram: SystemProgram.programId,
                 })
                 .signers([maker])
                 .rpc();
@@ -527,6 +539,22 @@ describe("RFQ", () => {
             failed = true;
         }
         assert(failed, "update on opened RFQ should fail");
+
+        // should fail to cancel after opened
+        failed = false;
+        try {
+            await program.methods
+                .cancelRfq()
+                .accounts({
+                    maker: maker.publicKey,
+                    rfq: rfqAddr,
+                })
+                .signers([maker])
+                .rpc();
+        } catch {
+            failed = true;
+        }
+        assert(failed, "cancel on opened RFQ should fail");
     });
 
     it("should close RFQ", async () => {
