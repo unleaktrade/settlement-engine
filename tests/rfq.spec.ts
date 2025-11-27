@@ -93,8 +93,7 @@ describe("RFQ", () => {
         const u = uuidBytes();
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
 
-        // bonds_fees_vault = ATA(owner = rfq PDA, mint = usdcMint)
-        const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
+      
 
         const baseMint = Keypair.generate().publicKey;
         const quoteMint = Keypair.generate().publicKey;
@@ -137,7 +136,8 @@ describe("RFQ", () => {
         assert.strictEqual(rfq.revealTtlSecs, revealTTL);
         assert.strictEqual(rfq.selectionTtlSecs, selectionTTL);
         assert.strictEqual(rfq.fundTtlSecs, fundingTTL);
-        assert(rfq.bondsFeesVault.equals(bondsFeesVault), "bonds_fees_vault mismatch");
+        assert.strictEqual(rfq.bondsFeesVault, null, "bonds_fees_vault should be None before open");
+        assert.strictEqual(rfq.makerPaymentAta, null, "maker_payment_ata should be None before open");
         expect(rfq.state).to.have.property('draft');
         assert.ok(rfq.state.draft);
         expect(rfq.state.open, "state should be draft, not opened").to.be.undefined;

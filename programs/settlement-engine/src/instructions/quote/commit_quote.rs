@@ -74,6 +74,10 @@ pub struct CommitQuote<'info> {
     )]
     pub commit_guard: Account<'info, CommitGuard>,
 
+    // pub bonds_fees_vault: Account<'info, TokenAccount>,
+
+    // pub maker_payment_ata: Account<'info, TokenAccount>,
+
     /// Needed because we `init` PDAs (quote, commit_guard)
     pub system_program: Program<'info, System>,
 

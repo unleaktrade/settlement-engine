@@ -4,8 +4,8 @@ use crate::state::Settlement;
 use crate::{state::config::Config, QuoteError, RfqError};
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    associated_token::{get_associated_token_address, AssociatedToken},
-    token::{Mint, Token, TokenAccount},
+    associated_token::AssociatedToken,
+    token::{Mint, Token},
 };
 
 #[derive(Accounts)]
@@ -49,7 +49,6 @@ pub struct SelectQuote<'info> {
     // pub taker_quote_ata: Account<'info, TokenAccount>,
     // pub vault_base_ata: Account<'info, TokenAccount>,
     // pub vault_quote_ata: Account<'info, TokenAccount>,
-
     pub system_program: Program<'info, System>,
 
     pub token_program: Program<'info, Token>, // for token account initialization

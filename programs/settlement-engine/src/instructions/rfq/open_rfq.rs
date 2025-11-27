@@ -1,6 +1,11 @@
 use crate::state::rfq::{Rfq, RfqState};
 use crate::{state::config::Config, RfqError};
 use anchor_lang::prelude::*;
+use anchor_spl::token::{self, Transfer};
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    token::{Mint, Token, TokenAccount},
+};
 
 #[derive(Accounts)]
 pub struct OpenRfq<'info> {
@@ -17,6 +22,32 @@ pub struct OpenRfq<'info> {
     pub rfq: Account<'info, Rfq>,
 
     pub config: Account<'info, Config>,
+
+    // Must be an account field (not just a Pubkey) for `associated_token::mint`
+    #[account(address = config.usdc_mint)]
+    pub usdc_mint: Account<'info, Mint>,
+
+    /// Create RFQ-owned USDC ATA
+    #[account(
+        init_if_needed,
+        payer = maker,
+        associated_token::mint = usdc_mint,
+        associated_token::authority = rfq,
+    )]
+    pub bonds_fees_vault: Account<'info, TokenAccount>,
+
+    /// Create Maker-owned USDC ATA (for bonds)
+    #[account(
+        init_if_needed,
+        payer = maker,
+        associated_token::mint = usdc_mint,
+        associated_token::authority = maker,
+    )]
+    pub maker_payment_ata: Account<'info, TokenAccount>,
+
+    pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>, // for token account initialization
+    pub associated_token_program: Program<'info, AssociatedToken>, // for ATA initialization
 }
 
 pub fn open_rfq_handler(ctx: Context<OpenRfq>) -> Result<()> {
@@ -32,6 +63,18 @@ pub fn open_rfq_handler(ctx: Context<OpenRfq>) -> Result<()> {
     require!(rfq.reveal_ttl_secs > 0, RfqError::InvalidParams);
     require!(rfq.selection_ttl_secs > 0, RfqError::InvalidParams);
     require!(rfq.fund_ttl_secs > 0, RfqError::InvalidParams);
+
+    let cpi_accounts = Transfer {
+        from: ctx.accounts.maker_payment_ata.to_account_info(),
+        to: ctx.accounts.bonds_fees_vault.to_account_info(),
+        authority: ctx.accounts.maker.to_account_info(),
+    };
+    let cpi_program = ctx.accounts.token_program.to_account_info();
+    let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+    token::transfer(cpi_ctx, rfq.bond_amount)?;
+
+    rfq.bonds_fees_vault = Some(ctx.accounts.bonds_fees_vault.key());
+    rfq.maker_payment_ata = Some(ctx.accounts.maker_payment_ata.key());
 
     rfq.opened_at = Some(now);
     rfq.state = RfqState::Open;
