@@ -47,6 +47,8 @@ pub struct SelectQuote<'info> {
     // pub taker_base_ata: Account<'info, TokenAccount>,
     // pub maker_quote_ata: Account<'info, TokenAccount>,
     // pub taker_quote_ata: Account<'info, TokenAccount>,
+    // pub vault_base_ata: Account<'info, TokenAccount>,
+    // pub vault_quote_ata: Account<'info, TokenAccount>,
 
     pub system_program: Program<'info, System>,
 
