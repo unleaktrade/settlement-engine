@@ -60,7 +60,7 @@ describe("QUOTE", () => {
     let rfqBump: number;
     let validTaker: Keypair;
     let bondsFeesVault: PublicKey;
-    let makerPaymentAta: PublicKey
+    let makerPaymentAccount: PublicKey
 
     before(async () => {
         await fund(admin);
@@ -104,24 +104,24 @@ describe("QUOTE", () => {
         } catch { needInit = true; }
         if (needInit) {
             bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
-            makerPaymentAta = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
+            makerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
 
             // mint the bonds to maker's payment ATA
-            const makerPaymentAtaInfo = await getOrCreateAssociatedTokenAccount(
+            const makerPaymentAccountInfo = await getOrCreateAssociatedTokenAccount(
                 provider.connection,
                 admin,
                 usdcMint,
                 maker.publicKey
             );
             assert(
-                makerPaymentAtaInfo.address.equals(makerPaymentAta),
+                makerPaymentAccountInfo.address.equals(makerPaymentAccount),
                 "maker payment ATA mismatch"
             );
             await mintTo(
                 provider.connection,
                 admin,
                 usdcMint,
-                makerPaymentAta,
+                makerPaymentAccount,
                 admin,
                 1_000_000 //sufficient for bond
             );
@@ -145,7 +145,7 @@ describe("QUOTE", () => {
                     config: configPda,
                     usdcMint,
                     bondsFeesVault,
-                    makerPaymentAta,
+                    makerPaymentAccount,
                     systemProgram: SystemProgram.programId,
                     tokenProgram: TOKEN_PROGRAM_ID,
                     associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -159,7 +159,7 @@ describe("QUOTE", () => {
             provider.connection,
             admin,
             usdcMint,
-            makerPaymentAta,
+            makerPaymentAccount,
             admin,
             1_000_000  //sufficient for bond
         );
@@ -170,7 +170,7 @@ describe("QUOTE", () => {
                 rfq: rfqPDA,
                 config: configPda,
                 bondsFeesVault,
-                makerPaymentAta,
+                makerPaymentAccount,
                 usdcMint,
             })
             .signers([maker])

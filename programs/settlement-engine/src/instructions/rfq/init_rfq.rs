@@ -41,10 +41,11 @@ pub struct InitRfq<'info> {
 
     #[account(
         mut,
-        associated_token::mint = usdc_mint,
-        associated_token::authority = maker,
+        token::mint = usdc_mint,
+        token::authority = maker,
+        constraint =!maker_payment_account.is_frozen() @ RfqError::MakerPaymentAtaClosed,
     )]
-    pub maker_payment_ata: Account<'info, TokenAccount>,
+    pub maker_payment_account: Account<'info, TokenAccount>,
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>, // for token account initialization
@@ -113,7 +114,7 @@ pub fn init_rfq_handler(
     rfq.settlement = None;
 
     rfq.bonds_fees_vault = ctx.accounts.bonds_fees_vault.key();
-    rfq.maker_payment_ata = ctx.accounts.maker_payment_ata.key();
+    rfq.maker_payment_account = ctx.accounts.maker_payment_account.key();
 
     Ok(())
 }

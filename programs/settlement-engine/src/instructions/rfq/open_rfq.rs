@@ -33,13 +33,13 @@ pub struct OpenRfq<'info> {
     )]
     pub bonds_fees_vault: Account<'info, TokenAccount>,
 
-    /// Create Maker-owned USDC ATA (for bonds)
     #[account(
         mut,
-        associated_token::mint = usdc_mint,
-        associated_token::authority = maker,
+        token::mint = usdc_mint,
+        token::authority = maker,
+        constraint =!maker_payment_account.is_frozen() @ RfqError::MakerPaymentAtaClosed,
     )]
-    pub maker_payment_ata: Account<'info, TokenAccount>,
+    pub maker_payment_account: Account<'info, TokenAccount>,
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
@@ -60,7 +60,7 @@ pub fn open_rfq_handler(ctx: Context<OpenRfq>) -> Result<()> {
     require!(rfq.fund_ttl_secs > 0, RfqError::InvalidParams);
 
     let cpi_accounts = Transfer {
-        from: ctx.accounts.maker_payment_ata.to_account_info(),
+        from: ctx.accounts.maker_payment_account.to_account_info(),
         to: ctx.accounts.bonds_fees_vault.to_account_info(),
         authority: ctx.accounts.maker.to_account_info(),
     };

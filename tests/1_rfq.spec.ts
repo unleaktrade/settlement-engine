@@ -102,23 +102,23 @@ describe("RFQ", () => {
         const commitTTL = 60, revealTTL = 60, selectionTTL = 60, fundingTTL = 60;
 
         const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
-        const makerPaymentAta = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
+        const makerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
         // mint the bonds to maker's payment ATA
-        const makerPaymentAtaInfo = await getOrCreateAssociatedTokenAccount(
+        const makerPaymentAccountInfo = await getOrCreateAssociatedTokenAccount(
             provider.connection,
             admin,
             usdcMint,
             maker.publicKey
         );
         assert(
-            makerPaymentAtaInfo.address.equals(makerPaymentAta),
+            makerPaymentAccountInfo.address.equals(makerPaymentAccount),
             "maker payment ATA mismatch"
         );
         await mintTo(
             provider.connection,
             admin,
             usdcMint,
-            makerPaymentAta,
+            makerPaymentAccount,
             admin,
             1_000_000 //sufficient for bond
         );
@@ -142,7 +142,7 @@ describe("RFQ", () => {
                 config: configPda,
                 usdcMint,
                 bondsFeesVault,
-                makerPaymentAta,
+                makerPaymentAccount,
                 tokenProgram: TOKEN_PROGRAM_ID,
                 associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
@@ -165,12 +165,12 @@ describe("RFQ", () => {
         assert.strictEqual(rfq.selectionTtlSecs, selectionTTL);
         assert.strictEqual(rfq.fundTtlSecs, fundingTTL);
         assert(rfq.bondsFeesVault.equals(bondsFeesVault), "bonds_fees_vault mismatch");
-        assert(rfq.makerPaymentAta.equals(makerPaymentAta), "maker_payment_ata mismatch");
+        assert(rfq.makerPaymentAccount.equals(makerPaymentAccount), "maker_payment_ata mismatch");
         expect(rfq.state).to.have.property('draft');
         assert.ok(rfq.state.draft);
         expect(rfq.state.open, "state should be draft, not opened").to.be.undefined;
 
-        const makerBalance = (await provider.connection.getTokenAccountBalance(makerPaymentAta)).value.amount;
+        const makerBalance = (await provider.connection.getTokenAccountBalance(makerPaymentAccount)).value.amount;
         const vaultBalance = (await provider.connection.getTokenAccountBalance(bondsFeesVault)).value.amount;
         assert.strictEqual(makerBalance, "1000000", "maker should have correct USDC amount after init");
         assert.strictEqual(vaultBalance, "0", "vault should be empty before opening");
@@ -186,23 +186,23 @@ describe("RFQ", () => {
 
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
         const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
-        const makerPaymentAta = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
+        const makerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
         // mint the bonds to maker's payment ATA
-        const makerPaymentAtaInfo = await getOrCreateAssociatedTokenAccount(
+        const makerPaymentAccountInfo = await getOrCreateAssociatedTokenAccount(
             provider.connection,
             admin,
             usdcMint,
             maker.publicKey
         );
         assert(
-            makerPaymentAtaInfo.address.equals(makerPaymentAta),
+            makerPaymentAccountInfo.address.equals(makerPaymentAccount),
             "maker payment ATA mismatch"
         );
         await mintTo(
             provider.connection,
             admin,
             usdcMint,
-            makerPaymentAta,
+            makerPaymentAccount,
             admin,
             1_000_000 //sufficient for bond
         );
@@ -212,7 +212,7 @@ describe("RFQ", () => {
                 new anchor.BN(1_000_000_000),
                 new anchor.BN(1_000_000_000),
                 new anchor.BN(1_000), 1, 1, 1, 1)
-            .accounts({ maker: maker.publicKey, config: configPda, usdcMint, bondsFeesVault, makerPaymentAta, })
+            .accounts({ maker: maker.publicKey, config: configPda, usdcMint, bondsFeesVault, makerPaymentAccount, })
             .signers([maker])
             .rpc();
 
@@ -243,23 +243,23 @@ describe("RFQ", () => {
 
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
         const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
-        const makerPaymentAta = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
+        const makerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
         // mint the bonds to maker's payment ATA
-        const makerPaymentAtaInfo = await getOrCreateAssociatedTokenAccount(
+        const makerPaymentAccountInfo = await getOrCreateAssociatedTokenAccount(
             provider.connection,
             admin,
             usdcMint,
             maker.publicKey
         );
         assert(
-            makerPaymentAtaInfo.address.equals(makerPaymentAta),
+            makerPaymentAccountInfo.address.equals(makerPaymentAccount),
             "maker payment ATA mismatch"
         );
         await mintTo(
             provider.connection,
             admin,
             usdcMint,
-            makerPaymentAta,
+            makerPaymentAccount,
             admin,
             1_000_000 //sufficient for bond
         );
@@ -271,7 +271,7 @@ describe("RFQ", () => {
                     new anchor.BN(1_000_000_000),
                     new anchor.BN(1_000_000_000),
                     new anchor.BN(1_000), 1, 1, 1, 1)
-                .accounts({ maker: maker.publicKey, config: configPda, usdcMint, bondsFeesVault, makerPaymentAta })
+                .accounts({ maker: maker.publicKey, config: configPda, usdcMint, bondsFeesVault, makerPaymentAccount })
                 .signers([maker])
                 .rpc();
         } catch {
@@ -340,11 +340,11 @@ describe("RFQ", () => {
 
         const bondsFeesVaultRfq1 = getAssociatedTokenAddressSync(usdcMint, pdaA, true);
         const bondsFeesVaultRfq2 = getAssociatedTokenAddressSync(usdcMint, pdaB, true);
-        const makerAPaymentAta = getAssociatedTokenAddressSync(usdcMint, makerA.publicKey);
-        const makerBPaymentAta = getAssociatedTokenAddressSync(usdcMint, makerB.publicKey);
+        const makerAPaymentAccount = getAssociatedTokenAddressSync(usdcMint, makerA.publicKey);
+        const makerBPaymentAccount = getAssociatedTokenAddressSync(usdcMint, makerB.publicKey);
 
         // mint the bonds to makers payment ATA
-        const [makerAPaymentAtaInfo, makerBPaymentAtaInfo] = await Promise.all([
+        const [makerAPaymentAccountInfo, makerBPaymentAccountInfo] = await Promise.all([
             getOrCreateAssociatedTokenAccount(
                 provider.connection,
                 admin,
@@ -358,15 +358,15 @@ describe("RFQ", () => {
                 makerB.publicKey
             ),]);
 
-        assert(makerAPaymentAtaInfo.address.equals(makerAPaymentAta), "makerA payment ATA mismatch");
-        assert(makerBPaymentAtaInfo.address.equals(makerBPaymentAta), "makerB payment ATA mismatch");
+        assert(makerAPaymentAccountInfo.address.equals(makerAPaymentAccount), "makerA payment ATA mismatch");
+        assert(makerBPaymentAccountInfo.address.equals(makerBPaymentAccount), "makerB payment ATA mismatch");
 
         await Promise.all([
             mintTo(
                 provider.connection,
                 admin,
                 usdcMint,
-                makerAPaymentAta,
+                makerAPaymentAccount,
                 admin,
                 1_000_000 //sufficient for bond
             ),
@@ -374,7 +374,7 @@ describe("RFQ", () => {
                 provider.connection,
                 admin,
                 usdcMint,
-                makerBPaymentAta,
+                makerBPaymentAccount,
                 admin,
                 1_000_000 //sufficient for bond
             )
@@ -385,7 +385,7 @@ describe("RFQ", () => {
                 new anchor.BN(1_000_000_000),
                 new anchor.BN(1_000_000_000),
                 new anchor.BN(1_000), 1, 1, 1, 1)
-            .accounts({ maker: makerA.publicKey, config: configPda, usdcMint, bondsFeesVault: bondsFeesVaultRfq1, makerPaymentAta: makerAPaymentAta })
+            .accounts({ maker: makerA.publicKey, config: configPda, usdcMint, bondsFeesVault: bondsFeesVaultRfq1, makerPaymentAccount: makerAPaymentAccount })
             .signers([makerA])
             .rpc();
 
@@ -394,7 +394,7 @@ describe("RFQ", () => {
                 new anchor.BN(1_000_000_000),
                 new anchor.BN(1_000_000_000),
                 new anchor.BN(1_000), 1, 1, 1, 1)
-            .accounts({ maker: makerB.publicKey, config: configPda, usdcMint, bondsFeesVault: bondsFeesVaultRfq2, makerPaymentAta: makerBPaymentAta })
+            .accounts({ maker: makerB.publicKey, config: configPda, usdcMint, bondsFeesVault: bondsFeesVaultRfq2, makerPaymentAccount: makerBPaymentAccount })
             .signers([makerB])
             .rpc();
 
@@ -420,23 +420,23 @@ describe("RFQ", () => {
         const [pda1] = rfqPda(maker.publicKey, u1);
 
         const bondsFeesVaultRfq1 = getAssociatedTokenAddressSync(usdcMint, pda1, true);
-        const makerPaymentAta = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
+        const makerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
         // mint the bonds to maker's payment ATA
-        const makerPaymentAtaInfo = await getOrCreateAssociatedTokenAccount(
+        const makerPaymentAccountInfo = await getOrCreateAssociatedTokenAccount(
             provider.connection,
             admin,
             usdcMint,
             maker.publicKey
         );
         assert(
-            makerPaymentAtaInfo.address.equals(makerPaymentAta),
+            makerPaymentAccountInfo.address.equals(makerPaymentAccount),
             "maker payment ATA mismatch"
         );
         await mintTo(
             provider.connection,
             admin,
             usdcMint,
-            makerPaymentAta,
+            makerPaymentAccount,
             admin,
             1_000_000 * 2 //sufficient for bond
         );
@@ -446,7 +446,7 @@ describe("RFQ", () => {
                 new anchor.BN(1_000_000_000),
                 new anchor.BN(1_000_000_000),
                 new anchor.BN(1_000), 1, 1, 1, 1)
-            .accounts({ maker: maker.publicKey, config: configPda, usdcMint, bondsFeesVault: bondsFeesVaultRfq1, makerPaymentAta })
+            .accounts({ maker: maker.publicKey, config: configPda, usdcMint, bondsFeesVault: bondsFeesVaultRfq1, makerPaymentAccount })
             .signers([maker])
             .rpc();
 
@@ -462,7 +462,7 @@ describe("RFQ", () => {
                 new anchor.BN(1_000_000_000),
                 new anchor.BN(1_000_000_000),
                 new anchor.BN(1_000), 1, 1, 1, 1)
-            .accounts({ maker: maker.publicKey, config: configPda, usdcMint, bondsFeesVault: bondsFeesVaultRfq2, makerPaymentAta })
+            .accounts({ maker: maker.publicKey, config: configPda, usdcMint, bondsFeesVault: bondsFeesVaultRfq2, makerPaymentAccount })
             .signers([maker])
             .rpc();
 
@@ -475,7 +475,7 @@ describe("RFQ", () => {
         assert.ok(new anchor.BN(1_000_000).eq(r2.bondAmount), "bond amount mismatch");
         assert.deepStrictEqual(r2.uuid, Array.from(u2), "uuid mismatch for rfq r2");
 
-        const makerBalance = (await provider.connection.getTokenAccountBalance(makerPaymentAta)).value.amount;
+        const makerBalance = (await provider.connection.getTokenAccountBalance(makerPaymentAccount)).value.amount;
         const vaultRfq1Balance = (await provider.connection.getTokenAccountBalance(bondsFeesVaultRfq1)).value.amount;
         const vaultRfq2Balance = (await provider.connection.getTokenAccountBalance(bondsFeesVaultRfq2)).value.amount;
         assert.strictEqual(makerBalance, "2000000", "maker should have correct USDC amount before opening RFQs");
@@ -494,24 +494,24 @@ describe("RFQ", () => {
         const quoteMint = Keypair.generate().publicKey;
 
         const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
-        const makerPaymentAta = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
+        const makerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
 
         // mint the bonds to maker's payment ATA
-        const makerPaymentAtaInfo = await getOrCreateAssociatedTokenAccount(
+        const makerPaymentAccountInfo = await getOrCreateAssociatedTokenAccount(
             provider.connection,
             admin,
             usdcMint,
             maker.publicKey
         );
         assert(
-            makerPaymentAtaInfo.address.equals(makerPaymentAta),
+            makerPaymentAccountInfo.address.equals(makerPaymentAccount),
             "maker payment ATA mismatch"
         );
         await mintTo(
             provider.connection,
             admin,
             usdcMint,
-            makerPaymentAta,
+            makerPaymentAccount,
             admin,
             1_000_000 //sufficient for bond
         );
@@ -540,7 +540,11 @@ describe("RFQ", () => {
             .accounts({
                 maker: maker.publicKey,
                 config: configPda,
-                usdcMint
+                usdcMint, bondsFeesVault,
+                makerPaymentAccount,
+                tokenProgram: TOKEN_PROGRAM_ID,
+                associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+                systemProgram: SystemProgram.programId,
             })
             .signers([maker])
             .rpc();
@@ -580,7 +584,7 @@ describe("RFQ", () => {
         assert.strictEqual(rfq.selectionTtlSecs, selectionTTL + 1);
         assert.strictEqual(rfq.fundTtlSecs, fundingTTL); // unchanged
         assert(rfq.bondsFeesVault.equals(bondsFeesVault), "bonds_fees_vault mismatch");
-        assert(rfq.makerPaymentAta.equals(makerPaymentAta), "maker_payment_ata mismatch");
+        assert(rfq.makerPaymentAccount.equals(makerPaymentAccount), "maker_payment_ata mismatch");
         expect(rfq.state).to.have.property('draft');
         assert.ok(rfq.state.draft);
         expect(rfq.state.open, "state should be draft, not open").to.be.undefined;
@@ -594,7 +598,7 @@ describe("RFQ", () => {
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
 
         const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
-        const makerPaymentAta = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
+        const makerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
 
         const baseMint = Keypair.generate().publicKey;
         const quoteMint = Keypair.generate().publicKey;
@@ -608,21 +612,21 @@ describe("RFQ", () => {
         const commitTTL = 60, revealTTL = 60, selectionTTL = 60, fundingTTL = 60;
 
         // mint the bonds to maker's payment ATA
-        const makerPaymentAtaInfo = await getOrCreateAssociatedTokenAccount(
+        const makerPaymentAccountInfo = await getOrCreateAssociatedTokenAccount(
             provider.connection,
             admin,
             usdcMint,
             maker.publicKey
         );
         assert(
-            makerPaymentAtaInfo.address.equals(makerPaymentAta),
+            makerPaymentAccountInfo.address.equals(makerPaymentAccount),
             "maker payment ATA mismatch"
         );
         await mintTo(
             provider.connection,
             admin,
             usdcMint,
-            makerPaymentAta,
+            makerPaymentAccount,
             admin,
             1_000_000 //sufficient for bond
         );
@@ -644,7 +648,11 @@ describe("RFQ", () => {
             .accounts({
                 maker: maker.publicKey,
                 config: configPda,
-                usdcMint
+                usdcMint, bondsFeesVault,
+                makerPaymentAccount,
+                tokenProgram: TOKEN_PROGRAM_ID,
+                associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+                systemProgram: SystemProgram.programId,
             })
             .signers([maker])
             .rpc();
@@ -656,7 +664,7 @@ describe("RFQ", () => {
                 rfq: rfqAddr,
                 config: configPda,
                 bondsFeesVault,
-                makerPaymentAta,
+                makerPaymentAccount,
                 usdcMint,
                 tokenProgram: TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
@@ -679,12 +687,12 @@ describe("RFQ", () => {
         assert.strictEqual(rfq.selectionTtlSecs, selectionTTL);
         assert.strictEqual(rfq.fundTtlSecs, fundingTTL);
         assert(rfq.bondsFeesVault.equals(bondsFeesVault), "bonds_fees_vault mismatch");
-        assert(rfq.makerPaymentAta.equals(makerPaymentAta), "maker_payment_ata mismatch");
+        assert(rfq.makerPaymentAccount.equals(makerPaymentAccount), "maker_payment_ata mismatch");
         expect(rfq.state).to.have.property('open');
         assert.ok(rfq.state.open);
         expect(rfq.state.draft, "state should be open, not draft").to.be.undefined;
 
-        const makerBalance = (await provider.connection.getTokenAccountBalance(makerPaymentAta)).value.amount;
+        const makerBalance = (await provider.connection.getTokenAccountBalance(makerPaymentAccount)).value.amount;
         const vaultBalance = (await provider.connection.getTokenAccountBalance(bondsFeesVault)).value.amount;
         assert.strictEqual(makerBalance, "0", "maker should have no USDC left after bonding");
         assert.strictEqual(vaultBalance, rfq.bondAmount.toString(), "vault should hold the exact bond amount");
@@ -699,7 +707,7 @@ describe("RFQ", () => {
                     rfq: rfqAddr,
                     config: configPda,
                     bondsFeesVault,
-                    makerPaymentAta,
+                    makerPaymentAccount,
                     usdcMint,
                     tokenProgram: TOKEN_PROGRAM_ID,
                     systemProgram: SystemProgram.programId,
@@ -763,7 +771,7 @@ describe("RFQ", () => {
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
 
         const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
-        const makerPaymentAta = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
+        const makerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
 
         const baseMint = Keypair.generate().publicKey;
         const quoteMint = Keypair.generate().publicKey;
@@ -776,21 +784,21 @@ describe("RFQ", () => {
 
         const commitTTL = 60, revealTTL = 60, selectionTTL = 60, fundingTTL = 60;
         // mint the bonds to maker's payment ATA
-        const makerPaymentAtaInfo = await getOrCreateAssociatedTokenAccount(
+        const makerPaymentAccountInfo = await getOrCreateAssociatedTokenAccount(
             provider.connection,
             admin,
             usdcMint,
             maker.publicKey
         );
         assert(
-            makerPaymentAtaInfo.address.equals(makerPaymentAta),
+            makerPaymentAccountInfo.address.equals(makerPaymentAccount),
             "maker payment ATA mismatch"
         );
         await mintTo(
             provider.connection,
             admin,
             usdcMint,
-            makerPaymentAta,
+            makerPaymentAccount,
             admin,
             1_000_000 //sufficient for bond
         );
@@ -812,7 +820,11 @@ describe("RFQ", () => {
             .accounts({
                 maker: maker.publicKey,
                 config: configPda,
-                usdcMint
+                usdcMint, bondsFeesVault,
+                makerPaymentAccount,
+                tokenProgram: TOKEN_PROGRAM_ID,
+                associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+                systemProgram: SystemProgram.programId,
             })
             .signers([maker])
             .rpc();

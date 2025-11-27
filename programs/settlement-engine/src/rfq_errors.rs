@@ -48,4 +48,6 @@ pub enum RfqError {
     SelectionTooEarly,
     #[msg("Selection deadline passed")]
     SelectionTooLate,
+    #[msg("Maker payment ATA is frozen or closed")]
+    MakerPaymentAtaClosed,
 }
