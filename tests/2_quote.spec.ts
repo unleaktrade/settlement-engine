@@ -9,6 +9,7 @@ import {
     mintTo,
     TOKEN_PROGRAM_ID,
     ASSOCIATED_TOKEN_PROGRAM_ID,
+    getOrCreateAssociatedTokenAccount,
 } from "@solana/spl-token";
 import { v4 as uuidv4, parse as uuidParse } from "uuid";
 import assert from "assert";
@@ -104,6 +105,26 @@ describe("QUOTE", () => {
         if (needInit) {
             bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
             makerPaymentAta = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
+
+            // mint the bonds to maker's payment ATA
+            const makerPaymentAtaInfo = await getOrCreateAssociatedTokenAccount(
+                provider.connection,
+                admin,
+                usdcMint,
+                maker.publicKey
+            );
+            assert(
+                makerPaymentAtaInfo.address.equals(makerPaymentAta),
+                "maker payment ATA mismatch"
+            );
+            await mintTo(
+                provider.connection,
+                admin,
+                usdcMint,
+                makerPaymentAta,
+                admin,
+                1_000_000 //sufficient for bond
+            );
 
             await program.methods
                 .initRfq(

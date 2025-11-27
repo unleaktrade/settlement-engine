@@ -39,10 +39,8 @@ pub struct InitRfq<'info> {
     )]
     pub bonds_fees_vault: Account<'info, TokenAccount>,
 
-    /// Create Maker-owned USDC ATA (for bonds)
     #[account(
-        init_if_needed,
-        payer = maker,
+        mut,
         associated_token::mint = usdc_mint,
         associated_token::authority = maker,
     )]
