@@ -4,9 +4,10 @@ use crate::state::{
 };
 use crate::RfqError;
 use anchor_lang::prelude::*;
-use anchor_spl::
-    token::{Mint, Token}
-;
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    token::{Mint, Token, TokenAccount},
+};
 
 #[derive(Accounts)]
 #[instruction(uuid: [u8; 16])]
@@ -29,8 +30,27 @@ pub struct InitRfq<'info> {
     )]
     pub rfq: Account<'info, Rfq>,
 
+    /// Create RFQ-owned USDC ATA
+    #[account(
+        init_if_needed,
+        payer = maker,
+        associated_token::mint = usdc_mint,
+        associated_token::authority = rfq,
+    )]
+    pub bonds_fees_vault: Account<'info, TokenAccount>,
+
+    /// Create Maker-owned USDC ATA (for bonds)
+    #[account(
+        init_if_needed,
+        payer = maker,
+        associated_token::mint = usdc_mint,
+        associated_token::authority = maker,
+    )]
+    pub maker_payment_ata: Account<'info, TokenAccount>,
+
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>, // for token account initialization
+    pub associated_token_program: Program<'info, AssociatedToken>, // for ATA initialization
 }
 
 pub fn init_rfq_handler(
@@ -94,8 +114,8 @@ pub fn init_rfq_handler(
     rfq.selected_quote = None;
     rfq.settlement = None;
 
-    rfq.bonds_fees_vault = None;
-    rfq.maker_payment_ata = None;
+    rfq.bonds_fees_vault = ctx.accounts.bonds_fees_vault.key();
+    rfq.maker_payment_ata = ctx.accounts.maker_payment_ata.key();
 
     Ok(())
 }

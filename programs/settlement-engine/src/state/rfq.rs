@@ -42,8 +42,8 @@ pub struct Rfq {
     pub settlement: Option<Pubkey>,
 
     // escrow & maker references
-    pub bonds_fees_vault: Option<Pubkey>, // ATA(owner = rfq PDA, mint = Config.usdc_mint)
-    pub maker_payment_ata: Option<Pubkey>, // ATA(owner = maker, mint = Config.usdc_mint)
+    pub bonds_fees_vault: Pubkey, // ATA(owner = rfq PDA, mint = Config.usdc_mint)
+    pub maker_payment_ata: Pubkey, // ATA(owner = maker, mint = Config.usdc_mint)
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, InitSpace)]

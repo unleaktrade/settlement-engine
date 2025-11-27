@@ -5,6 +5,7 @@ import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import {
     createMint,
     getAssociatedTokenAddressSync,
+    mintTo,
     TOKEN_PROGRAM_ID,
     ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
@@ -93,7 +94,8 @@ describe("RFQ", () => {
         const u = uuidBytes();
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
 
-
+        const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
+        const makerPaymentAta = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
 
         const baseMint = Keypair.generate().publicKey;
         const quoteMint = Keypair.generate().publicKey;
@@ -117,7 +119,12 @@ describe("RFQ", () => {
             .accounts({
                 maker: maker.publicKey,
                 config: configPda,
-                usdcMint
+                usdcMint,
+                bondsFeesVault,
+                makerPaymentAta,
+                tokenProgram: TOKEN_PROGRAM_ID,
+                associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+                systemProgram: SystemProgram.programId,
             })
             .signers([maker])
             .rpc();
@@ -136,8 +143,8 @@ describe("RFQ", () => {
         assert.strictEqual(rfq.revealTtlSecs, revealTTL);
         assert.strictEqual(rfq.selectionTtlSecs, selectionTTL);
         assert.strictEqual(rfq.fundTtlSecs, fundingTTL);
-        assert.strictEqual(rfq.bondsFeesVault, null, "bonds_fees_vault should be None before open");
-        assert.strictEqual(rfq.makerPaymentAta, null, "maker_payment_ata should be None before open");
+        assert(rfq.bondsFeesVault.equals(bondsFeesVault), "bonds_fees_vault mismatch");
+        assert(rfq.makerPaymentAta.equals(makerPaymentAta), "maker_payment_ata mismatch");
         expect(rfq.state).to.have.property('draft');
         assert.ok(rfq.state.draft);
         expect(rfq.state.open, "state should be draft, not opened").to.be.undefined;
@@ -341,6 +348,9 @@ describe("RFQ", () => {
         const baseMint = Keypair.generate().publicKey;
         const quoteMint = Keypair.generate().publicKey;
 
+        const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
+        const makerPaymentAta = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
+
         console.log("maker:", maker.publicKey.toBase58());
         console.log("rfqAddr:", rfqAddr.toBase58());
         console.log("baseMint:", baseMint.toBase58());
@@ -404,8 +414,8 @@ describe("RFQ", () => {
         assert.strictEqual(rfq.revealTtlSecs, revealTTL + 1);
         assert.strictEqual(rfq.selectionTtlSecs, selectionTTL + 1);
         assert.strictEqual(rfq.fundTtlSecs, fundingTTL); // unchanged
-        assert.strictEqual(rfq.bondsFeesVault, null, "bonds_fees_vault should be None before open");
-        assert.strictEqual(rfq.makerPaymentAta, null, "maker_payment_ata should be None before open");
+        assert(rfq.bondsFeesVault.equals(bondsFeesVault), "bonds_fees_vault mismatch");
+        assert(rfq.makerPaymentAta.equals(makerPaymentAta), "maker_payment_ata mismatch");
         expect(rfq.state).to.have.property('draft');
         assert.ok(rfq.state.draft);
         expect(rfq.state.open, "state should be draft, not open").to.be.undefined;
@@ -454,6 +464,28 @@ describe("RFQ", () => {
             .signers([maker])
             .rpc();
 
+
+        // const makerPaymentAtaInfo = await getOrCreateAssociatedTokenAccount(
+        //     provider.connection,
+        //     admin,
+        //     usdcMint,
+        //     maker.publicKey
+        // );
+        // assert(
+        //     makerPaymentAtaInfo.address.equals(makerPaymentAta),
+        //     "maker payment ATA mismatch"
+        // );
+        
+        // mint the bonds to maker's payment ATA
+        await mintTo(
+            provider.connection,
+            admin,
+            usdcMint,
+            makerPaymentAta,
+            admin,
+            1_000_000 //sufficient for bond
+        );
+
         await program.methods
             .openRfq()
             .accounts({
@@ -464,7 +496,6 @@ describe("RFQ", () => {
                 makerPaymentAta,
                 usdcMint,
                 tokenProgram: TOKEN_PROGRAM_ID,
-                associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
             })
             .signers([maker])
@@ -490,6 +521,11 @@ describe("RFQ", () => {
         assert.ok(rfq.state.open);
         expect(rfq.state.draft, "state should be open, not draft").to.be.undefined;
 
+        const makerBalance = (await provider.connection.getTokenAccountBalance(makerPaymentAta)).value.amount;
+        const vaultBalance = (await provider.connection.getTokenAccountBalance(bondsFeesVault)).value.amount;
+        assert.strictEqual(makerBalance, "0", "maker should have no USDC left after bonding");
+        assert.strictEqual(vaultBalance, rfq.bondAmount.toString(), "vault should hold the exact bond amount");
+
         // Should fail to re-open
         let failed = false;
         try {
@@ -503,7 +539,6 @@ describe("RFQ", () => {
                     makerPaymentAta,
                     usdcMint,
                     tokenProgram: TOKEN_PROGRAM_ID,
-                    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
                     systemProgram: SystemProgram.programId,
                 })
                 .signers([maker])
