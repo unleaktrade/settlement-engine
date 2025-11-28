@@ -1,9 +1,7 @@
 use crate::state::rfq::{Rfq, RfqState};
 use crate::{state::config::Config, RfqError};
 use anchor_lang::prelude::*;
-use anchor_spl::
-    token::{self, Transfer, Mint, Token, TokenAccount}
-;
+use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
 #[derive(Accounts)]
 pub struct OpenRfq<'info> {
@@ -37,7 +35,7 @@ pub struct OpenRfq<'info> {
         mut,
         token::mint = usdc_mint,
         token::authority = maker,
-        constraint =!maker_payment_account.is_frozen() @ RfqError::MakerPaymentAtaClosed,
+        constraint = rfq.maker_payment_account == maker_payment_account.key() @ RfqError::UnauthorizedMakerPaymentAccount,
     )]
     pub maker_payment_account: Account<'info, TokenAccount>,
 

@@ -48,6 +48,8 @@ pub enum RfqError {
     SelectionTooEarly,
     #[msg("Selection deadline passed")]
     SelectionTooLate,
-    #[msg("Maker payment ATA is frozen or closed")]
-    MakerPaymentAtaClosed,
+    #[msg("Maker payment account is frozen or closed")]
+    MakerPaymentAccountClosed,
+    #[msg("Maker payment account is not authorized for this RFQ")]
+    UnauthorizedMakerPaymentAccount,
 }

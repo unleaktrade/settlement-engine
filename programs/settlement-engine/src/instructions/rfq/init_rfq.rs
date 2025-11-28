@@ -43,7 +43,7 @@ pub struct InitRfq<'info> {
         mut,
         token::mint = usdc_mint,
         token::authority = maker,
-        constraint =!maker_payment_account.is_frozen() @ RfqError::MakerPaymentAtaClosed,
+        constraint =!maker_payment_account.is_frozen() @ RfqError::MakerPaymentAccountClosed,
     )]
     pub maker_payment_account: Account<'info, TokenAccount>,
 
