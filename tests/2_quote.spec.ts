@@ -730,6 +730,11 @@ describe("QUOTE", () => {
         assert.strictEqual(settlement.settledAt, null, "settlement settledAt should be None");
         assert.strictEqual(settlement.makerFundedAt, null, "settlement makerFundedAt should be None");
         assert.strictEqual(settlement.takerFundedAt, null, "settlement takerFundedAt should be None");
+        assert(settlement.maker.equals(maker.publicKey), "settlement maker mismatch");
+        assert(settlement.taker.equals(taker.publicKey), "settlement taker mismatch");
+        assert(settlement.makerPaymentAccount.equals(makerPaymentAccount), "settlement makerPaymentAccount mismatch");
+        assert(settlement.takerPaymentAccount.equals(quote.takerPaymentAccount), "settlement takerPaymentAccount mismatch");
+        assert(settlement.bondsFeesVault.equals(bondsFeesVault), "settlement bondsFeesVault mismatch");
 
         failed = false;
         try {

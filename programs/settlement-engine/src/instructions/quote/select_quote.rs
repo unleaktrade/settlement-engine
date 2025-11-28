@@ -73,6 +73,9 @@ pub fn select_quote_handler(ctx: Context<SelectQuote>) -> Result<()> {
     settlement.maker_funded_at = None;
     settlement.taker_funded_at = None;
     settlement.bump = ctx.bumps.settlement;
+    settlement.maker_payment_account = rfq.maker_payment_account;
+    settlement.taker_payment_account = quote.taker_payment_account;
+    settlement.bonds_fees_vault = rfq.bonds_fees_vault;
 
     Ok(())
 }
