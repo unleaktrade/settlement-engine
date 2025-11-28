@@ -1,12 +1,6 @@
 use anchor_lang::prelude::*;
 
 #[error_code]
-pub enum EngineError {
-    #[msg("Unauthorized: only admin can perform this action")]
-    Unauthorized,
-}
-
-#[error_code]
 pub enum QuoteError {
     #[msg("Commit Deadline passed")]
     CommitTooLate,
@@ -38,4 +32,6 @@ pub enum QuoteError {
     QuoteAlreadyRevealed,
     #[msg("Invalid QUOTE state for this instruction")]
     InvalidState,
+    #[msg("Taker payment account is frozen or closed")]
+    TakerPaymentAccountClosed,
 }

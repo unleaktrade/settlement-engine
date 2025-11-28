@@ -24,5 +24,7 @@ pub fn cancel_rfq_handler(ctx: Context<CancelRfq>) -> Result<()> {
         rfq.key().to_string(),
         ctx.accounts.maker.key()
     );
+
+    // Account will be closed automatically, transferring lamports to maker
     Ok(())
 }

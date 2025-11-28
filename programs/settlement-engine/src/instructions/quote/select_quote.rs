@@ -1,7 +1,7 @@
 use crate::state::rfq::{Rfq, RfqState};
 use crate::state::Quote;
 use crate::state::Settlement;
-use crate::{state::config::Config, QuoteError, RfqError};
+use crate::{QuoteError, RfqError};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
@@ -9,14 +9,11 @@ pub struct SelectQuote<'info> {
     #[account(mut)]
     pub maker: Signer<'info>,
 
-    pub config: Account<'info, Config>,
-
     #[account(
         mut,
         seeds = [Rfq::SEED_PREFIX, maker.key().as_ref(), rfq.uuid.as_ref()],
         bump = rfq.bump,
         has_one = maker,
-        has_one = config,
         constraint = matches!(rfq.state, RfqState::Revealed) @ RfqError::InvalidState,
         constraint = !rfq.has_selection() @ RfqError::AlreadySelected,
     )]

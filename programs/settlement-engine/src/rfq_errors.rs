@@ -1,12 +1,6 @@
 use anchor_lang::prelude::*;
 
 #[error_code]
-pub enum EngineError {
-    #[msg("Unauthorized: only admin can perform this action")]
-    Unauthorized,
-}
-
-#[error_code]
 pub enum RfqError {
     #[msg("Invalid RFQ state for this instruction")]
     InvalidState,
@@ -48,4 +42,8 @@ pub enum RfqError {
     SelectionTooEarly,
     #[msg("Selection deadline passed")]
     SelectionTooLate,
+    #[msg("Maker payment account is frozen or closed")]
+    MakerPaymentAccountClosed,
+    #[msg("Maker payment account is not authorized for this RFQ")]
+    UnauthorizedMakerPaymentAccount,
 }

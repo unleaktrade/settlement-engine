@@ -6,8 +6,10 @@ import { Ed25519Program, Keypair, PublicKey, SystemProgram } from "@solana/web3.
 import {
     createMint,
     getAssociatedTokenAddressSync,
+    mintTo,
     TOKEN_PROGRAM_ID,
     ASSOCIATED_TOKEN_PROGRAM_ID,
+    getOrCreateAssociatedTokenAccount,
 } from "@solana/spl-token";
 import { v4 as uuidv4, parse as uuidParse } from "uuid";
 import assert from "assert";
@@ -40,38 +42,56 @@ const rfqPda = (maker: PublicKey, u16: Uint8Array) =>
 const uuidBytes = () => Uint8Array.from(uuidParse(uuidv4()));
 const liquidityGuardURL = "https://liquidity-guard-devnet-skip-c644b6411603.herokuapp.com";
 
+async function getAndLogBalance(
+    label: string,
+    owner: string,
+    tokenAccount: PublicKey,) {
+    const balance = await provider.connection.getTokenAccountBalance(tokenAccount).then(b => new anchor.BN(b.value.amount));
+    console.log(`${label} - ${owner}:`, balance.toString());
+    return balance;
+}
+
 // --- tests (ONLY initRfq) --------------------------------------------------
 
 describe("QUOTE", () => {
-    const admin = Keypair.generate();
-    const maker = Keypair.generate();
-    const baseMint = Keypair.generate().publicKey;
-    const quoteMint = Keypair.generate().publicKey;
-
-    const commitTTL = 5, revealTTL = 5, selectionTTL = 5, fundingTTL = 5;
-
-    const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
-
     let configPda: PublicKey;
     let usdcMint: PublicKey;
+    let baseMint: PublicKey;
+    let quoteMint: PublicKey;
     let rfqPDA: PublicKey;
     let rfqBump: number;
     let validTaker: Keypair;
+    let bondsFeesVault: PublicKey;
+    let makerPaymentAccount: PublicKey;
+    let makerBalance: anchor.BN;
+    let vaultBalance: anchor.BN;
+    let takerBalance: anchor.BN;
+
+    const admin = Keypair.generate();
+    const maker = Keypair.generate();
+
+    const commitTTL = 10, revealTTL = 10, selectionTTL = 10, fundingTTL = 10;
+
+    const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
+
 
     before(async () => {
         await fund(admin);
         await fund(maker);
 
-        // 1) Create a real USDC-like mint (6 decimals) owned by admin
-        usdcMint = await createMint(
-            provider.connection,
-            admin,                 // payer
-            admin.publicKey,       // mint authority
-            null,                  // freeze authority
-            6                      // decimals
-        );
+        // Mint USDC, base, quote mints
+        [usdcMint, baseMint, quoteMint] = await Promise.all(
+            [6, 9, 9].map(d => createMint(
+                provider.connection,
+                admin,                 // payer
+                admin.publicKey,       // mint authority
+                null,                  // freeze authority
+                d                      // decimals
+            )));
 
         console.log("USDC mint:", usdcMint.toBase58());
+        console.log("Base mint:", baseMint.toBase58());
+        console.log("Quote mint:", quoteMint.toBase58());
 
         // 2) Ensure config exists and points to that mint
         [configPda] = PublicKey.findProgramAddressSync(
@@ -99,8 +119,28 @@ describe("QUOTE", () => {
             await program.account.rfq.fetch(rfqPDA);
         } catch { needInit = true; }
         if (needInit) {
-            // bonds_vault = ATA(owner = rfq PDA, mint = usdcMint)
-            const bondsVault = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
+            bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
+            makerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
+
+            // mint the bonds to maker's payment ATA
+            const makerPaymentAccountInfo = await getOrCreateAssociatedTokenAccount(
+                provider.connection,
+                admin,
+                usdcMint,
+                maker.publicKey
+            );
+            assert(
+                makerPaymentAccountInfo.address.equals(makerPaymentAccount),
+                "maker payment ATA mismatch"
+            );
+            await mintTo(
+                provider.connection,
+                admin,
+                usdcMint,
+                makerPaymentAccount,
+                admin,
+                1_000_000 //sufficient for bond
+            );
 
             await program.methods
                 .initRfq(
@@ -119,23 +159,43 @@ describe("QUOTE", () => {
                 .accounts({
                     maker: maker.publicKey,
                     config: configPda,
-                    usdcMint
+                    usdcMint,
+                    bondsFeesVault,
+                    makerPaymentAccount,
+                    systemProgram: SystemProgram.programId,
+                    tokenProgram: TOKEN_PROGRAM_ID,
+                    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
                 })
                 .signers([maker])
                 .rpc();
         }
+
+        [makerBalance, vaultBalance] = await Promise.all([
+            getAndLogBalance("Before opening RFQ", "Maker USDC", makerPaymentAccount),
+            getAndLogBalance("Before opening RFQ", "RFQ Bonds Vault", bondsFeesVault),
+        ]);
 
         await program.methods.openRfq()
             .accounts({
                 maker: maker.publicKey,
                 rfq: rfqPDA,
                 config: configPda,
+                bondsFeesVault,
+                makerPaymentAccount,
+                usdcMint,
             })
             .signers([maker])
             .rpc();
 
-        console.log("RFQ PDA:", rfqPDA.toBase58());
+        [makerBalance, vaultBalance] = await Promise.all([
+            getAndLogBalance("After opening RFQ", "Maker USDC", makerPaymentAccount),
+            getAndLogBalance("After opening RFQ", "RFQ Bonds Vault", bondsFeesVault),
+        ]);
 
+        const rfq = await program.account.rfq.fetch(rfqPDA);
+
+        assert(vaultBalance.eq(rfq.bondAmount), "RFQ bond vault balance mismatch after open");
+        assert(makerBalance.eq(new anchor.BN(0)), "Maker payment account balance should be zero after open");
     });
 
     after(async () => {
@@ -183,7 +243,6 @@ describe("QUOTE", () => {
         if ("error" in response) {
             throw new Error(`Liquidity Guard error: ${response.error}`);
         } else {
-            console.log("Liquidity Guard response:", response);
             assert(response.rfq === rfqPDA.toBase58(), `unexpected rfq ${response.rfq}`);
             assert(response.salt === Buffer.from(salt).toString("hex"), `unexpected salt ${response.salt}`);
             assert(response.taker === taker.publicKey.toBase58(), `unexpected taker ${response.taker}`);
@@ -248,6 +307,28 @@ describe("QUOTE", () => {
         let rfq = await program.account.rfq.fetch(rfqPDA);
         assert.ok(rfq.state.open);
 
+        const takerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker.publicKey);
+
+        // mint the bonds to taker's payment ATA
+        const takerPaymentAccountInfo = await getOrCreateAssociatedTokenAccount(
+            provider.connection,
+            admin,
+            usdcMint,
+            taker.publicKey
+        );
+        assert(
+            takerPaymentAccountInfo.address.equals(takerPaymentAccount),
+            "taker payment ATA mismatch"
+        );
+        await mintTo(
+            provider.connection,
+            admin,
+            usdcMint,
+            takerPaymentAccount,
+            admin,
+            1_000_000 //sufficient for bond
+        );
+
         const commit_hash = Buffer.from(response.commit_hash, "hex");
         const liquidity_proof = Buffer.from(response.liquidity_proof, "hex");
         if (commit_hash.length !== 32) throw new Error("commit_hash must be 32 bytes");
@@ -272,10 +353,11 @@ describe("QUOTE", () => {
             .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
             .accounts({
                 taker: taker.publicKey,
-                config: configPda,
                 rfq: rfqPDA,
                 usdcMint: usdcMint,
-                instruction_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+                config: configPda,
+                instructionSysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+                takerPaymentAccount: takerPaymentAccount,
             })
             .instruction();
 
@@ -306,6 +388,7 @@ describe("QUOTE", () => {
         assert(quote.revealedAt === null || quote.revealedAt === undefined, "revealedAt should be None before reveal");
         assert(quote.quoteAmount === null || quote.quoteAmount === null, "quoteAmount should be None before reveal");
         assert.strictEqual(quote.bump, bumpQuote, "quote bump mismatch");
+        assert(quote.takerPaymentAccount.equals(takerPaymentAccount), "taker payment account mismatch");
 
         rfq = await program.account.rfq.fetch(rfqPDA);
         assert.strictEqual(rfq.committedCount, 1, "rfq revealedCount should be 1");
@@ -322,10 +405,44 @@ describe("QUOTE", () => {
         // save valid taker for reveal test
         validTaker = taker;
 
+        [makerBalance, vaultBalance, takerBalance] = await Promise.all([
+            getAndLogBalance("After commiting quote", "Maker USDC", makerPaymentAccount),
+            getAndLogBalance("After commiting quote", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After commiting quote", "Taker USDC", takerPaymentAccount),
+        ]);
+
+        assert(vaultBalance.eq(rfq.bondAmount.muln(2)), "RFQ bond vault balance mismatch after open");
+        assert(makerBalance.eq(new anchor.BN(0)), "Maker payment account balance should be zero after open");
+        assert(takerBalance.eq(new anchor.BN(0)), "Taker payment account balance should be zero after commit");
+
         // test commit guard prevents re-use of hash
+        console.log("Testing that different taker cannot commit same hash...");
         const taker2 = Keypair.generate();
         await fund(taker2);
         console.log("Taker2:", taker2.publicKey.toBase58());
+
+        const taker2PaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker2.publicKey);
+
+        // mint the bonds to taker's payment ATA
+        const taker2PaymentAccountInfo = await getOrCreateAssociatedTokenAccount(
+            provider.connection,
+            admin,
+            usdcMint,
+            taker2.publicKey
+        );
+        assert(
+            taker2PaymentAccountInfo.address.equals(taker2PaymentAccount),
+            "taker2 payment ATA mismatch"
+        );
+        await mintTo(
+            provider.connection,
+            admin,
+            usdcMint,
+            taker2PaymentAccount,
+            admin,
+            1_000_000 //sufficient for bond
+        );
+
         const commitQuoteIx2 = await program.methods
             .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
             .accounts({
@@ -333,7 +450,8 @@ describe("QUOTE", () => {
                 config: configPda,
                 rfq: rfqPDA,
                 usdcMint: usdcMint,
-                instruction_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+                instructionSysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+                takerPaymentAccount: taker2PaymentAccount,
             }).instruction();
 
         const tx2 = new anchor.web3.Transaction();
@@ -347,6 +465,7 @@ describe("QUOTE", () => {
         }
         assert(failed, "commit-guard / commit quote with same hash should fail");
 
+        console.log("Testing that same taker cannot commit twice...");
         failed = false;
         const commitQuoteIx3 = await program.methods
             .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
@@ -355,7 +474,8 @@ describe("QUOTE", () => {
                 config: configPda,
                 rfq: rfqPDA,
                 usdcMint: usdcMint,
-                instruction_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+                instructionSysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+                takerPaymentAccount: takerPaymentAccount,
             }).instruction();
 
         const tx3 = new anchor.web3.Transaction();
@@ -402,6 +522,28 @@ describe("QUOTE", () => {
         const rfq = await program.account.rfq.fetch(rfqPDA);
         assert.ok(rfq.state.committed); // it was committed in previous test
 
+        const takerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker.publicKey);
+
+        // mint the bonds to taker's payment ATA
+        const takerPaymentAccountInfo = await getOrCreateAssociatedTokenAccount(
+            provider.connection,
+            admin,
+            usdcMint,
+            taker.publicKey
+        );
+        assert(
+            takerPaymentAccountInfo.address.equals(takerPaymentAccount),
+            "taker payment ATA mismatch"
+        );
+        await mintTo(
+            provider.connection,
+            admin,
+            usdcMint,
+            takerPaymentAccount,
+            admin,
+            1_000_000 //sufficient for bond
+        );
+
         const commit_hash = Buffer.from(response.commit_hash, "hex");
         const liquidity_proof = Buffer.from(response.liquidity_proof, "hex");
         if (commit_hash.length !== 32) throw new Error("commit_hash must be 32 bytes");
@@ -423,7 +565,8 @@ describe("QUOTE", () => {
                 config: configPda,
                 rfq: rfqPDA,
                 usdcMint: usdcMint,
-                instruction_sysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+                instructionSysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+                takerPaymentAccount,
             })
             .instruction();
 
@@ -537,7 +680,6 @@ describe("QUOTE", () => {
                     maker: maker.publicKey,
                     rfq: rfqPDA,
                     quote: quotePda,
-                    config: configPda,
                 })
                 .signers([maker])
                 .rpc();
@@ -555,7 +697,6 @@ describe("QUOTE", () => {
                 maker: maker.publicKey,
                 rfq: rfqPDA,
                 quote: quotePda,
-                config: configPda,
             })
             .signers([maker])
             .rpc();
@@ -597,7 +738,6 @@ describe("QUOTE", () => {
                     maker: maker.publicKey,
                     rfq: rfqPDA,
                     quote: quotePda,
-                    config: configPda,
                 })
                 .signers([maker])
                 .rpc();
@@ -647,4 +787,3 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
-
