@@ -1,10 +1,8 @@
 use anchor_lang::prelude::*;
-use anchor_spl::
-    token::{self, Mint, Token, TokenAccount, Transfer}
-;
 use anchor_lang::solana_program::sysvar::instructions::{
     load_current_index_checked, load_instruction_at_checked, ID as INSTRUCTIONS_ID,
 };
+use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
 use crate::{
     state::{
@@ -77,7 +75,7 @@ pub struct CommitQuote<'info> {
     /// CHECK: Address asserted to be the instructions sysvar
     #[account(address = INSTRUCTIONS_ID)]
     pub instruction_sysvar: AccountInfo<'info>,
-    pub token_program: Program<'info, Token>, 
+    pub token_program: Program<'info, Token>,
 }
 
 pub fn commit_quote_handler(
@@ -173,7 +171,6 @@ pub fn commit_quote_handler(
         return err!(RfqError::InvalidState);
     };
     require!(now <= commit_deadline, QuoteError::CommitTooLate);
-
 
     // Transfer taker bond USDC into RFQ's vault
     let cpi_accounts = Transfer {

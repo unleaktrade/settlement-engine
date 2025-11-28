@@ -18,10 +18,20 @@ pub struct Settlement {
     pub quote_amount: u64,
     pub bond_amount: u64,
     pub fee_amount: u64,
-    pub maker_base_ata: Pubkey,
-    pub taker_base_ata: Pubkey,
-    pub maker_quote_ata: Pubkey,
-    pub taker_quote_ata: Pubkey,
+
+    /// Token Accounts
+    // USDC
+    pub maker_payment_account: Pubkey,
+    pub taker_payment_account: Pubkey,
+    pub bonds_fees_vault: Pubkey,
+    // base mint
+    pub maker_base_account: Pubkey,
+    pub taker_base_account: Pubkey,
+    pub vault_base_ata: Pubkey,
+    // quote mint
+    pub maker_quote_account: Pubkey,
+    pub taker_quote_account: Pubkey,
+    pub vault_quote_ata: Pubkey,
 
     // timeline
     pub created_at: i64,

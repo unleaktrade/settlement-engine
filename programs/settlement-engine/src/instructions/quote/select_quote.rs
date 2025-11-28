@@ -1,29 +1,19 @@
 use crate::state::rfq::{Rfq, RfqState};
 use crate::state::Quote;
 use crate::state::Settlement;
-use crate::{state::config::Config, QuoteError, RfqError};
+use crate::{QuoteError, RfqError};
 use anchor_lang::prelude::*;
-use anchor_spl::{
-    associated_token::AssociatedToken,
-    token::{Mint, Token},
-};
 
 #[derive(Accounts)]
 pub struct SelectQuote<'info> {
     #[account(mut)]
     pub maker: Signer<'info>,
 
-    pub config: Account<'info, Config>,
-
-    #[account(address = config.usdc_mint)]
-    pub usdc_mint: Account<'info, Mint>,
-
     #[account(
         mut,
         seeds = [Rfq::SEED_PREFIX, maker.key().as_ref(), rfq.uuid.as_ref()],
         bump = rfq.bump,
         has_one = maker,
-        has_one = config,
         constraint = matches!(rfq.state, RfqState::Revealed) @ RfqError::InvalidState,
         constraint = !rfq.has_selection() @ RfqError::AlreadySelected,
     )]
@@ -43,16 +33,7 @@ pub struct SelectQuote<'info> {
     )]
     pub settlement: Account<'info, Settlement>,
 
-    // pub maker_base_ata: Account<'info, TokenAccount>,
-    // pub taker_base_ata: Account<'info, TokenAccount>,
-    // pub maker_quote_ata: Account<'info, TokenAccount>,
-    // pub taker_quote_ata: Account<'info, TokenAccount>,
-    // pub vault_base_ata: Account<'info, TokenAccount>,
-    // pub vault_quote_ata: Account<'info, TokenAccount>,
     pub system_program: Program<'info, System>,
-
-    pub token_program: Program<'info, Token>, // for token account initialization
-    pub associated_token_program: Program<'info, AssociatedToken>, // for ATA initialization
 }
 
 pub fn select_quote_handler(ctx: Context<SelectQuote>) -> Result<()> {

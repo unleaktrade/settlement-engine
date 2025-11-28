@@ -680,8 +680,6 @@ describe("QUOTE", () => {
                     maker: maker.publicKey,
                     rfq: rfqPDA,
                     quote: quotePda,
-                    config: configPda,
-                    usdcMint: usdcMint,
                 })
                 .signers([maker])
                 .rpc();
@@ -699,8 +697,6 @@ describe("QUOTE", () => {
                 maker: maker.publicKey,
                 rfq: rfqPDA,
                 quote: quotePda,
-                config: configPda,
-                usdcMint: usdcMint,
             })
             .signers([maker])
             .rpc();
@@ -742,8 +738,6 @@ describe("QUOTE", () => {
                     maker: maker.publicKey,
                     rfq: rfqPDA,
                     quote: quotePda,
-                    config: configPda,
-                    usdcMint: usdcMint,
                 })
                 .signers([maker])
                 .rpc();
