@@ -56,6 +56,7 @@ pub fn open_rfq_handler(ctx: Context<OpenRfq>) -> Result<()> {
     require!(rfq.selection_ttl_secs > 0, RfqError::InvalidParams);
     require!(rfq.fund_ttl_secs > 0, RfqError::InvalidParams);
 
+    // Transfer maker bond USDC into RFQ's vault
     let cpi_accounts = Transfer {
         from: ctx.accounts.maker_payment_account.to_account_info(),
         to: ctx.accounts.bonds_fees_vault.to_account_info(),

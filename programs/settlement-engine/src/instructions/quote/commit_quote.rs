@@ -1,8 +1,7 @@
 use anchor_lang::prelude::*;
-use anchor_spl::{
-    associated_token::AssociatedToken,
-    token::{self, Mint, Token, TokenAccount, Transfer},
-};
+use anchor_spl::
+    token::{self, Mint, Token, TokenAccount, Transfer}
+;
 use anchor_lang::solana_program::sysvar::instructions::{
     load_current_index_checked, load_instruction_at_checked, ID as INSTRUCTIONS_ID,
 };
@@ -175,17 +174,16 @@ pub fn commit_quote_handler(
     };
     require!(now <= commit_deadline, QuoteError::CommitTooLate);
 
-    // let bond_amount = rfq.bond_amount;
-    // require!(bond_amount > 0, RfqError::InvalidState);
 
-    // Transfer taker bond USDC into RFQ bonds_vault
-    // let cpi_accounts = Transfer {
-    //     from: ctx.accounts.taker_usdc_ata.to_account_info(),
-    //     to: ctx.accounts.bonds_vault.to_account_info(),
-    //     authority: ctx.accounts.taker.to_account_info(),
-    // };
-    // let cpi_ctx = CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);
-    // token::transfer(cpi_ctx, bond_amount)?;
+    // Transfer taker bond USDC into RFQ's vault
+    let cpi_accounts = Transfer {
+        from: ctx.accounts.taker_payment_account.to_account_info(),
+        to: ctx.accounts.bonds_fees_vault.to_account_info(),
+        authority: ctx.accounts.taker.to_account_info(),
+    };
+    let cpi_program = ctx.accounts.token_program.to_account_info();
+    let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+    token::transfer(cpi_ctx, rfq.bond_amount)?;
 
     // Fill Quote (commit-only fields)
     let quote = &mut ctx.accounts.quote;
@@ -204,6 +202,7 @@ pub fn commit_quote_handler(
     quote.committed_at = now;
     quote.revealed_at = None;
     quote.quote_amount = None; // to be filled on reveal
+    quote.taker_payment_account = ctx.accounts.taker_payment_account.key();
 
     rfq.state = RfqState::Committed;
     rfq.committed_count = rfq.committed_count.saturating_add(1);

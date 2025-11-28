@@ -42,6 +42,15 @@ const rfqPda = (maker: PublicKey, u16: Uint8Array) =>
 const uuidBytes = () => Uint8Array.from(uuidParse(uuidv4()));
 const liquidityGuardURL = "https://liquidity-guard-devnet-skip-c644b6411603.herokuapp.com";
 
+async function getAndLogBalance(
+    label: string,
+    owner: string,
+    tokenAccount: PublicKey,) {
+    const balance = await provider.connection.getTokenAccountBalance(tokenAccount).then(b => new anchor.BN(b.value.amount));
+    console.log(`${label} - ${owner}:`, balance.toString());
+    return balance;
+}
+
 // --- tests (ONLY initRfq) --------------------------------------------------
 
 describe("QUOTE", () => {
@@ -50,7 +59,7 @@ describe("QUOTE", () => {
     const baseMint = Keypair.generate().publicKey;
     const quoteMint = Keypair.generate().publicKey;
 
-    const commitTTL = 6, revealTTL = 6, selectionTTL = 6, fundingTTL = 6;
+    const commitTTL = 10, revealTTL = 10, selectionTTL = 10, fundingTTL = 10;
 
     const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
 
@@ -60,7 +69,10 @@ describe("QUOTE", () => {
     let rfqBump: number;
     let validTaker: Keypair;
     let bondsFeesVault: PublicKey;
-    let makerPaymentAccount: PublicKey
+    let makerPaymentAccount: PublicKey;
+    let makerBalance: anchor.BN;
+    let vaultBalance: anchor.BN;
+    let takerBalance: anchor.BN;
 
     before(async () => {
         await fund(admin);
@@ -154,15 +166,10 @@ describe("QUOTE", () => {
                 .rpc();
         }
 
-        // mint the bonds to maker's payment ATA
-        await mintTo(
-            provider.connection,
-            admin,
-            usdcMint,
-            makerPaymentAccount,
-            admin,
-            1_000_000  //sufficient for bond
-        );
+        [makerBalance, vaultBalance] = await Promise.all([
+            getAndLogBalance("Before opening RFQ", "Maker USDC", makerPaymentAccount),
+            getAndLogBalance("Before opening RFQ", "RFQ Bonds Vault", bondsFeesVault),
+        ]);
 
         await program.methods.openRfq()
             .accounts({
@@ -176,8 +183,15 @@ describe("QUOTE", () => {
             .signers([maker])
             .rpc();
 
-        console.log("RFQ PDA:", rfqPDA.toBase58());
+        [makerBalance, vaultBalance] = await Promise.all([
+            getAndLogBalance("After opening RFQ", "Maker USDC", makerPaymentAccount),
+            getAndLogBalance("After opening RFQ", "RFQ Bonds Vault", bondsFeesVault),
+        ]);
 
+        const rfq = await program.account.rfq.fetch(rfqPDA);
+
+        assert(vaultBalance.eq(rfq.bondAmount), "RFQ bond vault balance mismatch after open");
+        assert(makerBalance.eq(new anchor.BN(0)), "Maker payment account balance should be zero after open");
     });
 
     after(async () => {
@@ -370,6 +384,7 @@ describe("QUOTE", () => {
         assert(quote.revealedAt === null || quote.revealedAt === undefined, "revealedAt should be None before reveal");
         assert(quote.quoteAmount === null || quote.quoteAmount === null, "quoteAmount should be None before reveal");
         assert.strictEqual(quote.bump, bumpQuote, "quote bump mismatch");
+        assert(quote.takerPaymentAccount.equals(takerPaymentAccount), "taker payment account mismatch");
 
         rfq = await program.account.rfq.fetch(rfqPDA);
         assert.strictEqual(rfq.committedCount, 1, "rfq revealedCount should be 1");
@@ -385,6 +400,16 @@ describe("QUOTE", () => {
         assert.ok(commitGuard.committedAt.eq(quote.committedAt), "committedAt mismatch");
         // save valid taker for reveal test
         validTaker = taker;
+
+        [makerBalance, vaultBalance, takerBalance] = await Promise.all([
+            getAndLogBalance("After commiting quote", "Maker USDC", makerPaymentAccount),
+            getAndLogBalance("After commiting quote", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After commiting quote", "Taker USDC", takerPaymentAccount),
+        ]);
+
+        assert(vaultBalance.eq(rfq.bondAmount.muln(2)), "RFQ bond vault balance mismatch after open");
+        assert(makerBalance.eq(new anchor.BN(0)), "Maker payment account balance should be zero after open");
+        assert(takerBalance.eq(new anchor.BN(0)), "Taker payment account balance should be zero after commit");
 
         // test commit guard prevents re-use of hash
         console.log("Testing that different taker cannot commit same hash...");
@@ -764,4 +789,3 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
-
