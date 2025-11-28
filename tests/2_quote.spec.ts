@@ -50,7 +50,7 @@ describe("QUOTE", () => {
     const baseMint = Keypair.generate().publicKey;
     const quoteMint = Keypair.generate().publicKey;
 
-    const commitTTL = 5, revealTTL = 5, selectionTTL = 5, fundingTTL = 5;
+    const commitTTL = 6, revealTTL = 6, selectionTTL = 6, fundingTTL = 6;
 
     const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
 
@@ -289,6 +289,28 @@ describe("QUOTE", () => {
         let rfq = await program.account.rfq.fetch(rfqPDA);
         assert.ok(rfq.state.open);
 
+        const takerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker.publicKey);
+
+        // mint the bonds to taker's payment ATA
+        const takerPaymentAccountInfo = await getOrCreateAssociatedTokenAccount(
+            provider.connection,
+            admin,
+            usdcMint,
+            taker.publicKey
+        );
+        assert(
+            takerPaymentAccountInfo.address.equals(takerPaymentAccount),
+            "taker payment ATA mismatch"
+        );
+        await mintTo(
+            provider.connection,
+            admin,
+            usdcMint,
+            takerPaymentAccount,
+            admin,
+            1_000_000 //sufficient for bond
+        );
+
         const commit_hash = Buffer.from(response.commit_hash, "hex");
         const liquidity_proof = Buffer.from(response.liquidity_proof, "hex");
         if (commit_hash.length !== 32) throw new Error("commit_hash must be 32 bytes");
@@ -317,6 +339,7 @@ describe("QUOTE", () => {
                 usdcMint: usdcMint,
                 config: configPda,
                 instructionSysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+                takerPaymentAccount: takerPaymentAccount,
             })
             .instruction();
 
@@ -364,9 +387,33 @@ describe("QUOTE", () => {
         validTaker = taker;
 
         // test commit guard prevents re-use of hash
+        console.log("Testing that different taker cannot commit same hash...");
         const taker2 = Keypair.generate();
         await fund(taker2);
         console.log("Taker2:", taker2.publicKey.toBase58());
+
+        const taker2PaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker2.publicKey);
+
+        // mint the bonds to taker's payment ATA
+        const taker2PaymentAccountInfo = await getOrCreateAssociatedTokenAccount(
+            provider.connection,
+            admin,
+            usdcMint,
+            taker2.publicKey
+        );
+        assert(
+            taker2PaymentAccountInfo.address.equals(taker2PaymentAccount),
+            "taker2 payment ATA mismatch"
+        );
+        await mintTo(
+            provider.connection,
+            admin,
+            usdcMint,
+            taker2PaymentAccount,
+            admin,
+            1_000_000 //sufficient for bond
+        );
+
         const commitQuoteIx2 = await program.methods
             .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
             .accounts({
@@ -375,6 +422,7 @@ describe("QUOTE", () => {
                 rfq: rfqPDA,
                 usdcMint: usdcMint,
                 instructionSysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+                takerPaymentAccount: taker2PaymentAccount,
             }).instruction();
 
         const tx2 = new anchor.web3.Transaction();
@@ -388,6 +436,7 @@ describe("QUOTE", () => {
         }
         assert(failed, "commit-guard / commit quote with same hash should fail");
 
+        console.log("Testing that same taker cannot commit twice...");
         failed = false;
         const commitQuoteIx3 = await program.methods
             .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
@@ -397,6 +446,7 @@ describe("QUOTE", () => {
                 rfq: rfqPDA,
                 usdcMint: usdcMint,
                 instructionSysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+                takerPaymentAccount: takerPaymentAccount,
             }).instruction();
 
         const tx3 = new anchor.web3.Transaction();
@@ -443,6 +493,28 @@ describe("QUOTE", () => {
         const rfq = await program.account.rfq.fetch(rfqPDA);
         assert.ok(rfq.state.committed); // it was committed in previous test
 
+        const takerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker.publicKey);
+
+        // mint the bonds to taker's payment ATA
+        const takerPaymentAccountInfo = await getOrCreateAssociatedTokenAccount(
+            provider.connection,
+            admin,
+            usdcMint,
+            taker.publicKey
+        );
+        assert(
+            takerPaymentAccountInfo.address.equals(takerPaymentAccount),
+            "taker payment ATA mismatch"
+        );
+        await mintTo(
+            provider.connection,
+            admin,
+            usdcMint,
+            takerPaymentAccount,
+            admin,
+            1_000_000 //sufficient for bond
+        );
+
         const commit_hash = Buffer.from(response.commit_hash, "hex");
         const liquidity_proof = Buffer.from(response.liquidity_proof, "hex");
         if (commit_hash.length !== 32) throw new Error("commit_hash must be 32 bytes");
@@ -465,6 +537,7 @@ describe("QUOTE", () => {
                 rfq: rfqPDA,
                 usdcMint: usdcMint,
                 instructionSysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+                takerPaymentAccount,
             })
             .instruction();
 

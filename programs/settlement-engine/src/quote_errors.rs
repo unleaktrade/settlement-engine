@@ -38,4 +38,6 @@ pub enum QuoteError {
     QuoteAlreadyRevealed,
     #[msg("Invalid QUOTE state for this instruction")]
     InvalidState,
+    #[msg("Taker payment account is frozen or closed")]
+    TakerPaymentAccountClosed,
 }

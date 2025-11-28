@@ -1,11 +1,11 @@
 use anchor_lang::prelude::*;
-// use anchor_spl::{
-//     token::{self, Mint, Token, TokenAccount, Transfer},
-// };
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    token::{self, Mint, Token, TokenAccount, Transfer},
+};
 use anchor_lang::solana_program::sysvar::instructions::{
     load_current_index_checked, load_instruction_at_checked, ID as INSTRUCTIONS_ID,
 };
-use anchor_spl::token::Mint;
 
 use crate::{
     state::{
@@ -37,23 +37,6 @@ pub struct CommitQuote<'info> {
     #[account(address = config.usdc_mint)]
     pub usdc_mint: Account<'info, Mint>,
 
-    /// RFQ-owned USDC bonds vault (ATA)
-    // #[account(
-    //     mut,
-    //     constraint = bonds_vault.key() == rfq.bonds_vault @ RfqError::InvalidState,
-    //     token::mint = usdc_mint,
-    //     token::authority = rfq,
-    // )]
-    // pub bonds_vault: Account<'info, TokenAccount>,
-
-    /// Taker's USDC ATA to pull bond from
-    // #[account(
-    //     mut,
-    //     associated_token::mint = usdc_mint,
-    //     associated_token::authority = taker,
-    // )]
-    // pub taker_usdc_ata: Account<'info, TokenAccount>,
-
     /// One Quote account per (rfq, taker)
     #[account(
         init,
@@ -74,9 +57,20 @@ pub struct CommitQuote<'info> {
     )]
     pub commit_guard: Account<'info, CommitGuard>,
 
-    // pub bonds_fees_vault: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        associated_token::mint = usdc_mint,
+        associated_token::authority = rfq,
+    )]
+    pub bonds_fees_vault: Account<'info, TokenAccount>,
 
-    // pub maker_payment_ata: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        token::mint = usdc_mint,
+        token::authority = taker,
+        constraint =!taker_payment_account.is_frozen() @ QuoteError::TakerPaymentAccountClosed,
+    )]
+    pub taker_payment_account: Account<'info, TokenAccount>,
 
     /// Needed because we `init` PDAs (quote, commit_guard)
     pub system_program: Program<'info, System>,
@@ -84,6 +78,7 @@ pub struct CommitQuote<'info> {
     /// CHECK: Address asserted to be the instructions sysvar
     #[account(address = INSTRUCTIONS_ID)]
     pub instruction_sysvar: AccountInfo<'info>,
+    pub token_program: Program<'info, Token>, 
 }
 
 pub fn commit_quote_handler(

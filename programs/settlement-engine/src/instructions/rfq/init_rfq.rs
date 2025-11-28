@@ -48,8 +48,8 @@ pub struct InitRfq<'info> {
     pub maker_payment_account: Account<'info, TokenAccount>,
 
     pub system_program: Program<'info, System>,
-    pub token_program: Program<'info, Token>, // for token account initialization
-    pub associated_token_program: Program<'info, AssociatedToken>, // for ATA initialization
+    pub token_program: Program<'info, Token>, 
+    pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
 pub fn init_rfq_handler(

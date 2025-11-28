@@ -23,7 +23,6 @@ pub struct OpenRfq<'info> {
     #[account(address = config.usdc_mint)]
     pub usdc_mint: Account<'info, Mint>,
 
-    /// Create RFQ-owned USDC ATA
     #[account(
         mut,
         associated_token::mint = usdc_mint,
