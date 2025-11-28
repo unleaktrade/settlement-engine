@@ -54,17 +54,10 @@ async function getAndLogBalance(
 // --- tests (ONLY initRfq) --------------------------------------------------
 
 describe("QUOTE", () => {
-    const admin = Keypair.generate();
-    const maker = Keypair.generate();
-    const baseMint = Keypair.generate().publicKey;
-    const quoteMint = Keypair.generate().publicKey;
-
-    const commitTTL = 10, revealTTL = 10, selectionTTL = 10, fundingTTL = 10;
-
-    const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
-
     let configPda: PublicKey;
     let usdcMint: PublicKey;
+    let baseMint: PublicKey;
+    let quoteMint: PublicKey;
     let rfqPDA: PublicKey;
     let rfqBump: number;
     let validTaker: Keypair;
@@ -74,20 +67,31 @@ describe("QUOTE", () => {
     let vaultBalance: anchor.BN;
     let takerBalance: anchor.BN;
 
+    const admin = Keypair.generate();
+    const maker = Keypair.generate();
+
+    const commitTTL = 10, revealTTL = 10, selectionTTL = 10, fundingTTL = 10;
+
+    const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
+
+
     before(async () => {
         await fund(admin);
         await fund(maker);
 
-        // 1) Create a real USDC-like mint (6 decimals) owned by admin
-        usdcMint = await createMint(
-            provider.connection,
-            admin,                 // payer
-            admin.publicKey,       // mint authority
-            null,                  // freeze authority
-            6                      // decimals
-        );
+        // Mint USDC, base, quote mints
+        [usdcMint, baseMint, quoteMint] = await Promise.all(
+            [6, 9, 9].map(d => createMint(
+                provider.connection,
+                admin,                 // payer
+                admin.publicKey,       // mint authority
+                null,                  // freeze authority
+                d                      // decimals
+            )));
 
         console.log("USDC mint:", usdcMint.toBase58());
+        console.log("Base mint:", baseMint.toBase58());
+        console.log("Quote mint:", quoteMint.toBase58());
 
         // 2) Ensure config exists and points to that mint
         [configPda] = PublicKey.findProgramAddressSync(
