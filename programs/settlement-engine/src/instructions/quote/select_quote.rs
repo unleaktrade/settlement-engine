@@ -20,8 +20,7 @@ pub struct SelectQuote<'info> {
     pub rfq: Account<'info, Rfq>,
 
     #[account(
-        has_one = rfq,
-        constraint = quote.is_revealed() @ QuoteError::InvalidState,)]
+        has_one = rfq,)]
     pub quote: Account<'info, Quote>,
 
     #[account(
@@ -50,7 +49,9 @@ pub fn select_quote_handler(ctx: Context<SelectQuote>) -> Result<()> {
         }
         _ => return err!(RfqError::InvalidState),
     }
-
+    
+    require!(quote.is_revealed(), QuoteError::InvalidState);
+        
     // update rfq
     rfq.state = RfqState::Selected;
     rfq.selected_at = Some(now);
