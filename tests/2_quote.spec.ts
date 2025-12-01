@@ -63,9 +63,9 @@ describe("QUOTE", () => {
     let validTaker: Keypair;
     let bondsFeesVault: PublicKey;
     let makerPaymentAccount: PublicKey;
-    let makerBalance: anchor.BN;
-    let vaultBalance: anchor.BN;
-    let takerBalance: anchor.BN;
+    let makerPaymentBalance: anchor.BN;
+    let vaultPaymentBalance: anchor.BN;
+    let takerPaymentBalance: anchor.BN;
 
     const admin = Keypair.generate();
     const maker = Keypair.generate();
@@ -170,7 +170,7 @@ describe("QUOTE", () => {
                 .rpc();
         }
 
-        [makerBalance, vaultBalance] = await Promise.all([
+        [makerPaymentBalance, vaultPaymentBalance] = await Promise.all([
             getAndLogBalance("Before opening RFQ", "Maker USDC", makerPaymentAccount),
             getAndLogBalance("Before opening RFQ", "RFQ Bonds Vault", bondsFeesVault),
         ]);
@@ -187,15 +187,15 @@ describe("QUOTE", () => {
             .signers([maker])
             .rpc();
 
-        [makerBalance, vaultBalance] = await Promise.all([
+        [makerPaymentBalance, vaultPaymentBalance] = await Promise.all([
             getAndLogBalance("After opening RFQ", "Maker USDC", makerPaymentAccount),
             getAndLogBalance("After opening RFQ", "RFQ Bonds Vault", bondsFeesVault),
         ]);
 
         const rfq = await program.account.rfq.fetch(rfqPDA);
 
-        assert(vaultBalance.eq(rfq.bondAmount), "RFQ bond vault balance mismatch after open");
-        assert(makerBalance.eq(new anchor.BN(0)), "Maker payment account balance should be zero after open");
+        assert(vaultPaymentBalance.eq(rfq.bondAmount), "RFQ bond vault balance mismatch after open");
+        assert(makerPaymentBalance.eq(new anchor.BN(0)), "Maker payment account balance should be zero after open");
     });
 
     after(async () => {
@@ -405,15 +405,15 @@ describe("QUOTE", () => {
         // save valid taker for reveal test
         validTaker = taker;
 
-        [makerBalance, vaultBalance, takerBalance] = await Promise.all([
+        [makerPaymentBalance, vaultPaymentBalance, takerPaymentBalance] = await Promise.all([
             getAndLogBalance("After commiting quote", "Maker USDC", makerPaymentAccount),
             getAndLogBalance("After commiting quote", "RFQ Bonds Vault", bondsFeesVault),
             getAndLogBalance("After commiting quote", "Taker USDC", takerPaymentAccount),
         ]);
 
-        assert(vaultBalance.eq(rfq.bondAmount.muln(2)), "RFQ bond vault balance mismatch after open");
-        assert(makerBalance.eq(new anchor.BN(0)), "Maker payment account balance should be zero after open");
-        assert(takerBalance.eq(new anchor.BN(0)), "Taker payment account balance should be zero after commit");
+        assert(vaultPaymentBalance.eq(rfq.bondAmount.muln(2)), "RFQ bond vault balance mismatch after open");
+        assert(makerPaymentBalance.eq(new anchor.BN(0)), "Maker payment account balance should be zero after open");
+        assert(takerPaymentBalance.eq(new anchor.BN(0)), "Taker payment account balance should be zero after commit");
 
         // test commit guard prevents re-use of hash
         console.log("Testing that different taker cannot commit same hash...");
@@ -673,6 +673,29 @@ describe("QUOTE", () => {
             program.programId
         );
 
+        const baseAmount = 1_000_000_000;
+        const vaultBaseATA = getAssociatedTokenAddressSync(baseMint, rfqPDA, true);
+        const makerBaseAccount = getAssociatedTokenAddressSync(baseMint, maker.publicKey);
+        const makerBaseAccountInfo = await getOrCreateAssociatedTokenAccount(
+            provider.connection,
+            admin,
+            baseMint,
+            maker.publicKey
+        );
+        assert(
+            makerBaseAccountInfo.address.equals(makerBaseAccount),
+            "maker base ATA mismatch"
+        );
+        await mintTo(
+            provider.connection,
+            admin,
+            baseMint,
+            makerBaseAccount,
+            admin,
+            baseAmount // as needed for settlement and set in RFQ
+        );
+        console.log("Minted base tokens to maker's base ATA:", makerBaseAccount.toBase58());
+
         let failed = false;
         try {
             await program.methods.selectQuote()
@@ -680,6 +703,10 @@ describe("QUOTE", () => {
                     maker: maker.publicKey,
                     rfq: rfqPDA,
                     quote: quotePda,
+                    baseMint,
+                    quoteMint,
+                    vaultBaseAta: vaultBaseATA,
+                    makerBaseAccount,
                 })
                 .signers([maker])
                 .rpc();
@@ -697,9 +724,18 @@ describe("QUOTE", () => {
                 maker: maker.publicKey,
                 rfq: rfqPDA,
                 quote: quotePda,
+                baseMint,
+                quoteMint,
+                vaultBaseAta: vaultBaseATA,
+                makerBaseAccount,
             })
             .signers([maker])
             .rpc();
+
+        let [makerBaseBalance, vaultBaseBalance] = await Promise.all([
+            getAndLogBalance("After selecting quote", "Base Amount for Maker", makerBaseAccount),
+            getAndLogBalance("After selecting quote", "Base Amount in RFQ Vault", vaultBaseATA),
+        ]);
 
         console.log("Quote PDA:", quotePda.toBase58());
         console.log("Rfq PFA:", rfqPDA.toBase58());
@@ -743,6 +779,10 @@ describe("QUOTE", () => {
                     maker: maker.publicKey,
                     rfq: rfqPDA,
                     quote: quotePda,
+                    baseMint,
+                    quoteMint,
+                    vaultBaseAta: vaultBaseATA,
+                    makerBaseAccount,
                 })
                 .signers([maker])
                 .rpc();

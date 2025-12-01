@@ -3,6 +3,10 @@ use crate::state::Quote;
 use crate::state::Settlement;
 use crate::{QuoteError, RfqError};
 use anchor_lang::prelude::*;
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    token::{Mint, Token, TokenAccount},
+};
 
 #[derive(Accounts)]
 pub struct SelectQuote<'info> {
@@ -13,14 +17,10 @@ pub struct SelectQuote<'info> {
         mut,
         seeds = [Rfq::SEED_PREFIX, maker.key().as_ref(), rfq.uuid.as_ref()],
         bump = rfq.bump,
-        has_one = maker,
-        constraint = matches!(rfq.state, RfqState::Revealed) @ RfqError::InvalidState,
-        constraint = !rfq.has_selection() @ RfqError::AlreadySelected,
     )]
     pub rfq: Account<'info, Rfq>,
 
-    #[account(
-        has_one = rfq,)]
+    #[account()]
     pub quote: Account<'info, Quote>,
 
     #[account(
@@ -32,7 +32,30 @@ pub struct SelectQuote<'info> {
     )]
     pub settlement: Account<'info, Settlement>,
 
+    #[account()]
+    pub base_mint: Account<'info, Mint>,
+
+    #[account()]
+    pub quote_mint: Account<'info, Mint>,
+
+    #[account(
+        init_if_needed,
+        payer = maker,
+        associated_token::mint = base_mint,
+        associated_token::authority = rfq,
+    )]
+    pub vault_base_ata: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        token::mint = base_mint,
+        token::authority = maker,
+    )]
+    pub maker_base_account: Account<'info, TokenAccount>,
+
     pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
 pub fn select_quote_handler(ctx: Context<SelectQuote>) -> Result<()> {
@@ -41,6 +64,9 @@ pub fn select_quote_handler(ctx: Context<SelectQuote>) -> Result<()> {
     let quote = &mut ctx.accounts.quote;
     let settlement = &mut ctx.accounts.settlement;
     let maker = &ctx.accounts.maker;
+    let maker_base_account = &ctx.accounts.maker_base_account;
+    let base_mint = &ctx.accounts.base_mint;
+    let quote_mint = &ctx.accounts.quote_mint;
 
     match (rfq.reveal_deadline(), rfq.selection_deadline()) {
         (Some(reveal_deadline), Some(selection_deadline)) => {
@@ -49,9 +75,27 @@ pub fn select_quote_handler(ctx: Context<SelectQuote>) -> Result<()> {
         }
         _ => return err!(RfqError::InvalidState),
     }
-    
+
+    require!(quote.rfq == rfq.key(), QuoteError::InvalidRfqAssociation);
+    require!(rfq.maker == maker.key(), RfqError::Unauthorized);
     require!(quote.is_revealed(), QuoteError::InvalidState);
-        
+    require!(
+        matches!(rfq.state, RfqState::Revealed),
+        RfqError::InvalidState
+    );
+    require!(!rfq.has_selection(), RfqError::AlreadySelected);
+
+    require!(
+        !maker_base_account.is_frozen(),
+        RfqError::MakerBaseAccountClosed
+    );
+
+    require!(base_mint.key() == rfq.base_mint, RfqError::InvalidBaseMint);
+    require!(
+        quote_mint.key() == rfq.quote_mint,
+        RfqError::InvalidQuoteMint
+    );
+
     // update rfq
     rfq.state = RfqState::Selected;
     rfq.selected_at = Some(now);

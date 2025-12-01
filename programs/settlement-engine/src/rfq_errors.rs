@@ -44,6 +44,12 @@ pub enum RfqError {
     SelectionTooLate,
     #[msg("Maker payment account is frozen or closed")]
     MakerPaymentAccountClosed,
+    #[msg("Maker base account is frozen or closed")]
+    MakerBaseAccountClosed,
     #[msg("Maker payment account is not authorized for this RFQ")]
     UnauthorizedMakerPaymentAccount,
+    #[msg("Base mint does not match RFQ requirement")]
+    InvalidBaseMint,
+    #[msg("Quote mint does not match RFQ requirement")]
+    InvalidQuoteMint,
 }

@@ -34,4 +34,6 @@ pub enum QuoteError {
     InvalidState,
     #[msg("Taker payment account is frozen or closed")]
     TakerPaymentAccountClosed,
+    #[msg("Quote does not belong to the expected RFQ")]
+    InvalidRfqAssociation,
 }
