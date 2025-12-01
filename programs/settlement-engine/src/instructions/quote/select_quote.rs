@@ -32,11 +32,20 @@ pub struct SelectQuote<'info> {
     )]
     pub settlement: Account<'info, Settlement>,
 
-    #[account()]
-    pub base_mint: Account<'info, Mint>,
-
+    
     #[account()]
     pub quote_mint: Account<'info, Mint>,
+    
+    // #[account(
+    //     init_if_needed,
+    //     payer = maker,
+    //     associated_token::mint = quote_mint,
+    //     associated_token::authority = maker,
+    // )]
+    // pub maker_quote_account: Account<'info, TokenAccount>,
+    
+    #[account()]
+    pub base_mint: Account<'info, Mint>,
 
     #[account(
         init_if_needed,
@@ -131,6 +140,9 @@ pub fn select_quote_handler(ctx: Context<SelectQuote>) -> Result<()> {
     settlement.maker_payment_account = rfq.maker_payment_account;
     settlement.taker_payment_account = quote.taker_payment_account;
     settlement.bonds_fees_vault = rfq.bonds_fees_vault;
+    settlement.maker_base_account = maker_base_account.key();
+    settlement.vault_base_ata = ctx.accounts.vault_base_ata.key();
+    // settlement.maker_quote_account = ctx.accounts.maker_quote_account.key();
 
     Ok(())
 }
