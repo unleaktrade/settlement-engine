@@ -18,10 +18,10 @@ pub struct SelectQuote<'info> {
         seeds = [Rfq::SEED_PREFIX, maker.key().as_ref(), rfq.uuid.as_ref()],
         bump = rfq.bump,
     )]
-    pub rfq: Account<'info, Rfq>,
+    pub rfq: Box<Account<'info, Rfq>>,
 
     #[account()]
-    pub quote: Account<'info, Quote>,
+    pub quote: Box<Account<'info, Quote>>,
 
     #[account(
         init,
@@ -32,18 +32,17 @@ pub struct SelectQuote<'info> {
     )]
     pub settlement: Account<'info, Settlement>,
 
-    
     #[account()]
     pub quote_mint: Account<'info, Mint>,
-    
-    // #[account(
-    //     init_if_needed,
-    //     payer = maker,
-    //     associated_token::mint = quote_mint,
-    //     associated_token::authority = maker,
-    // )]
-    // pub maker_quote_account: Account<'info, TokenAccount>,
-    
+
+    #[account(
+        init_if_needed,
+        payer = maker,
+        associated_token::mint = quote_mint,
+        associated_token::authority = maker,
+    )]
+    pub maker_quote_account: Account<'info, TokenAccount>,
+
     #[account()]
     pub base_mint: Account<'info, Mint>,
 
@@ -76,6 +75,13 @@ pub fn select_quote_handler(ctx: Context<SelectQuote>) -> Result<()> {
     let maker_base_account = &ctx.accounts.maker_base_account;
     let base_mint = &ctx.accounts.base_mint;
     let quote_mint = &ctx.accounts.quote_mint;
+
+    // let (expected_rfq, _) = Pubkey::find_program_address(
+    //     &[Rfq::SEED_PREFIX, maker.key().as_ref(), rfq.uuid.as_ref()],
+    //     ctx.program_id,
+    // );
+
+    // require_keys_eq!(rfq.key(), expected_rfq, RfqError::InvalidRfqPda);
 
     match (rfq.reveal_deadline(), rfq.selection_deadline()) {
         (Some(reveal_deadline), Some(selection_deadline)) => {

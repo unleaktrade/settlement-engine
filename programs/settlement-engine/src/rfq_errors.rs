@@ -52,4 +52,6 @@ pub enum RfqError {
     InvalidBaseMint,
     #[msg("Quote mint does not match RFQ requirement")]
     InvalidQuoteMint,
+    #[msg("RFQ PDA does not match expected seeds")]
+    InvalidRfqPda,
 }
