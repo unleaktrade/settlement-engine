@@ -5,7 +5,7 @@ use crate::{QuoteError, RfqError};
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token::{Mint, Token, TokenAccount},
+    token::{self, Mint, Token, TokenAccount, Transfer},
 };
 
 #[derive(Accounts)]
@@ -95,6 +95,16 @@ pub fn select_quote_handler(ctx: Context<SelectQuote>) -> Result<()> {
         quote_mint.key() == rfq.quote_mint,
         RfqError::InvalidQuoteMint
     );
+
+    // Transfert base tokens from maker to RFQ vault
+    let cpi_accounts = Transfer {
+        from: ctx.accounts.maker_base_account.to_account_info(),
+        to: ctx.accounts.vault_base_ata.to_account_info(),
+        authority: ctx.accounts.maker.to_account_info(),
+    };
+    let cpi_program = ctx.accounts.token_program.to_account_info();
+    let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+    token::transfer(cpi_ctx, rfq.base_amount)?;
 
     // update rfq
     rfq.state = RfqState::Selected;

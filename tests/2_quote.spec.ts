@@ -771,6 +771,8 @@ describe("QUOTE", () => {
         assert(settlement.makerPaymentAccount.equals(makerPaymentAccount), "settlement makerPaymentAccount mismatch");
         assert(settlement.takerPaymentAccount.equals(quote.takerPaymentAccount), "settlement takerPaymentAccount mismatch");
         assert(settlement.bondsFeesVault.equals(bondsFeesVault), "settlement bondsFeesVault mismatch");
+        assert(makerBaseBalance.eq(new anchor.BN(0)), "Maker base account should be zero after selection");
+        assert(vaultBaseBalance.eq(rfq.baseAmount), "RFQ vault base account balance mismatch after selection");
 
         failed = false;
         try {
