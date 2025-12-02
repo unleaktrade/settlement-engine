@@ -13,6 +13,7 @@ import {
 } from "@solana/spl-token";
 import { v4 as uuidv4, parse as uuidParse } from "uuid";
 import assert from "assert";
+import { set } from "@coral-xyz/anchor/dist/cjs/utils/features";
 
 anchor.setProvider(anchor.AnchorProvider.env());
 const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -736,6 +737,7 @@ describe("QUOTE", () => {
             getAndLogBalance("After selecting quote", "Base Amount for Maker", makerBaseAccount),
             getAndLogBalance("After selecting quote", "Base Amount in RFQ Vault", vaultBaseATA),
         ]);
+        const makerQuoteAccount = getAssociatedTokenAddressSync(quoteMint, maker.publicKey);
 
         console.log("Quote PDA:", quotePda.toBase58());
         console.log("Rfq PFA:", rfqPDA.toBase58());
@@ -763,18 +765,21 @@ describe("QUOTE", () => {
         assert(settlement.bondAmount.eq(rfq.bondAmount), "settlement bondAmount mismatch");
         assert(settlement.feeAmount.eq(rfq.feeAmount), "settlement feeAmount mismatch");
         assert.ok(settlement.createdAt!.toNumber() > 0, "settlement createdAt should be set");
-        assert.strictEqual(settlement.settledAt, null, "settlement settledAt should be None");
-        assert.strictEqual(settlement.makerFundedAt, null, "settlement makerFundedAt should be None");
+        assert.strictEqual(settlement.completedAt, null, "settlement completedAt should be None");
+        assert(settlement.makerFundedAt.toNumber() > 0, "settlement makerFundedAt should be set");
         assert.strictEqual(settlement.takerFundedAt, null, "settlement takerFundedAt should be None");
         assert(settlement.maker.equals(maker.publicKey), "settlement maker mismatch");
         assert(settlement.taker.equals(taker.publicKey), "settlement taker mismatch");
         assert(settlement.makerPaymentAccount.equals(makerPaymentAccount), "settlement makerPaymentAccount mismatch");
         assert(settlement.takerPaymentAccount.equals(quote.takerPaymentAccount), "settlement takerPaymentAccount mismatch");
         assert(settlement.bondsFeesVault.equals(bondsFeesVault), "settlement bondsFeesVault mismatch");
-        assert(settlement.vaultBaseAta.equals(vaultBaseATA), "settlement vaultBaseAta mismatch");
         assert(settlement.makerBaseAccount.equals(makerBaseAccount), "settlement makerBaseAccount mismatch");
+        assert.strictEqual(settlement.takerBaseAccount, null, "settlement takerBaseAccount should be None");
+        assert(settlement.vaultBaseAta.equals(vaultBaseATA), "settlement vaultBaseAta mismatch");
         assert(makerBaseBalance.eq(new anchor.BN(0)), "Maker base account should be zero after selection");
         assert(vaultBaseBalance.eq(rfq.baseAmount), "RFQ vault base account balance mismatch after selection");
+        assert(settlement.makerQuoteAccount.equals(makerQuoteAccount), "settlement makerQuoteAccount mismatch");
+        assert(settlement.takerQuoteAccount === null, "settlement takerQuoteAccount should be None");
 
         failed = false;
         try {

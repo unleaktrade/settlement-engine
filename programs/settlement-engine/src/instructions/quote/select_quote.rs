@@ -139,16 +139,18 @@ pub fn select_quote_handler(ctx: Context<SelectQuote>) -> Result<()> {
     settlement.bond_amount = rfq.bond_amount;
     settlement.fee_amount = rfq.fee_amount;
     settlement.created_at = now;
-    settlement.settled_at = None;
-    settlement.maker_funded_at = None;
+    settlement.completed_at = None;
+    settlement.maker_funded_at = Some(now);
     settlement.taker_funded_at = None;
     settlement.bump = ctx.bumps.settlement;
     settlement.maker_payment_account = rfq.maker_payment_account;
     settlement.taker_payment_account = quote.taker_payment_account;
     settlement.bonds_fees_vault = rfq.bonds_fees_vault;
     settlement.maker_base_account = maker_base_account.key();
+    settlement.taker_base_account = None;
     settlement.vault_base_ata = ctx.accounts.vault_base_ata.key();
-    // settlement.maker_quote_account = ctx.accounts.maker_quote_account.key();
+    settlement.maker_quote_account = ctx.accounts.maker_quote_account.key();
+    settlement.taker_quote_account = None;
 
     Ok(())
 }
