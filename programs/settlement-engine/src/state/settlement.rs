@@ -48,7 +48,7 @@ impl Settlement {
     pub const SEED_PREFIX: &'static [u8] = b"settlement";
 
     pub fn is_complete(&self) -> bool {
-        self.maker_funded() && self.taker_funded() && self.completed_at.is_some()
+        self.completed_at.is_some()
     }
 
     pub fn maker_funded(&self) -> bool {

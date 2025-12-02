@@ -54,7 +54,7 @@ async function getAndLogBalance(
 
 // --- tests (ONLY initRfq) --------------------------------------------------
 
-describe("QUOTE", () => {
+describe("COMMIT_REVEAL_SELECT_QUOTE + SETTLEMENT", () => {
     let configPda: PublicKey;
     let usdcMint: PublicKey;
     let baseMint: PublicKey;
