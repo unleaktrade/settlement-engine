@@ -26,9 +26,9 @@ pub struct Rfq {
     pub fund_ttl_secs: u32,
 
     // timeline
-    pub created_at: i64,          // set at init (draft)
-    pub opened_at: Option<i64>,   // set when moving to Open
-    pub selected_at: Option<i64>, // set on selection
+    pub created_at: i64,           // set at init (draft)
+    pub opened_at: Option<i64>,    // set when moving to Open
+    pub selected_at: Option<i64>,  // set on selection
     pub completed_at: Option<i64>, // set on settlement completion
 
     // misc

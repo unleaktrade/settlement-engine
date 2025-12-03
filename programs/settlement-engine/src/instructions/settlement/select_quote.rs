@@ -1,6 +1,6 @@
 use crate::state::rfq::{Rfq, RfqState};
-use crate::state::{Config, Quote};
 use crate::state::Settlement;
+use crate::state::{Config, Quote};
 use crate::RfqError;
 use anchor_lang::prelude::*;
 use anchor_spl::{

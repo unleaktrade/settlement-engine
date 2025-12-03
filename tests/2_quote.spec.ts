@@ -47,7 +47,7 @@ async function getAndLogBalance(
     owner: string,
     tokenAccount: PublicKey,) {
     const balance = await provider.connection.getTokenAccountBalance(tokenAccount).then(b => new anchor.BN(b.value.amount));
-    console.log(`${label} - ${owner}:`, balance.toString());
+    console.log(`${label} - ${owner}:`, balance.toNumber().toLocaleString("en-US"));
     return balance;
 }
 
