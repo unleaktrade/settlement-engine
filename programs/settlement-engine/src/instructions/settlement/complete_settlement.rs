@@ -12,10 +12,20 @@ pub struct CompleteSettlement<'info> {
     #[account(mut)]
     pub taker: Signer<'info>,
 
+    #[account()]
+    pub config: Box<Account<'info, Config>>,
+
+    #[account(
+        mut,
+        address = config.treasury_usdc_owner,
+    )]
+    pub treasury_usdc_owner: SystemAccount<'info>,
+
     #[account(
         mut,
         seeds = [Rfq::SEED_PREFIX, rfq.maker.key().as_ref(), rfq.uuid.as_ref()],
         bump = rfq.bump,
+        has_one = config,
     )]
     pub rfq: Box<Account<'info, Rfq>>,
 
@@ -27,23 +37,22 @@ pub struct CompleteSettlement<'info> {
     )]
     pub settlement: Box<Account<'info, Settlement>>,
 
-    pub config: Account<'info, Config>,
-
     #[account(address = config.usdc_mint)]
     pub usdc_mint: Account<'info, Mint>,
 
-    #[account()]
+    #[account(address = settlement.base_mint)]
     pub base_mint: Account<'info, Mint>,
 
-    #[account()]
+    #[account(address = settlement.quote_mint)]
     pub quote_mint: Account<'info, Mint>,
 
     #[account(
-        mut,
+        init_if_needed,
+        payer = taker,
         associated_token::mint = usdc_mint,
-        associated_token::authority = config.treasury_usdc_owner,
+        associated_token::authority = treasury_usdc_owner,
     )]
-    pub treasury: Account<'info, TokenAccount>,
+    pub treasury_ata: Account<'info, TokenAccount>,
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
@@ -51,9 +60,15 @@ pub struct CompleteSettlement<'info> {
 }
 
 pub fn complete_settlement_handler(ctx: Context<CompleteSettlement>) -> Result<()> {
-    let _now = Clock::get()?.unix_timestamp;
-    let _rfq = &mut ctx.accounts.rfq;
-    let _settlement = &mut ctx.accounts.settlement;
+    let now = Clock::get()?.unix_timestamp;
+    let rfq = &mut ctx.accounts.rfq;
+    let settlement = &mut ctx.accounts.settlement;
+
+    // update rfq
+    rfq.state = RfqState::Settled;
+    rfq.completed_at = Some(now);
+    //update settlement
+    settlement.completed_at = Some(now);
 
     Ok(())
 }

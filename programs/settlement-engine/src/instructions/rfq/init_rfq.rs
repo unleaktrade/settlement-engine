@@ -105,6 +105,7 @@ pub fn init_rfq_handler(
     rfq.created_at = now;
     rfq.opened_at = None;
     rfq.selected_at = None;
+    rfq.completed_at = None;
 
     rfq.bump = bump;
 

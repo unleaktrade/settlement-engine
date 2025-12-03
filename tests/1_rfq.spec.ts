@@ -174,6 +174,11 @@ describe("RFQ", () => {
         const vaultBalance = (await provider.connection.getTokenAccountBalance(bondsFeesVault)).value.amount;
         assert.strictEqual(makerBalance, "1000000", "maker should have correct USDC amount after init");
         assert.strictEqual(vaultBalance, "0", "vault should be empty before opening");
+
+        assert(rfq.createdAt.toNumber() > 0, "created_at should be set");
+        assert(rfq.openedAt === null, "opened_at should be null");  
+        assert(rfq.selectedAt === null, "selected_at should be null");
+        assert(rfq.completedAt === null, "completed_at should be null");
     });
 
     it("rejects re-init with same (maker, uuid) PDA", async () => {
