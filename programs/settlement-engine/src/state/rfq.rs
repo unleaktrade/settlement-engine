@@ -48,13 +48,13 @@ pub struct Rfq {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, InitSpace)]
 pub enum RfqState {
-    Draft, // initial state, when RFQ is being created
-    Open, // RFQ is open for takers to commit
+    Draft,     // initial state, when RFQ is being created
+    Open,      // RFQ is open for takers to commit
     Committed, // at least one taker has committed
-    Revealed, // at least one taker has revealed
-    Selected, // maker has selected a taker and initiated settlement
-    Settled, // settlement has been completed by taker
-    Ignored, // maker did not select a valid quote in time
+    Revealed,  // at least one taker has revealed
+    Selected,  // maker has selected a taker and initiated settlement
+    Settled,   // settlement has been completed by taker
+    Ignored,   // maker did not select a valid quote in time
     Expired, // RFQ expired without any taker valid commitments (no commits at all or no valid reveals)
     Dropped, // taker did not fund in time after being selected
 }
