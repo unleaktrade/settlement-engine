@@ -10,7 +10,7 @@ use crate::{
         quote::*,
         rfq::{Rfq, RfqState},
     },
-    QuoteError, RfqError,
+    RfqError,
 };
 
 #[derive(Accounts)]
@@ -65,7 +65,7 @@ pub struct CommitQuote<'info> {
         mut,
         token::mint = usdc_mint,
         token::authority = taker,
-        constraint =!taker_payment_account.is_frozen() @ QuoteError::TakerPaymentAccountClosed,
+        constraint =!taker_payment_account.is_frozen() @ RfqError::TakerPaymentAccountClosed,
     )]
     pub taker_payment_account: Account<'info, TokenAccount>,
 
@@ -88,7 +88,7 @@ pub fn commit_quote_handler(
     let current_index = load_current_index_checked(&ctx.accounts.instruction_sysvar)?;
     let prev_index = current_index
         .checked_sub(1)
-        .ok_or_else(|| QuoteError::NoEd25519Instruction)?;
+        .ok_or_else(|| RfqError::NoEd25519Instruction)?;
     let ed25519_ix =
         load_instruction_at_checked(prev_index as usize, &ctx.accounts.instruction_sysvar)?;
     msg!("Prev ix program_id: {}", ed25519_ix.program_id);
@@ -98,13 +98,13 @@ pub fn commit_quote_handler(
     require_keys_eq!(
         ed25519_ix.program_id,
         expected,
-        QuoteError::InvalidEd25519Program
+        RfqError::InvalidEd25519Program
     );
 
     // Parse Ed25519 instruction
     let data = &ed25519_ix.data;
-    require!(data.len() >= 112, QuoteError::InvalidEd25519Data);
-    require!(data[0] == 1, QuoteError::InvalidSignatureCount);
+    require!(data.len() >= 112, RfqError::InvalidEd25519Data);
+    require!(data[0] == 1, RfqError::InvalidSignatureCount);
 
     let sig_offset = u16::from_le_bytes([data[2], data[3]]) as usize;
     let sig_ix_index = u16::from_le_bytes([data[4], data[5]]);
@@ -123,44 +123,44 @@ pub fn commit_quote_handler(
     msg!("msg_size={}", msg_size);
 
     // Enforce same-instruction sourcing (prevents cross-instruction substitution)
-    require!(sig_ix_index == 0xFFFF, QuoteError::InvalidOffset);
-    require!(pubkey_ix_index == 0xFFFF, QuoteError::InvalidOffset);
-    require!(msg_ix_index == 0xFFFF, QuoteError::InvalidOffset);
-    require!(msg_size == 32, QuoteError::InvalidMessageSize);
+    require!(sig_ix_index == 0xFFFF, RfqError::InvalidOffset);
+    require!(pubkey_ix_index == 0xFFFF, RfqError::InvalidOffset);
+    require!(msg_ix_index == 0xFFFF, RfqError::InvalidOffset);
+    require!(msg_size == 32, RfqError::InvalidMessageSize);
 
     // Bounds
     require!(
         data.len().saturating_sub(sig_offset) >= 64,
-        QuoteError::InvalidEd25519Data
+        RfqError::InvalidEd25519Data
     );
     require!(
         data.len().saturating_sub(pubkey_offset) >= 32,
-        QuoteError::InvalidEd25519Data
+        RfqError::InvalidEd25519Data
     );
     require!(
         data.len().saturating_sub(msg_offset) >= 32,
-        QuoteError::InvalidEd25519Data
+        RfqError::InvalidEd25519Data
     );
 
     // Authorized Liquidity Guard signer check
     let pubkey_bytes = &data[pubkey_offset..pubkey_offset + 32];
     require!(
         pubkey_bytes == ctx.accounts.config.liquidity_guard.as_ref(),
-        QuoteError::UnauthorizedSigner
+        RfqError::UnauthorizedSigner
     );
 
     // Bind exact 32-byte message
     let verified_hash_slice = &data[msg_offset..msg_offset + 32];
     require!(
         verified_hash_slice == &commit_hash,
-        QuoteError::CommitHashMismatch
+        RfqError::CommitHashMismatch
     );
 
     // Bind exact 64-byte signature (liquidity_proof)
     let verified_signature_slice = &data[sig_offset..sig_offset + 64];
     require!(
         verified_signature_slice == &liquidity_proof,
-        QuoteError::LiquidityProofSignatureMismatch
+        RfqError::LiquidityProofSignatureMismatch
     );
 
     // Process Commit Quote
@@ -170,7 +170,7 @@ pub fn commit_quote_handler(
     let Some(commit_deadline) = rfq.commit_deadline() else {
         return err!(RfqError::InvalidRfqState);
     };
-    require!(now <= commit_deadline, QuoteError::CommitTooLate);
+    require!(now <= commit_deadline, RfqError::CommitTooLate);
 
     // Transfer taker bond USDC into RFQ's vault
     let cpi_accounts = Transfer {

@@ -1,7 +1,7 @@
 use crate::state::rfq::{Rfq, RfqState};
 use crate::state::Quote;
 use crate::state::Settlement;
-use crate::{QuoteError, RfqError};
+use crate::RfqError;
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
@@ -91,9 +91,9 @@ pub fn select_quote_handler(ctx: Context<SelectQuote>) -> Result<()> {
         _ => return err!(RfqError::InvalidRfqState),
     }
 
-    require!(quote.rfq == rfq.key(), QuoteError::InvalidRfqAssociation);
+    require!(quote.rfq == rfq.key(), RfqError::InvalidRfqAssociation);
     require!(rfq.maker == maker.key(), RfqError::Unauthorized);
-    require!(quote.is_revealed(), QuoteError::InvalidQuoteState);
+    require!(quote.is_revealed(), RfqError::InvalidQuoteState);
     require!(
         matches!(rfq.state, RfqState::Revealed),
         RfqError::InvalidRfqState
@@ -135,7 +135,9 @@ pub fn select_quote_handler(ctx: Context<SelectQuote>) -> Result<()> {
     settlement.base_mint = rfq.base_mint;
     settlement.quote_mint = rfq.quote_mint;
     settlement.base_amount = rfq.base_amount;
-    settlement.quote_amount = quote.quote_amount.ok_or_else(|| QuoteError::InvalidQuoteState)?;
+    settlement.quote_amount = quote
+        .quote_amount
+        .ok_or_else(|| RfqError::InvalidQuoteState)?;
     settlement.bond_amount = rfq.bond_amount;
     settlement.fee_amount = rfq.fee_amount;
     settlement.created_at = now;

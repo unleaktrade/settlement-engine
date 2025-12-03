@@ -1,10 +1,8 @@
 use anchor_lang::prelude::*;
 use instructions::*;
-use quote_errors::*;
 use rfq_errors::*;
 
 pub mod instructions;
-pub mod quote_errors;
 pub mod rfq_errors;
 pub mod state;
 

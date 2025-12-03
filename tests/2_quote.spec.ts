@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import nacl from "tweetnacl";
-import { Program, ProgramError } from "@coral-xyz/anchor";
+import { Program } from "@coral-xyz/anchor";
 import { SettlementEngine } from "../target/types/settlement_engine";
 import { Ed25519Program, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import {
@@ -13,7 +13,6 @@ import {
 } from "@solana/spl-token";
 import { v4 as uuidv4, parse as uuidParse } from "uuid";
 import assert from "assert";
-import { set } from "@coral-xyz/anchor/dist/cjs/utils/features";
 
 anchor.setProvider(anchor.AnchorProvider.env());
 const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -54,7 +53,7 @@ async function getAndLogBalance(
 
 // --- tests (ONLY initRfq) --------------------------------------------------
 
-describe("COMMIT_REVEAL_SELECT_QUOTE + SETTLEMENT", () => {
+describe("QUOTE", () => {
     let configPda: PublicKey;
     let usdcMint: PublicKey;
     let baseMint: PublicKey;
