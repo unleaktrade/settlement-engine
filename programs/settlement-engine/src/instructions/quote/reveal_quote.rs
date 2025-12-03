@@ -14,6 +14,10 @@ pub struct RevealQuote<'info> {
     #[account(mut)]
     pub taker: Signer<'info>,
 
+    #[account(
+        seeds = [Config::SEED_PREFIX],
+        bump = config.bump,
+    )]
     pub config: Account<'info, Config>,
 
     #[account(
@@ -21,7 +25,7 @@ pub struct RevealQuote<'info> {
         has_one = config,
         constraint = matches!(rfq.state, RfqState::Committed | RfqState::Revealed) @ RfqError::InvalidRfqState,
     )]
-    pub rfq: Account<'info, Rfq>,
+    pub rfq: Box<Account<'info, Rfq>>,
 
     #[account(
         mut,

@@ -1,5 +1,5 @@
 use crate::state::rfq::{Rfq, RfqState};
-use crate::state::Quote;
+use crate::state::{Config, Quote};
 use crate::state::Settlement;
 use crate::RfqError;
 use anchor_lang::prelude::*;
@@ -14,9 +14,17 @@ pub struct SelectQuote<'info> {
     pub maker: Signer<'info>,
 
     #[account(
+        seeds = [Config::SEED_PREFIX],
+        bump = config.bump,
+    )]
+    pub config: Account<'info, Config>,
+
+    #[account(
         mut,
         seeds = [Rfq::SEED_PREFIX, maker.key().as_ref(), rfq.uuid.as_ref()],
         bump = rfq.bump,
+        has_one = maker @ RfqError::Unauthorized,
+        has_one = config,
     )]
     pub rfq: Box<Account<'info, Rfq>>,
 
@@ -92,7 +100,6 @@ pub fn select_quote_handler(ctx: Context<SelectQuote>) -> Result<()> {
     }
 
     require!(quote.rfq == rfq.key(), RfqError::InvalidRfqAssociation);
-    require!(rfq.maker == maker.key(), RfqError::Unauthorized);
     require!(quote.is_revealed(), RfqError::InvalidQuoteState);
     require!(
         matches!(rfq.state, RfqState::Revealed),

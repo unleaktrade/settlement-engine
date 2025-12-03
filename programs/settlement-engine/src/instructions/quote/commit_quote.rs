@@ -21,6 +21,10 @@ pub struct CommitQuote<'info> {
     pub taker: Signer<'info>,
 
     /// Global config account
+    #[account(
+        seeds = [Config::SEED_PREFIX],
+        bump = config.bump,
+    )]
     pub config: Account<'info, Config>,
 
     #[account(
@@ -28,7 +32,7 @@ pub struct CommitQuote<'info> {
         has_one = config,
         constraint = matches!(rfq.state, RfqState::Open | RfqState::Committed) @ RfqError::InvalidRfqState,
     )]
-    pub rfq: Account<'info, Rfq>,
+    pub rfq: Box<Account<'info, Rfq>>,
 
     /// USDC mint from config
     #[account(address = config.usdc_mint)]

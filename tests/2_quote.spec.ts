@@ -728,6 +728,7 @@ describe("QUOTE", () => {
                 quoteMint,
                 vaultBaseAta: vaultBaseATA,
                 makerBaseAccount,
+                config: configPda,
             })
             .signers([maker])
             .rpc();

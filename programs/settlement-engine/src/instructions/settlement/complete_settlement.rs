@@ -1,10 +1,9 @@
 use crate::state::rfq::{Rfq, RfqState};
 use crate::state::{Config, Settlement};
-use crate::RfqError;
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token::{self, Mint, Token, TokenAccount, Transfer},
+    token::{/*self, */ Mint, Token, TokenAccount /*Transfer*/},
 };
 
 #[derive(Accounts)]
@@ -12,7 +11,10 @@ pub struct CompleteSettlement<'info> {
     #[account(mut)]
     pub taker: Signer<'info>,
 
-    #[account()]
+    #[account(
+        seeds = [Config::SEED_PREFIX],
+        bump = config.bump,
+    )]
     pub config: Box<Account<'info, Config>>,
 
     #[account(

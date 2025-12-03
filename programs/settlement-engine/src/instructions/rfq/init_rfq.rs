@@ -15,6 +15,10 @@ pub struct InitRfq<'info> {
     #[account(mut)]
     pub maker: Signer<'info>,
 
+    #[account(
+        seeds = [Config::SEED_PREFIX],
+        bump = config.bump,
+    )]
     pub config: Account<'info, Config>,
 
     // Must be an account field (not just a Pubkey) for `associated_token::mint`

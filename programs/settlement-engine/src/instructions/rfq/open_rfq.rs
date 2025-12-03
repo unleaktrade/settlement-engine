@@ -15,8 +15,12 @@ pub struct OpenRfq<'info> {
         has_one = maker,
         has_one = config,
         constraint = matches!(rfq.state, RfqState::Draft) @ RfqError::InvalidRfqState,)]
-    pub rfq: Account<'info, Rfq>,
+    pub rfq: Box<Account<'info, Rfq>>,
 
+    #[account(
+        seeds = [Config::SEED_PREFIX],
+        bump = config.bump,
+    )]
     pub config: Account<'info, Config>,
 
     // Must be an account field (not just a Pubkey) for `associated_token::mint`
