@@ -14,7 +14,7 @@ pub struct OpenRfq<'info> {
         bump = rfq.bump,
         has_one = maker,
         has_one = config,
-        constraint = matches!(rfq.state, RfqState::Draft) @ RfqError::InvalidState,)]
+        constraint = matches!(rfq.state, RfqState::Draft) @ RfqError::InvalidRfqState,)]
     pub rfq: Account<'info, Rfq>,
 
     pub config: Account<'info, Config>,

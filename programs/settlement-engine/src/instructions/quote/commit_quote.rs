@@ -26,7 +26,7 @@ pub struct CommitQuote<'info> {
     #[account(
         mut,
         has_one = config,
-        constraint = matches!(rfq.state, RfqState::Open | RfqState::Committed) @ RfqError::InvalidState,
+        constraint = matches!(rfq.state, RfqState::Open | RfqState::Committed) @ RfqError::InvalidRfqState,
     )]
     pub rfq: Account<'info, Rfq>,
 
@@ -168,7 +168,7 @@ pub fn commit_quote_handler(
     let rfq = &mut ctx.accounts.rfq;
 
     let Some(commit_deadline) = rfq.commit_deadline() else {
-        return err!(RfqError::InvalidState);
+        return err!(RfqError::InvalidRfqState);
     };
     require!(now <= commit_deadline, QuoteError::CommitTooLate);
 

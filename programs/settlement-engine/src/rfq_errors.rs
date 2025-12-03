@@ -3,7 +3,7 @@ use anchor_lang::prelude::*;
 #[error_code]
 pub enum RfqError {
     #[msg("Invalid RFQ state for this instruction")]
-    InvalidState,
+    InvalidRfqState,
     #[msg("Deadline has not been reached yet")]
     TooEarly,
     #[msg("Deadline passed")]

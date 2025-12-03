@@ -20,7 +20,7 @@ pub struct RevealQuote<'info> {
     #[account(
         mut,
         has_one = config,
-        constraint = matches!(rfq.state, RfqState::Committed | RfqState::Revealed) @ RfqError::InvalidState,
+        constraint = matches!(rfq.state, RfqState::Committed | RfqState::Revealed) @ RfqError::InvalidRfqState,
     )]
     pub rfq: Account<'info, Rfq>,
 
@@ -51,7 +51,7 @@ pub fn reveal_quote_handler(
             require!(now <= reveal_deadline, QuoteError::RevealTooLate);
             require!(now > commit_deadline, QuoteError::RevealTooEarly);
         }
-        _ => return err!(RfqError::InvalidState),
+        _ => return err!(RfqError::InvalidRfqState),
     }
 
     // Recompute commit_hash EXACTLY the same way liquidity-guard did.

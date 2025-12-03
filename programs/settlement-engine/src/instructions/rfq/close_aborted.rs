@@ -13,10 +13,10 @@ pub fn close_dropped_handler(ctx: Context<CloseDropped>) -> Result<()> {
     let rfq = &mut ctx.accounts.rfq;
     require!(
         matches!(rfq.state, RfqState::Selected),
-        RfqError::InvalidState
+        RfqError::InvalidRfqState
     );
 
-    let deadline = rfq.funding_deadline().ok_or(RfqError::InvalidState)?;
+    let deadline = rfq.funding_deadline().ok_or(RfqError::InvalidRfqState)?;
     require!(now > deadline, RfqError::TooEarly);
 
     rfq.state = RfqState::Dropped;

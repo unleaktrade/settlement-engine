@@ -31,7 +31,7 @@ pub enum QuoteError {
     #[msg("Quote has already been revealed")]
     QuoteAlreadyRevealed,
     #[msg("Invalid QUOTE state for this instruction")]
-    InvalidState,
+    InvalidQuoteState,
     #[msg("Taker payment account is frozen or closed")]
     TakerPaymentAccountClosed,
     #[msg("Quote does not belong to the expected RFQ")]
