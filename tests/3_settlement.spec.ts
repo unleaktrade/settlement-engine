@@ -390,7 +390,7 @@ describe("SETTLEMENT", () => {
             .rpc();
 
         await Promise.all([
-            getAndLogBalance("After selecting quote", "Maker USDC", makerBaseAccount),
+            getAndLogBalance("After selecting quote", "Maker USDC", makerPaymentAccount),
             getAndLogBalance("After selecting quote", "Maker Base", makerBaseAccount),
             getAndLogBalance("After selecting quote", "Taker USDC", takerPaymentAccount),
             getAndLogBalance("After selecting quote", "RFQ Bonds Vault", bondsFeesVault),
@@ -407,6 +407,12 @@ describe("SETTLEMENT", () => {
                 usdcMint,
                 baseMint,
                 quoteMint,
+                takerPaymentAccount,
+                makerPaymentAccount,
+                vaultBaseAta: baseVault,
+                takerBaseAccount,
+                makerQuoteAccount,
+                takerQuoteAccount,
             })
             .signers([taker])
             .rpc();
@@ -422,6 +428,18 @@ describe("SETTLEMENT", () => {
         assert.strictEqual(settlement.bump, bumpSettlement, "settlement bump mismatch");
         assert.ok(settlement.completedAt!.toNumber() > 0, "rfq completedAt should be set");
         assert(rfq.completedAt.eq(settlement.completedAt), "rfq and settlement completeAt should be equal");
+
+        await Promise.all([
+            getAndLogBalance("After complete settlement", "Maker USDC", makerPaymentAccount),
+            getAndLogBalance("After complete settlement", "Maker Base", makerBaseAccount),
+            getAndLogBalance("After complete settlement", "Maker Quote", makerQuoteAccount),
+            getAndLogBalance("After complete settlement", "Taker USDC", takerPaymentAccount),
+            getAndLogBalance("After complete settlement", "Taker Base", takerBaseAccount),
+            getAndLogBalance("After complete settlement", "Taker Quote", takerQuoteAccount),
+            getAndLogBalance("After complete settlement", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After complete settlement", "RFQ Vault Base", baseVault),
+            getAndLogBalance("After complete settlement", "Treasury USCD", treasuryPaymentAccount),
+        ]);
     });
 
 

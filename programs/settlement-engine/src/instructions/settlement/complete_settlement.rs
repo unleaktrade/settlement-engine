@@ -54,14 +54,57 @@ pub struct CompleteSettlement<'info> {
         associated_token::mint = usdc_mint,
         associated_token::authority = treasury_usdc_owner,
     )]
-    pub treasury_ata: Account<'info, TokenAccount>,
+    pub treasury_ata: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
         associated_token::mint = usdc_mint,
         associated_token::authority = rfq,
     )]
-    pub bonds_fees_vault: Account<'info, TokenAccount>,
+    pub bonds_fees_vault: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        token::mint = usdc_mint,
+        token::authority = taker,
+    )]
+    pub taker_payment_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        token::mint = usdc_mint,
+        token::authority = settlement.maker,
+    )]
+    pub maker_payment_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        associated_token::mint = base_mint,
+        associated_token::authority = rfq,
+    )]
+    pub vault_base_ata: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        init_if_needed,
+        payer = taker,
+        associated_token::mint = base_mint,
+        associated_token::authority = taker,
+    )]
+    pub taker_base_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        associated_token::mint = quote_mint,
+        associated_token::authority = settlement.maker,
+    )]
+    pub maker_quote_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        token::mint = quote_mint,
+        token::authority = taker,
+    )]
+    pub taker_quote_account: Box<Account<'info, TokenAccount>>,
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
@@ -72,12 +115,12 @@ pub fn complete_settlement_handler(ctx: Context<CompleteSettlement>) -> Result<(
     let now = Clock::get()?.unix_timestamp;
     let rfq = &mut ctx.accounts.rfq;
     let settlement = &mut ctx.accounts.settlement;
-    let bonds_fees_vault = &mut ctx.accounts.bonds_fees_vault;
 
+    //TODO: test accounts (move constraints in handler)
     //TODO : manage the fact that a valit taker could claim more bonds
     //TODO: manage the funding period
 
-    // Transfer Fees to Treasury
+    // Maker get his bonds back
     let seeds_rfq: &[&[u8]] = &[
         Rfq::SEED_PREFIX,
         rfq.maker.as_ref(),
@@ -88,13 +131,67 @@ pub fn complete_settlement_handler(ctx: Context<CompleteSettlement>) -> Result<(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             Transfer {
-                from: bonds_fees_vault.to_account_info(),
-                to: ctx.accounts.treasury_ata.to_account_info(),
+                from: ctx.accounts.bonds_fees_vault.to_account_info(),
+                to: ctx.accounts.maker_payment_account.to_account_info(),
                 authority: rfq.to_account_info(),
             },
             &[seeds_rfq],
         ),
-        rfq.fee_amount,
+        settlement.bond_amount,
+    )?;
+
+    // Taker get his bonds back
+    token::transfer(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.bonds_fees_vault.to_account_info(),
+                to: ctx.accounts.taker_payment_account.to_account_info(),
+                authority: rfq.to_account_info(),
+            },
+            &[seeds_rfq],
+        ),
+        settlement.bond_amount,
+    )?;
+
+    // Taker pays fees
+    token::transfer(
+        CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.taker_payment_account.to_account_info(),
+                to: ctx.accounts.treasury_ata.to_account_info(),
+                authority: ctx.accounts.taker.to_account_info(),
+            },
+        ),
+        settlement.fee_amount,
+    )?;
+
+    // Taker get base amount
+    token::transfer(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.vault_base_ata.to_account_info(),
+                to: ctx.accounts.taker_base_account.to_account_info(),
+                authority: rfq.to_account_info(),
+            },
+            &[seeds_rfq],
+        ),
+        settlement.base_amount,
+    )?;
+
+    // Maker get quote amount directly from Taker
+    token::transfer(
+        CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.taker_quote_account.to_account_info(),
+                to: ctx.accounts.maker_quote_account.to_account_info(),
+                authority: ctx.accounts.taker.to_account_info(),
+            },
+        ),
+        settlement.quote_amount,
     )?;
 
     // update rfq
