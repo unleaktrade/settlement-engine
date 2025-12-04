@@ -29,6 +29,7 @@ pub struct CompleteSettlement<'info> {
         seeds = [Rfq::SEED_PREFIX, rfq.maker.key().as_ref(), rfq.uuid.as_ref()],
         bump = rfq.bump,
         has_one = config,
+        constraint = matches!(rfq.state, RfqState::Selected) @ RfqError::InvalidRfqState,
     )]
     pub rfq: Box<Account<'info, Rfq>>,
 
