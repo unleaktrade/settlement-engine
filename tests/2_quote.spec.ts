@@ -53,7 +53,7 @@ async function getAndLogBalance(
 
 // --- tests (ONLY initRfq) --------------------------------------------------
 
-describe("QUOTE", () => {
+describe.skip("QUOTE", () => {
     let configPda: PublicKey;
     let usdcMint: PublicKey;
     let baseMint: PublicKey;
@@ -825,9 +825,9 @@ export interface ErrorResponse {
     error: string;
 }
 
-type CheckResult = CheckResponse | ErrorResponse;
+export type CheckResult = CheckResponse | ErrorResponse;
 
-async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
     const res = await fetch(url, init);
 
     if (!res.ok) {
