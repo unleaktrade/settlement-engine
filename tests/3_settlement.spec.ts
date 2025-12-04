@@ -429,7 +429,17 @@ describe("SETTLEMENT", () => {
         assert.ok(settlement.completedAt!.toNumber() > 0, "rfq completedAt should be set");
         assert(rfq.completedAt.eq(settlement.completedAt), "rfq and settlement completeAt should be equal");
 
-        await Promise.all([
+        const [
+            makerUsdcBalance,
+            makerBaseBalance,
+            makerQuoteBalance,
+            takerUsdcBalance,
+            takerBaseBalance,
+            takerQuoteBalance,
+            bondsVaultBalance,
+            baseVaultBalance,
+            treasuryUsdcBalance,
+        ] = await Promise.all([
             getAndLogBalance("After complete settlement", "Maker USDC", makerPaymentAccount),
             getAndLogBalance("After complete settlement", "Maker Base", makerBaseAccount),
             getAndLogBalance("After complete settlement", "Maker Quote", makerQuoteAccount),
@@ -440,6 +450,16 @@ describe("SETTLEMENT", () => {
             getAndLogBalance("After complete settlement", "RFQ Vault Base", baseVault),
             getAndLogBalance("After complete settlement", "Treasury USCD", treasuryPaymentAccount),
         ]);
+
+        assert.ok(makerUsdcBalance.eq(new anchor.BN(DEFAULT_BOND_AMOUNT)), "maker should get bond back");
+        assert.ok(makerBaseBalance.isZero(), "maker base should be transferred out");
+        assert.ok(makerQuoteBalance.eq(new anchor.BN(DEFAULT_QUOTE_AMOUNT)), "maker should receive quote amount");
+        assert.ok(takerUsdcBalance.eq(new anchor.BN(DEFAULT_BOND_AMOUNT)), "taker should get bond back minus fee");
+        assert.ok(takerBaseBalance.eq(new anchor.BN(DEFAULT_BASE_AMOUNT)), "taker should receive base amount");
+        assert.ok(takerQuoteBalance.isZero(), "taker quote should be transferred out");
+        assert.ok(bondsVaultBalance.isZero(), "bonds vault should be empty");
+        assert.ok(baseVaultBalance.isZero(), "base vault should be empty");
+        assert.ok(treasuryUsdcBalance.eq(new anchor.BN(DEFAULT_FEE_AMOUNT)), "treasury should receive fee");
     });
 
 
