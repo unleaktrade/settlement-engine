@@ -402,6 +402,8 @@ describe("QUOTE", () => {
         const commitGuard = await program.account.commitGuard.fetch(commitGuardPda);
         assert.strictEqual(commitGuard.bump, bumpCommit, "commit guard bump mismatch");
         assert.ok(commitGuard.committedAt.eq(quote.committedAt), "committedAt mismatch");
+        assert(commitGuard.quote.equals(quotePda), "commitGuard's quote mismatch");
+
         // save valid taker for reveal test
         validTaker = taker;
 

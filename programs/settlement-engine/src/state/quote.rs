@@ -33,6 +33,7 @@ impl Quote {
 #[account]
 #[derive(InitSpace)]
 pub struct CommitGuard {
+    pub quote: Pubkey,
     pub committed_at: i64,
     pub bump: u8,
 }
