@@ -57,6 +57,7 @@ describe("SETTLEMENT", () => {
     let quoteMint: PublicKey;
 
     const admin = Keypair.generate();
+    const treasury = Keypair.generate();
     const commitTTL = 10, revealTTL = 10, selectionTTL = 10, fundingTTL = 10;
 
     const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
@@ -86,9 +87,8 @@ describe("SETTLEMENT", () => {
 
         let failed = false;
         try {
-            const treasury = Keypair.generate().publicKey;
             await program.methods
-                .initConfig(usdcMint, treasury, liquidityGuard)
+                .initConfig(usdcMint, treasury.publicKey, liquidityGuard)
                 .accounts({ admin: admin.publicKey })
                 .signers([admin])
                 .rpc();
@@ -98,6 +98,18 @@ describe("SETTLEMENT", () => {
         }
         assert.equal(failed, false, "initConfig failed");
         console.log("Config PDA:", configPda.toBase58());
+    });
+
+    after(async () => {
+        // console.log("All RFQ:", JSON.stringify((await program.account.rfq.all()),null,2));
+        // console.log("All QUOTE:", JSON.stringify((await program.account.quote.all()),null,2));
+        // console.log("All COMMIT GUARDS:", JSON.stringify((await program.account.commitGuard.all()),null,2));
+        // console.log("All SETTLEMENT:", JSON.stringify((await program.account.settlement.all()),null,2));
+        await program.methods
+            .closeConfig()
+            .accounts({ admin: admin.publicKey, config: configPda })
+            .signers([admin])
+            .rpc();
     });
 
     it("should complete settlement", async () => {
@@ -111,13 +123,15 @@ describe("SETTLEMENT", () => {
         const u = uuidBytes();
         const [rfqPDA, rfqBump] = rfqPda(maker.publicKey, u);
         //TODO: mint usdc, base and quote.
-        const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
         const makerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
-        const takerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker.publicKey);
         const makerBaseAccount = getAssociatedTokenAddressSync(baseMint, maker.publicKey);
-        const takerBaseAccount = getAssociatedTokenAddressSync(baseMint, taker.publicKey);
         const makerQuoteAccount = getAssociatedTokenAddressSync(quoteMint, maker.publicKey);
+        const takerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker.publicKey);
+        const takerBaseAccount = getAssociatedTokenAddressSync(baseMint, taker.publicKey);
         const takerQuoteAccount = getAssociatedTokenAddressSync(quoteMint, taker.publicKey);
+        const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
+        const baseVault = getAssociatedTokenAddressSync(baseMint, rfqPDA, true);
+        const treasuryPaymentAccount = getAssociatedTokenAddressSync(usdcMint, treasury.publicKey);
 
         // mint USDC for bonds
         await Promise.all([
@@ -137,6 +151,19 @@ describe("SETTLEMENT", () => {
             await getOrCreateAssociatedTokenAccount(
                 provider.connection,
                 admin,
+                baseMint,
+                maker.publicKey
+            ).then(account => mintTo(
+                provider.connection,
+                admin,
+                baseMint,
+                account.address,
+                admin,
+                1_000_000_000
+            )),
+            await getOrCreateAssociatedTokenAccount(
+                provider.connection,
+                admin,
                 usdcMint,
                 taker.publicKey
             ).then(account => mintTo(
@@ -147,6 +174,26 @@ describe("SETTLEMENT", () => {
                 admin,
                 2_000_000 //sufficient for bonds + fees
             )),
+            await getOrCreateAssociatedTokenAccount(
+                provider.connection,
+                admin,
+                quoteMint,
+                taker.publicKey
+            ).then(account => mintTo(
+                provider.connection,
+                admin,
+                quoteMint,
+                account.address,
+                admin,
+                1_000_000_000
+            )),
+        ]);
+
+        await Promise.all([
+            getAndLogBalance("START", "Maker USDC", makerPaymentAccount),
+            getAndLogBalance("START", "Maker Base", makerBaseAccount),
+            getAndLogBalance("START", "Taker USDC", takerPaymentAccount),
+            getAndLogBalance("START", "Taker Quote", takerQuoteAccount),
         ]);
 
         //INIT RFQ
@@ -182,11 +229,9 @@ describe("SETTLEMENT", () => {
             failed = true;
             console.log("initRfq failed:", e);
         }
-        await Promise.all([
-            getAndLogBalance("Before opening RFQ", "Maker USDC", makerPaymentAccount),
-            getAndLogBalance("Before opening RFQ", "Taker USDC", takerPaymentAccount),
-            getAndLogBalance("Before opening RFQ", "RFQ Bonds Vault", bondsFeesVault),
-        ]);
+
+        await getAndLogBalance("Before opening RFQ", "RFQ Bonds Vault", bondsFeesVault);
+
         console.log("Rfq PDA:", rfqPDA.toBase58());
 
         //OPEN RFQ
@@ -213,14 +258,9 @@ describe("SETTLEMENT", () => {
             getAndLogBalance("After opening RFQ", "RFQ Bonds Vault", bondsFeesVault),
         ]);
 
+        
     });
 
-    after(async () => {
-        await program.methods
-            .closeConfig()
-            .accounts({ admin: admin.publicKey, config: configPda })
-            .signers([admin])
-            .rpc();
-    });
+    
 
 });
