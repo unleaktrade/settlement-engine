@@ -1,3 +1,4 @@
+use crate::rfq_errors::RfqError;
 use crate::state::rfq::{Rfq, RfqState};
 use crate::state::{Config, Settlement};
 use anchor_lang::prelude::*;
@@ -116,11 +117,14 @@ pub fn complete_settlement_handler(ctx: Context<CompleteSettlement>) -> Result<(
     let rfq = &mut ctx.accounts.rfq;
     let settlement = &mut ctx.accounts.settlement;
 
+    //TODO : manage the fact that a valid taker could claim extra bonds
     //TODO: test accounts (move constraints in handler)
-    //TODO : manage the fact that a valit taker could claim more bonds
-    //TODO: manage the funding period
+    let Some(funding_deadline) = rfq.funding_deadline() else {
+        return err!(RfqError::InvalidRfqState);
+    };
+    require!(now <= funding_deadline, RfqError::FundingTooLate);
 
-    // Maker get his bonds back
+    // Refund maker's bond
     let seeds_rfq: &[&[u8]] = &[
         Rfq::SEED_PREFIX,
         rfq.maker.as_ref(),
@@ -140,7 +144,7 @@ pub fn complete_settlement_handler(ctx: Context<CompleteSettlement>) -> Result<(
         settlement.bond_amount,
     )?;
 
-    // Taker get his bonds back
+    // Refund taker's bond
     token::transfer(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
@@ -154,7 +158,7 @@ pub fn complete_settlement_handler(ctx: Context<CompleteSettlement>) -> Result<(
         settlement.bond_amount,
     )?;
 
-    // Taker pays fees
+    // Collect taker fees to treasury
     token::transfer(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
@@ -167,7 +171,7 @@ pub fn complete_settlement_handler(ctx: Context<CompleteSettlement>) -> Result<(
         settlement.fee_amount,
     )?;
 
-    // Taker get base amount
+    // Deliver base asset from vault to taker
     token::transfer(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
@@ -181,7 +185,7 @@ pub fn complete_settlement_handler(ctx: Context<CompleteSettlement>) -> Result<(
         settlement.base_amount,
     )?;
 
-    // Maker get quote amount directly from Taker
+    // Deliver quote asset from taker to maker
     token::transfer(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(),

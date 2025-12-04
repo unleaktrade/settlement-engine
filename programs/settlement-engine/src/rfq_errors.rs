@@ -54,6 +54,8 @@ pub enum RfqError {
     InvalidQuoteMint,
     #[msg("RFQ PDA does not match expected seeds")]
     InvalidRfqPda,
+    #[msg("Funding deadline passed")]
+    FundingTooLate,
     #[msg("Reveal Deadline passed")]
     RevealTooLate,
     #[msg("Reveal attempted too early")]
