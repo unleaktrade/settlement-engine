@@ -840,6 +840,6 @@ export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> 
     return res.json() as Promise<T>;
 }
 
-function sleep(ms: number): Promise<void> {
+export function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }

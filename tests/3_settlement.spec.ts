@@ -13,13 +13,17 @@ import {
 } from "@solana/spl-token";
 import { v4 as uuidv4, parse as uuidParse } from "uuid";
 import assert from "assert";
-import { CheckResult, fetchJson } from "./2_quote.spec";
+import { CheckResult, fetchJson, sleep } from "./2_quote.spec";
 
 anchor.setProvider(anchor.AnchorProvider.env());
 const provider = anchor.getProvider() as anchor.AnchorProvider;
 const program = anchor.workspace.SettlementEngine as Program<SettlementEngine>;
 
 const liquidityGuardURL = "https://liquidity-guard-devnet-skip-c644b6411603.herokuapp.com";
+const DEFAULT_QUOTE_AMOUNT = 1_000_000_001;
+const DEFAULT_BASE_AMOUNT = 1_000_000_000;
+const DEFAULT_BOND_AMOUNT = 1_000_000;
+const DEFAULT_FEE_AMOUNT = 1_000;
 
 const confirm = async (signature: string) => {
     const bh = await provider.connection.getLatestBlockhash();
@@ -34,6 +38,8 @@ const fund = async (kp: Keypair, sol = 2) => {
     await confirm(sig);
 }
 
+const uuidBytes = () => Uint8Array.from(uuidParse(uuidv4()));
+
 /** Derive RFQ PDA from (maker, uuid) */
 const rfqPda = (maker: PublicKey, u16: Uint8Array) =>
     PublicKey.findProgramAddressSync(
@@ -41,7 +47,11 @@ const rfqPda = (maker: PublicKey, u16: Uint8Array) =>
         program.programId
     );
 
-const uuidBytes = () => Uint8Array.from(uuidParse(uuidv4()));
+const settlementPda = (rfqPDA: PublicKey) => PublicKey.findProgramAddressSync(
+    [Buffer.from("settlement"), rfqPDA.toBuffer()],
+    program.programId
+);
+
 
 const getAndLogBalance = async (label: string, owner: string, tokenAccount: PublicKey) => {
     const balance = await provider.connection.getTokenAccountBalance(tokenAccount).then(b => new anchor.BN(b.value.amount));
@@ -51,7 +61,10 @@ const getAndLogBalance = async (label: string, owner: string, tokenAccount: Publ
 
 const provideLiquidityGuardAttestation = async (taker: anchor.web3.Keypair,
     rfqPDA: anchor.web3.PublicKey,
-    quoteMint: anchor.web3.PublicKey) => {
+    quoteMint: anchor.web3.PublicKey,
+    quoteAmount = DEFAULT_QUOTE_AMOUNT,
+    bondAmount = DEFAULT_BOND_AMOUNT,
+    feeAmount = DEFAULT_FEE_AMOUNT) => {
     const rfqAddr = Buffer.from(rfqPDA.toBytes());
     const salt = nacl.sign.detached(rfqAddr, taker.secretKey);
     console.log("salt:", Buffer.from(salt).toString("hex"));
@@ -61,9 +74,9 @@ const provideLiquidityGuardAttestation = async (taker: anchor.web3.Keypair,
         taker: taker.publicKey.toBase58(),
         salt: Buffer.from(salt).toString("hex"),
         quote_mint: quoteMint.toBase58(),
-        quote_amount: new anchor.BN(1_000_000_001).toString(),
-        bond_amount_usdc: new anchor.BN(1_000_000).toString(),
-        fee_amount_usdc: new anchor.BN(1_000).toString(),
+        quote_amount: new anchor.BN(quoteAmount).toString(),
+        bond_amount_usdc: new anchor.BN(bondAmount).toString(),
+        fee_amount_usdc: new anchor.BN(feeAmount).toString(),
     };
 
     const response = await fetchJson<CheckResult>(`${liquidityGuardURL}/check`, {
@@ -77,6 +90,7 @@ const provideLiquidityGuardAttestation = async (taker: anchor.web3.Keypair,
         throw new Error(`Liquidity Guard error: ${response.error}`);
     } else {
         return [
+            salt,
             Buffer.from(response.commit_hash, "hex"),
             Buffer.from(response.liquidity_proof, "hex"),
         ];
@@ -156,6 +170,7 @@ describe("SETTLEMENT", () => {
 
         const u = uuidBytes();
         const [rfqPDA, rfqBump] = rfqPda(maker.publicKey, u);
+        const [settlementPDA, bumpSettlement] = settlementPda(rfqPDA);
         //TODO: mint usdc, base and quote.
         const makerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
         const makerBaseAccount = getAssociatedTokenAddressSync(baseMint, maker.publicKey);
@@ -180,7 +195,7 @@ describe("SETTLEMENT", () => {
                 usdcMint,
                 account.address,
                 admin,
-                1_000_000 //sufficient for bonds
+                DEFAULT_BOND_AMOUNT
             )),
             await getOrCreateAssociatedTokenAccount(
                 provider.connection,
@@ -193,7 +208,7 @@ describe("SETTLEMENT", () => {
                 baseMint,
                 account.address,
                 admin,
-                1_000_000_000
+                DEFAULT_BASE_AMOUNT
             )),
             await getOrCreateAssociatedTokenAccount(
                 provider.connection,
@@ -206,7 +221,7 @@ describe("SETTLEMENT", () => {
                 usdcMint,
                 account.address,
                 admin,
-                2_000_000 //sufficient for bonds + fees
+                DEFAULT_BOND_AMOUNT + DEFAULT_FEE_AMOUNT //sufficient for bonds + fees
             )),
             await getOrCreateAssociatedTokenAccount(
                 provider.connection,
@@ -219,15 +234,15 @@ describe("SETTLEMENT", () => {
                 quoteMint,
                 account.address,
                 admin,
-                1_000_000_000
+                DEFAULT_QUOTE_AMOUNT
             )),
         ]);
 
         await Promise.all([
-            getAndLogBalance("START", "Maker USDC", makerPaymentAccount),
-            getAndLogBalance("START", "Maker Base", makerBaseAccount),
-            getAndLogBalance("START", "Taker USDC", takerPaymentAccount),
-            getAndLogBalance("START", "Taker Quote", takerQuoteAccount),
+            getAndLogBalance("Before Init RFQ", "Maker USDC", makerPaymentAccount),
+            getAndLogBalance("Before Init RFQ", "Maker Base", makerBaseAccount),
+            getAndLogBalance("Before Init RFQ", "Taker USDC", takerPaymentAccount),
+            getAndLogBalance("Before Init RFQ", "Taker Quote", takerQuoteAccount),
         ]);
 
         //INIT RFQ
@@ -238,10 +253,10 @@ describe("SETTLEMENT", () => {
                     Array.from(u),
                     baseMint,
                     quoteMint,
-                    new anchor.BN(1_000_000),
+                    new anchor.BN(DEFAULT_BOND_AMOUNT),
+                    new anchor.BN(DEFAULT_BASE_AMOUNT),
                     new anchor.BN(1_000_000_000),
-                    new anchor.BN(1_000_000_000),
-                    new anchor.BN(1_000),
+                    new anchor.BN(DEFAULT_FEE_AMOUNT),
                     commitTTL,
                     revealTTL,
                     selectionTTL,
@@ -292,7 +307,7 @@ describe("SETTLEMENT", () => {
             getAndLogBalance("After opening RFQ", "RFQ Bonds Vault", bondsFeesVault),
         ]);
 
-        const [commit_hash, liquidity_proof] = await provideLiquidityGuardAttestation(taker, rfqPDA, quoteMint);
+        const [salt, commit_hash, liquidity_proof] = await provideLiquidityGuardAttestation(taker, rfqPDA, quoteMint);
         // Create Ed25519 verification instruction using the helper
         const ed25519Ix = Ed25519Program.createInstructionWithPublicKey({
             publicKey: liquidityGuard.toBytes(),
@@ -333,6 +348,80 @@ describe("SETTLEMENT", () => {
         );
         console.log("Commit Guard PDA:", commitGuardPda.toBase58());
 
+        await Promise.all([
+            getAndLogBalance("After commiting quote", "Maker USDC", makerPaymentAccount),
+            getAndLogBalance("After commiting quote", "Taker USDC", takerPaymentAccount),
+            getAndLogBalance("After commiting quote", "RFQ Bonds Vault", bondsFeesVault),
+        ]);
+
+        console.log(`Waiting ${commitTTL} seconds for commit TTL to expire...`);
+        await sleep(commitTTL * 1000); // wait until commit TTL passes
+        console.log("Reveal period begins...");
+
+        await program.methods
+            .revealQuote(Array.from(salt), new anchor.BN(DEFAULT_QUOTE_AMOUNT))
+            .accounts({ rfq: rfqPDA, quote: quotePda, taker: taker.publicKey, config: configPda })
+            .signers([taker])
+            .rpc();
+
+        await Promise.all([
+            getAndLogBalance("After revealing quote", "Maker USDC", makerPaymentAccount),
+            getAndLogBalance("After revealing quote", "Taker USDC", takerPaymentAccount),
+            getAndLogBalance("After revealing quote", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("Before selecting quote", "Maker Base", makerBaseAccount),
+        ]);
+
+        console.log(`Waiting ${revealTTL} seconds for reveal TTL to expire...`);
+        await sleep(revealTTL * 1000); // wait until reveal TTL passes
+        console.log("Selection period begins...");
+
+        await program.methods.selectQuote()
+            .accounts({
+                maker: maker.publicKey,
+                rfq: rfqPDA,
+                quote: quotePda,
+                baseMint,
+                quoteMint,
+                vaultBaseAta: baseVault,
+                makerBaseAccount,
+                config: configPda,
+            })
+            .signers([maker])
+            .rpc();
+
+        await Promise.all([
+            getAndLogBalance("After selecting quote", "Maker USDC", makerBaseAccount),
+            getAndLogBalance("After selecting quote", "Maker Base", makerBaseAccount),
+            getAndLogBalance("After selecting quote", "Taker USDC", takerPaymentAccount),
+            getAndLogBalance("After selecting quote", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After selecting quote", "RFQ Vault Base", baseVault),
+        ]);
+
+        await program.methods.completeSettlement()
+            .accounts({
+                taker: taker.publicKey,
+                config: configPda,
+                treasuryUsdcOwner: treasury.publicKey,
+                rfq: rfqPDA,
+                settlement: settlementPDA,
+                usdcMint,
+                baseMint,
+                quoteMint,
+            })
+            .signers([taker])
+            .rpc();
+
+        const [rfq, settlement] = await Promise.all([
+            program.account.rfq.fetch(rfqPDA),
+            program.account.settlement.fetch(settlementPDA),
+        ]);
+
+        assert.strictEqual(rfq.bump, rfqBump, "rfq bump mismatch");
+        assert.ok(rfq.state.settled, "rfq state should be settled");
+        assert.ok(rfq.completedAt!.toNumber() > 0, "rfq completedAt should be set");
+        assert.strictEqual(settlement.bump, bumpSettlement, "settlement bump mismatch");
+        assert.ok(settlement.completedAt!.toNumber() > 0, "rfq completedAt should be set");
+        assert(rfq.completedAt.eq(settlement.completedAt), "rfq and settlement completeAt should be equal");
     });
 
 

@@ -3,7 +3,7 @@ use crate::state::{Config, Settlement};
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token::{/*self, */ Mint, Token, TokenAccount /*Transfer*/},
+    token::{self, Mint, Token, TokenAccount, Transfer},
 };
 
 #[derive(Accounts)]
@@ -56,6 +56,13 @@ pub struct CompleteSettlement<'info> {
     )]
     pub treasury_ata: Account<'info, TokenAccount>,
 
+    #[account(
+        mut,
+        associated_token::mint = usdc_mint,
+        associated_token::authority = rfq,
+    )]
+    pub bonds_fees_vault: Account<'info, TokenAccount>,
+
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
@@ -65,6 +72,30 @@ pub fn complete_settlement_handler(ctx: Context<CompleteSettlement>) -> Result<(
     let now = Clock::get()?.unix_timestamp;
     let rfq = &mut ctx.accounts.rfq;
     let settlement = &mut ctx.accounts.settlement;
+    let bonds_fees_vault = &mut ctx.accounts.bonds_fees_vault;
+
+    //TODO : manage the fact that a valit taker could claim more bonds
+    //TODO: manage the funding period
+
+    // Transfer Fees to Treasury
+    let seeds_rfq: &[&[u8]] = &[
+        Rfq::SEED_PREFIX,
+        rfq.maker.as_ref(),
+        rfq.uuid.as_ref(),
+        &[rfq.bump],
+    ];
+    token::transfer(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: bonds_fees_vault.to_account_info(),
+                to: ctx.accounts.treasury_ata.to_account_info(),
+                authority: rfq.to_account_info(),
+            },
+            &[seeds_rfq],
+        ),
+        rfq.fee_amount,
+    )?;
 
     // update rfq
     rfq.state = RfqState::Settled;
