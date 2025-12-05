@@ -9,7 +9,10 @@ use anchor_spl::{
 
 #[derive(Accounts)]
 pub struct CompleteSettlement<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        address = settlement.taker
+    )]
     pub taker: Signer<'info>,
 
     #[account(
@@ -29,7 +32,6 @@ pub struct CompleteSettlement<'info> {
         seeds = [Rfq::SEED_PREFIX, rfq.maker.key().as_ref(), rfq.uuid.as_ref()],
         bump = rfq.bump,
         has_one = config,
-        constraint = matches!(rfq.state, RfqState::Selected) @ RfqError::InvalidRfqState,
     )]
     pub rfq: Box<Account<'info, Rfq>>,
 
@@ -42,13 +44,13 @@ pub struct CompleteSettlement<'info> {
     pub settlement: Box<Account<'info, Settlement>>,
 
     #[account(address = config.usdc_mint)]
-    pub usdc_mint: Account<'info, Mint>,
+    pub usdc_mint: Box<Account<'info, Mint>>,
 
     #[account(address = settlement.base_mint)]
-    pub base_mint: Account<'info, Mint>,
+    pub base_mint: Box<Account<'info, Mint>>,
 
     #[account(address = settlement.quote_mint)]
-    pub quote_mint: Account<'info, Mint>,
+    pub quote_mint: Box<Account<'info, Mint>>,
 
     #[account(
         init_if_needed,
@@ -62,6 +64,7 @@ pub struct CompleteSettlement<'info> {
         mut,
         associated_token::mint = usdc_mint,
         associated_token::authority = rfq,
+        address = settlement.bonds_fees_vault,
     )]
     pub bonds_fees_vault: Box<Account<'info, TokenAccount>>,
 
@@ -76,6 +79,7 @@ pub struct CompleteSettlement<'info> {
         mut,
         token::mint = usdc_mint,
         token::authority = settlement.maker,
+        address = settlement.maker_payment_account,
     )]
     pub maker_payment_account: Box<Account<'info, TokenAccount>>,
 
@@ -83,6 +87,7 @@ pub struct CompleteSettlement<'info> {
         mut,
         associated_token::mint = base_mint,
         associated_token::authority = rfq,
+        address = settlement.vault_base_ata,
     )]
     pub vault_base_ata: Box<Account<'info, TokenAccount>>,
 
@@ -98,6 +103,7 @@ pub struct CompleteSettlement<'info> {
         mut,
         associated_token::mint = quote_mint,
         associated_token::authority = settlement.maker,
+        address = settlement.maker_quote_account,
     )]
     pub maker_quote_account: Box<Account<'info, TokenAccount>>,
 
@@ -118,12 +124,14 @@ pub fn complete_settlement_handler(ctx: Context<CompleteSettlement>) -> Result<(
     let rfq = &mut ctx.accounts.rfq;
     let settlement = &mut ctx.accounts.settlement;
 
-    //TODO : manage the fact that a valid taker could claim extra bonds
-    //TODO: test accounts (move constraints in handler)
     let Some(funding_deadline) = rfq.funding_deadline() else {
         return err!(RfqError::InvalidRfqState);
     };
     require!(now <= funding_deadline, RfqError::FundingTooLate);
+    require!(
+        matches!(rfq.state, RfqState::Selected),
+        RfqError::InvalidRfqState
+    );
 
     // Refund maker's bond
     let seeds_rfq: &[&[u8]] = &[
@@ -204,6 +212,9 @@ pub fn complete_settlement_handler(ctx: Context<CompleteSettlement>) -> Result<(
     rfq.completed_at = Some(now);
     //update settlement
     settlement.completed_at = Some(now);
+    settlement.taker_funded_at = Some(now);
+    settlement.taker_base_account = Some(ctx.accounts.taker_base_account.key());
+    settlement.taker_quote_account = Some(ctx.accounts.taker_quote_account.key());
 
     Ok(())
 }

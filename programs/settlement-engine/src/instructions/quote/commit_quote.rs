@@ -193,7 +193,7 @@ pub fn commit_quote_handler(
     let guard_bump = ctx.bumps.commit_guard;
     commit_guard.bump = guard_bump;
     commit_guard.committed_at = now;
-    commit_guard.quote =  quote.key();
+    commit_guard.quote = quote.key();
 
     let quote_bump = ctx.bumps.quote;
     quote.bump = quote_bump;
