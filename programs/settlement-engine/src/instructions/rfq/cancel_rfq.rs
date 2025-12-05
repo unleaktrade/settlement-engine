@@ -13,7 +13,7 @@ pub struct CancelRfq<'info> {
         seeds = [Rfq::SEED_PREFIX, maker.key().as_ref(), rfq.uuid.as_ref()],
         bump = rfq.bump,
         has_one = maker,
-        constraint = matches!(rfq.state, RfqState::Draft) @ RfqError::InvalidState,)]
+        constraint = matches!(rfq.state, RfqState::Draft) @ RfqError::InvalidRfqState,)]
     pub rfq: Account<'info, Rfq>,
 }
 
@@ -24,5 +24,7 @@ pub fn cancel_rfq_handler(ctx: Context<CancelRfq>) -> Result<()> {
         rfq.key().to_string(),
         ctx.accounts.maker.key()
     );
+
+    // Account will be closed automatically, transferring lamports to maker
     Ok(())
 }

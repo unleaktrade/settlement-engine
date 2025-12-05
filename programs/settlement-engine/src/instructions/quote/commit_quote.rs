@@ -1,11 +1,8 @@
 use anchor_lang::prelude::*;
-// use anchor_spl::{
-//     token::{self, Mint, Token, TokenAccount, Transfer},
-// };
 use anchor_lang::solana_program::sysvar::instructions::{
     load_current_index_checked, load_instruction_at_checked, ID as INSTRUCTIONS_ID,
 };
-use anchor_spl::token::Mint;
+use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
 use crate::{
     state::{
@@ -13,7 +10,7 @@ use crate::{
         quote::*,
         rfq::{Rfq, RfqState},
     },
-    QuoteError, RfqError,
+    RfqError,
 };
 
 #[derive(Accounts)]
@@ -23,35 +20,23 @@ pub struct CommitQuote<'info> {
     #[account(mut)]
     pub taker: Signer<'info>,
 
+    /// Global config account
+    #[account(
+        seeds = [Config::SEED_PREFIX],
+        bump = config.bump,
+    )]
     pub config: Account<'info, Config>,
 
     #[account(
         mut,
         has_one = config,
-        constraint = matches!(rfq.state, RfqState::Open | RfqState::Committed) @ RfqError::InvalidState,
+        constraint = matches!(rfq.state, RfqState::Open | RfqState::Committed) @ RfqError::InvalidRfqState,
     )]
-    pub rfq: Account<'info, Rfq>,
+    pub rfq: Box<Account<'info, Rfq>>,
 
     /// USDC mint from config
     #[account(address = config.usdc_mint)]
     pub usdc_mint: Account<'info, Mint>,
-
-    /// RFQ-owned USDC bonds vault (ATA)
-    // #[account(
-    //     mut,
-    //     constraint = bonds_vault.key() == rfq.bonds_vault @ RfqError::InvalidState,
-    //     token::mint = usdc_mint,
-    //     token::authority = rfq,
-    // )]
-    // pub bonds_vault: Account<'info, TokenAccount>,
-
-    /// Taker's USDC ATA to pull bond from
-    // #[account(
-    //     mut,
-    //     associated_token::mint = usdc_mint,
-    //     associated_token::authority = taker,
-    // )]
-    // pub taker_usdc_ata: Account<'info, TokenAccount>,
 
     /// One Quote account per (rfq, taker)
     #[account(
@@ -73,12 +58,28 @@ pub struct CommitQuote<'info> {
     )]
     pub commit_guard: Account<'info, CommitGuard>,
 
+    #[account(
+        mut,
+        associated_token::mint = usdc_mint,
+        associated_token::authority = rfq,
+    )]
+    pub bonds_fees_vault: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        token::mint = usdc_mint,
+        token::authority = taker,
+        constraint =!taker_payment_account.is_frozen() @ RfqError::TakerPaymentAccountClosed,
+    )]
+    pub taker_payment_account: Account<'info, TokenAccount>,
+
     /// Needed because we `init` PDAs (quote, commit_guard)
     pub system_program: Program<'info, System>,
 
     /// CHECK: Address asserted to be the instructions sysvar
     #[account(address = INSTRUCTIONS_ID)]
     pub instruction_sysvar: AccountInfo<'info>,
+    pub token_program: Program<'info, Token>,
 }
 
 pub fn commit_quote_handler(
@@ -91,7 +92,7 @@ pub fn commit_quote_handler(
     let current_index = load_current_index_checked(&ctx.accounts.instruction_sysvar)?;
     let prev_index = current_index
         .checked_sub(1)
-        .ok_or_else(|| QuoteError::NoEd25519Instruction)?;
+        .ok_or_else(|| RfqError::NoEd25519Instruction)?;
     let ed25519_ix =
         load_instruction_at_checked(prev_index as usize, &ctx.accounts.instruction_sysvar)?;
     msg!("Prev ix program_id: {}", ed25519_ix.program_id);
@@ -101,13 +102,13 @@ pub fn commit_quote_handler(
     require_keys_eq!(
         ed25519_ix.program_id,
         expected,
-        QuoteError::InvalidEd25519Program
+        RfqError::InvalidEd25519Program
     );
 
     // Parse Ed25519 instruction
     let data = &ed25519_ix.data;
-    require!(data.len() >= 112, QuoteError::InvalidEd25519Data);
-    require!(data[0] == 1, QuoteError::InvalidSignatureCount);
+    require!(data.len() >= 112, RfqError::InvalidEd25519Data);
+    require!(data[0] == 1, RfqError::InvalidSignatureCount);
 
     let sig_offset = u16::from_le_bytes([data[2], data[3]]) as usize;
     let sig_ix_index = u16::from_le_bytes([data[4], data[5]]);
@@ -126,44 +127,44 @@ pub fn commit_quote_handler(
     msg!("msg_size={}", msg_size);
 
     // Enforce same-instruction sourcing (prevents cross-instruction substitution)
-    require!(sig_ix_index == 0xFFFF, QuoteError::InvalidOffset);
-    require!(pubkey_ix_index == 0xFFFF, QuoteError::InvalidOffset);
-    require!(msg_ix_index == 0xFFFF, QuoteError::InvalidOffset);
-    require!(msg_size == 32, QuoteError::InvalidMessageSize);
+    require!(sig_ix_index == 0xFFFF, RfqError::InvalidOffset);
+    require!(pubkey_ix_index == 0xFFFF, RfqError::InvalidOffset);
+    require!(msg_ix_index == 0xFFFF, RfqError::InvalidOffset);
+    require!(msg_size == 32, RfqError::InvalidMessageSize);
 
     // Bounds
     require!(
         data.len().saturating_sub(sig_offset) >= 64,
-        QuoteError::InvalidEd25519Data
+        RfqError::InvalidEd25519Data
     );
     require!(
         data.len().saturating_sub(pubkey_offset) >= 32,
-        QuoteError::InvalidEd25519Data
+        RfqError::InvalidEd25519Data
     );
     require!(
         data.len().saturating_sub(msg_offset) >= 32,
-        QuoteError::InvalidEd25519Data
+        RfqError::InvalidEd25519Data
     );
 
     // Authorized Liquidity Guard signer check
     let pubkey_bytes = &data[pubkey_offset..pubkey_offset + 32];
     require!(
         pubkey_bytes == ctx.accounts.config.liquidity_guard.as_ref(),
-        QuoteError::UnauthorizedSigner
+        RfqError::UnauthorizedSigner
     );
 
     // Bind exact 32-byte message
     let verified_hash_slice = &data[msg_offset..msg_offset + 32];
     require!(
         verified_hash_slice == &commit_hash,
-        QuoteError::CommitHashMismatch
+        RfqError::CommitHashMismatch
     );
 
     // Bind exact 64-byte signature (liquidity_proof)
     let verified_signature_slice = &data[sig_offset..sig_offset + 64];
     require!(
         verified_signature_slice == &liquidity_proof,
-        QuoteError::LiquidityProofSignatureMismatch
+        RfqError::LiquidityProofSignatureMismatch
     );
 
     // Process Commit Quote
@@ -171,21 +172,19 @@ pub fn commit_quote_handler(
     let rfq = &mut ctx.accounts.rfq;
 
     let Some(commit_deadline) = rfq.commit_deadline() else {
-        return err!(RfqError::InvalidState);
+        return err!(RfqError::InvalidRfqState);
     };
-    require!(now <= commit_deadline, QuoteError::CommitTooLate);
+    require!(now <= commit_deadline, RfqError::CommitTooLate);
 
-    // let bond_amount = rfq.bond_amount;
-    // require!(bond_amount > 0, RfqError::InvalidState);
-
-    // Transfer taker bond USDC into RFQ bonds_vault
-    // let cpi_accounts = Transfer {
-    //     from: ctx.accounts.taker_usdc_ata.to_account_info(),
-    //     to: ctx.accounts.bonds_vault.to_account_info(),
-    //     authority: ctx.accounts.taker.to_account_info(),
-    // };
-    // let cpi_ctx = CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);
-    // token::transfer(cpi_ctx, bond_amount)?;
+    // Transfer taker bond USDC into RFQ's vault
+    let cpi_accounts = Transfer {
+        from: ctx.accounts.taker_payment_account.to_account_info(),
+        to: ctx.accounts.bonds_fees_vault.to_account_info(),
+        authority: ctx.accounts.taker.to_account_info(),
+    };
+    let cpi_program = ctx.accounts.token_program.to_account_info();
+    let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+    token::transfer(cpi_ctx, rfq.bond_amount)?;
 
     // Fill Quote (commit-only fields)
     let quote = &mut ctx.accounts.quote;
@@ -194,6 +193,7 @@ pub fn commit_quote_handler(
     let guard_bump = ctx.bumps.commit_guard;
     commit_guard.bump = guard_bump;
     commit_guard.committed_at = now;
+    commit_guard.quote = quote.key();
 
     let quote_bump = ctx.bumps.quote;
     quote.bump = quote_bump;
@@ -204,6 +204,7 @@ pub fn commit_quote_handler(
     quote.committed_at = now;
     quote.revealed_at = None;
     quote.quote_amount = None; // to be filled on reveal
+    quote.taker_payment_account = ctx.accounts.taker_payment_account.key();
 
     rfq.state = RfqState::Committed;
     rfq.committed_count = rfq.committed_count.saturating_add(1);

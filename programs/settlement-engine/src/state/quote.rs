@@ -16,6 +16,8 @@ pub struct Quote {
     pub revealed_at: Option<i64>,
     pub quote_amount: Option<u64>,
 
+    pub taker_payment_account: Pubkey,
+
     pub bump: u8,
 }
 
@@ -31,6 +33,7 @@ impl Quote {
 #[account]
 #[derive(InitSpace)]
 pub struct CommitGuard {
+    pub quote: Pubkey,
     pub committed_at: i64,
     pub bump: u8,
 }

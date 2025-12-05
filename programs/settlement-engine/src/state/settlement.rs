@@ -19,9 +19,23 @@ pub struct Settlement {
     pub bond_amount: u64,
     pub fee_amount: u64,
 
+    /// Token Accounts
+    // USDC
+    pub maker_payment_account: Pubkey,
+    pub taker_payment_account: Pubkey,
+    pub bonds_fees_vault: Pubkey,
+    // base mint
+    pub maker_base_account: Pubkey,
+    pub taker_base_account: Option<Pubkey>,
+    pub vault_base_ata: Pubkey,
+    // quote mint
+    pub maker_quote_account: Pubkey,
+    pub taker_quote_account: Option<Pubkey>,
+    // pub vault_quote_ata: Pubkey, // Facultative vault assuming the quote transfer occurs directly between the taker and the maker.
+
     // timeline
     pub created_at: i64,
-    pub settled_at: Option<i64>,
+    pub completed_at: Option<i64>,
 
     // funding timestamps
     pub maker_funded_at: Option<i64>,
@@ -34,7 +48,7 @@ impl Settlement {
     pub const SEED_PREFIX: &'static [u8] = b"settlement";
 
     pub fn is_complete(&self) -> bool {
-        self.maker_funded() && self.taker_funded() && self.settled_at.is_some()
+        self.completed_at.is_some()
     }
 
     pub fn maker_funded(&self) -> bool {

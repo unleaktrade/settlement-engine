@@ -26,9 +26,10 @@ pub struct Rfq {
     pub fund_ttl_secs: u32,
 
     // timeline
-    pub created_at: i64,          // set at init (draft)
-    pub opened_at: Option<i64>,   // set when moving to Open
-    pub selected_at: Option<i64>, // set on selection
+    pub created_at: i64,           // set at init (draft)
+    pub opened_at: Option<i64>,    // set when moving to Open
+    pub selected_at: Option<i64>,  // set on selection
+    pub completed_at: Option<i64>, // set on settlement completion
 
     // misc
     pub bump: u8,
@@ -41,22 +42,22 @@ pub struct Rfq {
     pub selected_quote: Option<Pubkey>,
     pub settlement: Option<Pubkey>,
 
-    // escrow references
-    pub bonds_vault: Pubkey, // ATA(owner = rfq PDA, mint = Config.usdc_mint)
+    // escrow & maker references
+    pub bonds_fees_vault: Pubkey, // ATA(owner = rfq PDA, mint = Config.usdc_mint)
+    pub maker_payment_account: Pubkey,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, InitSpace)]
 pub enum RfqState {
-    Draft,
-    Open,
-    Committed,
-    Revealed,
-    Selected,
-    Funded,
-    Settled,
-    Ignored,
-    Expired,
-    Aborted,
+    Draft,     // initial state, when RFQ is being created
+    Open,      // RFQ is open for takers to commit
+    Committed, // at least one taker has committed
+    Revealed,  // at least one taker has revealed
+    Selected,  // maker has selected a taker and initiated settlement
+    Settled,   // settlement has been completed by taker
+    Ignored,   // maker did not select a valid quote in time
+    Expired, // RFQ expired without any taker valid commitments (no commits at all or no valid reveals)
+    Dropped, // taker did not fund in time after being selected
 }
 
 impl Rfq {

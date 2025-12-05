@@ -1,5 +1,4 @@
 use crate::{
-    quote_errors::QuoteError,
     state::{
         config::Config,
         quote::Quote,
@@ -15,14 +14,18 @@ pub struct RevealQuote<'info> {
     #[account(mut)]
     pub taker: Signer<'info>,
 
+    #[account(
+        seeds = [Config::SEED_PREFIX],
+        bump = config.bump,
+    )]
     pub config: Account<'info, Config>,
 
     #[account(
         mut,
         has_one = config,
-        constraint = matches!(rfq.state, RfqState::Committed | RfqState::Revealed) @ RfqError::InvalidState,
+        constraint = matches!(rfq.state, RfqState::Committed | RfqState::Revealed) @ RfqError::InvalidRfqState,
     )]
-    pub rfq: Account<'info, Rfq>,
+    pub rfq: Box<Account<'info, Rfq>>,
 
     #[account(
         mut,
@@ -30,7 +33,7 @@ pub struct RevealQuote<'info> {
         bump = quote.bump,
         has_one = rfq,
         has_one = taker,
-        constraint = !quote.is_revealed() @ QuoteError::QuoteAlreadyRevealed,
+        constraint = !quote.is_revealed() @ RfqError::QuoteAlreadyRevealed,
     )]
     pub quote: Account<'info, Quote>,
 }
@@ -48,10 +51,10 @@ pub fn reveal_quote_handler(
 
     match (rfq.reveal_deadline(), rfq.commit_deadline()) {
         (Some(reveal_deadline), Some(commit_deadline)) => {
-            require!(now <= reveal_deadline, QuoteError::RevealTooLate);
-            require!(now > commit_deadline, QuoteError::RevealTooEarly);
+            require!(now <= reveal_deadline, RfqError::RevealTooLate);
+            require!(now > commit_deadline, RfqError::RevealTooEarly);
         }
-        _ => return err!(RfqError::InvalidState),
+        _ => return err!(RfqError::InvalidRfqState),
     }
 
     // Recompute commit_hash EXACTLY the same way liquidity-guard did.
@@ -77,14 +80,12 @@ pub fn reveal_quote_handler(
     let computed = hash(&buf).to_bytes();
     msg!("Computed commit hash: {:?}", computed);
     msg!("Stored commit hash:   {:?}", quote.commit_hash);
-    //@TODO: if hash does not match, the quote is invalid!
     require!(computed == quote.commit_hash, RfqError::Unauthorized);
 
     // Enforce price floor
-    //@TODO: if the quote_amount is below rfq.min_quote_amount, the quote is invalid!
     require!(
         quote_amount >= rfq.min_quote_amount,
-        QuoteError::InvalidQuoteAmount
+        RfqError::InvalidQuoteAmount
     );
 
     // Mark as valid reveal

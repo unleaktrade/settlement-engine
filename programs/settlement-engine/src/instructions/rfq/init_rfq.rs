@@ -5,7 +5,7 @@ use crate::state::{
 use crate::RfqError;
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    associated_token::{get_associated_token_address, AssociatedToken},
+    associated_token::AssociatedToken,
     token::{Mint, Token, TokenAccount},
 };
 
@@ -15,6 +15,10 @@ pub struct InitRfq<'info> {
     #[account(mut)]
     pub maker: Signer<'info>,
 
+    #[account(
+        seeds = [Config::SEED_PREFIX],
+        bump = config.bump,
+    )]
     pub config: Account<'info, Config>,
 
     // Must be an account field (not just a Pubkey) for `associated_token::mint`
@@ -30,18 +34,26 @@ pub struct InitRfq<'info> {
     )]
     pub rfq: Account<'info, Rfq>,
 
-    // Create RFQ-owned USDC ATA
+    /// Create RFQ-owned USDC ATA
     #[account(
         init_if_needed,
         payer = maker,
         associated_token::mint = usdc_mint,
         associated_token::authority = rfq,
     )]
-    pub bonds_vault: Account<'info, TokenAccount>,
+    pub bonds_fees_vault: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        token::mint = usdc_mint,
+        token::authority = maker,
+        constraint =!maker_payment_account.is_frozen() @ RfqError::MakerPaymentAccountClosed,
+    )]
+    pub maker_payment_account: Account<'info, TokenAccount>,
 
     pub system_program: Program<'info, System>,
-    pub token_program: Program<'info, Token>, // for token account initialization
-    pub associated_token_program: Program<'info, AssociatedToken>, // for ATA initialization
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
 pub fn init_rfq_handler(
@@ -59,17 +71,6 @@ pub fn init_rfq_handler(
     fund_ttl_secs: u32,
 ) -> Result<()> {
     let bump = ctx.bumps.rfq;
-
-    // --- Optional runtime check (defense-in-depth) -------------------------
-    // Ensure the passed `bonds_vault` really is the ATA(owner=rfq, mint=USDC).
-    // This is redundant with the account constraint but makes intent explicit.
-    let expected_vault =
-        get_associated_token_address(&ctx.accounts.rfq.key(), &ctx.accounts.config.usdc_mint);
-    require_keys_eq!(
-        ctx.accounts.bonds_vault.key(),
-        expected_vault,
-        RfqError::InvalidBondVault
-    );
 
     require!(bond_amount > 0, RfqError::InvalidBondAmount);
     require!(taker_fee_usdc > 0, RfqError::InvalidFeeAmount);
@@ -108,6 +109,7 @@ pub fn init_rfq_handler(
     rfq.created_at = now;
     rfq.opened_at = None;
     rfq.selected_at = None;
+    rfq.completed_at = None;
 
     rfq.bump = bump;
 
@@ -116,7 +118,8 @@ pub fn init_rfq_handler(
     rfq.selected_quote = None;
     rfq.settlement = None;
 
-    rfq.bonds_vault = ctx.accounts.bonds_vault.key();
+    rfq.bonds_fees_vault = ctx.accounts.bonds_fees_vault.key();
+    rfq.maker_payment_account = ctx.accounts.maker_payment_account.key();
 
     Ok(())
 }

@@ -14,10 +14,10 @@ pub fn close_ignored_handler(ctx: Context<CloseIgnored>) -> Result<()> {
     let rfq = &mut ctx.accounts.rfq;
 
     // IGNORED requires at least one valid reveal and no selection by deadline
-    require!(rfq.state == RfqState::Revealed, RfqError::InvalidState);
-    require!(rfq.revealed_count > 0, RfqError::InvalidState);
+    require!(rfq.state == RfqState::Revealed, RfqError::InvalidRfqState);
+    require!(rfq.revealed_count > 0, RfqError::InvalidRfqState);
 
-    let selection_deadline = rfq.selection_deadline().ok_or(RfqError::InvalidState)?;
+    let selection_deadline = rfq.selection_deadline().ok_or(RfqError::InvalidRfqState)?;
     require!(now > selection_deadline, RfqError::TooEarly);
 
     // TODO: slash maker bond per policy; distribute to treasury/virtuous takers

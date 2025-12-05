@@ -12,7 +12,7 @@ pub struct UpdateRfq<'info> {
         seeds = [Rfq::SEED_PREFIX, maker.key().as_ref(), rfq.uuid.as_ref()],
         bump = rfq.bump,
         has_one = maker,
-        constraint = matches!(rfq.state, RfqState::Draft) @ RfqError::InvalidState,)]
+        constraint = matches!(rfq.state, RfqState::Draft) @ RfqError::InvalidRfqState,)]
     pub rfq: Account<'info, Rfq>,
 }
 
