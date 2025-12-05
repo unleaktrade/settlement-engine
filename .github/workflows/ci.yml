@@ -14,12 +14,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install JS deps
-        run: yarn install --frozen-lockfile
       - name: System dependencies (per Solana docs)
         run: |
           sudo apt-get update
-          sudo apt-get install -y pkg-config build-essential libudev-dev
+          sudo apt-get install -y build-essential libudev-dev
       - name: Install Solana CLI
         run: |
           set -euo pipefail
@@ -28,15 +26,20 @@ jobs:
           export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
           solana --version
           solana-keygen new --no-bip39-passphrase --force
+      - name: Add BPF target
+        run: rustup target add bpfel-unknown-unknown
       - name: Install Anchor CLI
         run: |
           export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           cargo install anchor-cli --git https://github.com/coral-xyz/anchor --tag "v${ANCHOR_VERSION}" --locked
           anchor --version
+      - name: Install JS deps
+        run: yarn install --frozen-lockfile
 
       - name: Run anchor tests
         env:
-          PATH: "$HOME/.cargo/bin:$HOME/.local/share/solana/install/active_release/bin:${PATH}"
           RUST_BACKTRACE: 1
-        run: anchor test
+        run: |
+          export PATH="$HOME/.cargo/bin:$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          anchor test
