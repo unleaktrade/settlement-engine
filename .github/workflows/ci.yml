@@ -25,24 +25,28 @@ jobs:
       - name: Install JS deps
         run: yarn install --frozen-lockfile
 
-      - name: Install Rust toolchain (with BPF target)
-        uses: dtolnay/rust-toolchain@1.77.0
-        with:
-          profile: minimal
-          components: rustfmt, clippy
-          targets: bpfel-unknown-unknown
-
       - name: Install Solana CLI
-        uses: anza-xyz/setup-solana@v1
-        with:
-          solana-version: ${{ env.SOLANA_VERSION }}
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/${SOLANA_VERSION}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          solana --version
+          solana-keygen new --no-bip39-passphrase --force
+
+      - name: Install Rust components & BPF target
+        run: |
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          rustup component add rustfmt clippy
+          rustup target add bpfel-unknown-unknown
 
       - name: Install Anchor CLI
         run: |
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
           cargo install anchor-cli --git https://github.com/coral-xyz/anchor --tag "v${ANCHOR_VERSION}" --locked
           anchor --version
 
       - name: Run anchor tests
         env:
+          PATH: "$HOME/.local/share/solana/install/active_release/bin:${PATH}"
           RUST_BACKTRACE: 1
         run: anchor test
