@@ -13,6 +13,7 @@ import {
 } from "@solana/spl-token";
 import { v4 as uuidv4, parse as uuidParse } from "uuid";
 import assert from "assert";
+import { waitForChainTime } from "./utils/time";
 
 anchor.setProvider(anchor.AnchorProvider.env());
 const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -41,6 +42,7 @@ const rfqPda = (maker: PublicKey, u16: Uint8Array) =>
 
 const uuidBytes = () => Uint8Array.from(uuidParse(uuidv4()));
 const liquidityGuardURL = "https://liquidity-guard-devnet-skip-c644b6411603.herokuapp.com";
+const toNum = (v: any) => (typeof v === "number" ? v : new anchor.BN(v).toNumber());
 
 async function getAndLogBalance(
     label: string,
@@ -53,7 +55,7 @@ async function getAndLogBalance(
 
 // --- tests (ONLY initRfq) --------------------------------------------------
 
-describe.skip("QUOTE", () => {
+describe("QUOTE", () => {
     let configPda: PublicKey;
     let usdcMint: PublicKey;
     let baseMint: PublicKey;
@@ -76,6 +78,7 @@ describe.skip("QUOTE", () => {
 
 
     before(async () => {
+        await waitForLiquidityGuardReady();
         await fund(admin);
         await fund(maker);
 
@@ -629,9 +632,14 @@ describe.skip("QUOTE", () => {
         }
         assert(failed, "revealQuote should fail with wrong salt");
 
-        console.log(`Waiting ${commitTTL} seconds for commit TTL to expire...`);
-        await sleep(commitTTL * 1000); // wait until commit TTL passes
-        console.log("Reveal period begins...");
+        const rfqAfterCommit = await program.account.rfq.fetch(rfqPDA);
+        const openedAt = rfqAfterCommit.openedAt?.toNumber();
+        assert.ok(openedAt, "rfq openedAt should be set");
+        const commitDeadline = openedAt + toNum(rfqAfterCommit.commitTtlSecs);
+
+        console.log("Waiting for commit deadline to pass on-chain...");
+        await waitForChainTime(provider.connection, commitDeadline, "commit deadline");
+        console.log("Reveal period begins (past commit deadline)...");
 
         await program.methods
             .revealQuote(Array.from(salt), new anchor.BN(1_000_000_001))
@@ -717,9 +725,15 @@ describe.skip("QUOTE", () => {
         }
         assert(failed, "selectQuote should fail because too early");
 
-        console.log(`Waiting ${revealTTL} seconds for reveal TTL to expire...`);
-        await sleep(revealTTL * 1000); // wait until reveal TTL passes
-        console.log("Selection period begins...");
+        const rfqAfterReveal = await program.account.rfq.fetch(rfqPDA);
+        const openedAt = rfqAfterReveal.openedAt?.toNumber();
+        assert.ok(openedAt, "rfq openedAt should be set");
+        const revealDeadline =
+            openedAt + toNum(rfqAfterReveal.commitTtlSecs) + toNum(rfqAfterReveal.revealTtlSecs);
+
+        console.log("Waiting for reveal deadline to pass on-chain...");
+        await waitForChainTime(provider.connection, revealDeadline, "reveal deadline");
+        console.log("Selection period begins (past reveal deadline)...");
 
         await program.methods.selectQuote()
             .accounts({
@@ -842,4 +856,31 @@ export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> 
 
 export function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export async function waitForLiquidityGuardReady(maxWaitMs = 10_000, pollMs = 500) {
+    const start = Date.now();
+    let lastError: unknown;
+    console.log(`Waiting for Liquidity Guard to be reachable (timeout ${maxWaitMs}ms)...`);
+
+    while (Date.now() - start < maxWaitMs) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), Math.min(pollMs, 2_000));
+        try {
+            const res = await fetch(`${liquidityGuardURL}/health`, { signal: controller.signal });
+            if (res.ok || res.status === 404) {
+                console.log("Liquidity Guard is reachable");
+                return;
+            }
+            lastError = new Error(`HTTP ${res.status}`);
+        } catch (err) {
+            lastError = err;
+        } finally {
+            clearTimeout(timer);
+        }
+        await sleep(pollMs);
+    }
+
+    const suffix = lastError ? ` (last error: ${String(lastError)})` : "";
+    throw new Error(`Liquidity Guard not ready after ${maxWaitMs}ms${suffix}`);
 }
