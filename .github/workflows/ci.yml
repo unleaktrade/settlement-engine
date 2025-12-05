@@ -6,7 +6,6 @@ on:
   pull_request:
 
 env:
-  SOLANA_VERSION: v1.18.10
   ANCHOR_VERSION: "0.32.1"
 
 jobs:
@@ -15,33 +14,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: yarn
-
-      - name: Install JS deps
-        run: yarn install --frozen-lockfile
-
       - name: Install Solana CLI
         run: |
           set -euo pipefail
-          export SOLANA_INSTALL_URL="https://release.solana.com/${SOLANA_VERSION}/solana-install-init"
-          curl --retry 5 --retry-delay 5 --retry-all-errors -L "$SOLANA_INSTALL_URL" -o /tmp/solana-install-init
-          sh /tmp/solana-install-init
+          sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
           echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
           export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
           solana --version
           solana-keygen new --no-bip39-passphrase --force
-
-      - name: Install Rust components & BPF target
-        run: |
-          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-          rustup component add rustfmt clippy
-          rustup target add bpfel-unknown-unknown
-
       - name: Install Anchor CLI
         run: |
           export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
