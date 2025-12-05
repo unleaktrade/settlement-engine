@@ -13,7 +13,7 @@ import {
 } from "@solana/spl-token";
 import { v4 as uuidv4, parse as uuidParse } from "uuid";
 import assert from "assert";
-import { CheckResult, fetchJson, sleep } from "./2_quote.spec";
+import { CheckResult, fetchJson, sleep, waitForLiquidityGuardReady } from "./2_quote.spec";
 import { waitForChainTime } from "./utils/time";
 
 anchor.setProvider(anchor.AnchorProvider.env());
@@ -111,6 +111,7 @@ describe("SETTLEMENT", () => {
     const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
 
     before(async () => {
+        await waitForLiquidityGuardReady();
         await fund(admin);
 
         // Mint USDC, base, quote mints

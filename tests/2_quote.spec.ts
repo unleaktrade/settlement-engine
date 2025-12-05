@@ -78,6 +78,7 @@ describe("QUOTE", () => {
 
 
     before(async () => {
+        await waitForLiquidityGuardReady();
         await fund(admin);
         await fund(maker);
 
@@ -855,4 +856,31 @@ export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> 
 
 export function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export async function waitForLiquidityGuardReady(maxWaitMs = 10_000, pollMs = 500) {
+    const start = Date.now();
+    let lastError: unknown;
+    console.log(`Waiting for Liquidity Guard to be reachable (timeout ${maxWaitMs}ms)...`);
+
+    while (Date.now() - start < maxWaitMs) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), Math.min(pollMs, 2_000));
+        try {
+            const res = await fetch(`${liquidityGuardURL}/health`, { signal: controller.signal });
+            if (res.ok || res.status === 404) {
+                console.log("Liquidity Guard is reachable");
+                return;
+            }
+            lastError = new Error(`HTTP ${res.status}`);
+        } catch (err) {
+            lastError = err;
+        } finally {
+            clearTimeout(timer);
+        }
+        await sleep(pollMs);
+    }
+
+    const suffix = lastError ? ` (last error: ${String(lastError)})` : "";
+    throw new Error(`Liquidity Guard not ready after ${maxWaitMs}ms${suffix}`);
 }
