@@ -149,10 +149,10 @@ describe("SETTLEMENT", () => {
     });
 
     after(async () => {
-        // console.log("All RFQ:", JSON.stringify((await program.account.rfq.all()),null,2));
-        // console.log("All QUOTE:", JSON.stringify((await program.account.quote.all()),null,2));
-        // console.log("All COMMIT GUARDS:", JSON.stringify((await program.account.commitGuard.all()),null,2));
-        // console.log("All SETTLEMENT:", JSON.stringify((await program.account.settlement.all()),null,2));
+        console.log("All RFQ:", JSON.stringify((await program.account.rfq.all()), null, 2));
+        console.log("All QUOTE:", JSON.stringify((await program.account.quote.all()), null, 2));
+        console.log("All COMMIT GUARDS:", JSON.stringify((await program.account.commitGuard.all()), null, 2));
+        console.log("All SETTLEMENT:", JSON.stringify((await program.account.settlement.all()), null, 2));
         await program.methods
             .closeConfig()
             .accounts({ admin: admin.publicKey, config: configPda })
@@ -397,6 +397,10 @@ describe("SETTLEMENT", () => {
             getAndLogBalance("After selecting quote", "RFQ Bonds Vault", bondsFeesVault),
             getAndLogBalance("After selecting quote", "RFQ Vault Base", baseVault),
         ]);
+
+        console.log(`Waiting 2 seconds for complete settlement...`);
+        await sleep(2_000);
+        console.log("Completing settlement...");
 
         await program.methods.completeSettlement()
             .accounts({
