@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  SOLANA_VERSION: "v1.18.10"
+  ANCHOR_VERSION: "0.32.1"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+
+      - name: Install dependencies (yarn)
+        run: yarn install --frozen-lockfile
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: bpfel-unknown-unknown
+
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/${SOLANA_VERSION}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          solana --version
+          solana-keygen new --no-bip39-passphrase --force
+
+      - name: Install Anchor CLI
+        run: |
+          cargo install anchor-cli --git https://github.com/coral-xyz/anchor --tag "v${ANCHOR_VERSION}" --locked
+          anchor --version
+
+      - name: Anchor test
+        env:
+          PATH: "$HOME/.local/share/solana/install/active_release/bin:${PATH}"
+        run: anchor test
