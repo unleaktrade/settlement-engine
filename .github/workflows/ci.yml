@@ -1,45 +1,35 @@
-name: CI
+name: Test Program
 
 on:
-  push:
-    branches: [main, master]
-  pull_request:
-
-env:
-  ANCHOR_VERSION: "0.32.1"
+  workflow_call:
+    inputs:
+      program:
+        description: "Program to test"
+        required: true
+        type: string
+      branch:
+        description: "Branch to test"
+        required: false
+        type: string
+        default: "*"
 
 jobs:
-  anchor-test:
+  test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: System dependencies (per Solana docs)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential libudev-dev
-      - name: Install Solana CLI
-        run: |
-          set -euo pipefail
-          sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
-          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
-          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-          solana --version
-          solana-keygen new --no-bip39-passphrase --force
-      - name: Add BPF target
-        run: rustup target add bpfel-unknown-unknown
-      - name: Install Anchor CLI
-        run: |
-          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-          cargo install anchor-cli --git https://github.com/coral-xyz/anchor --tag "v${ANCHOR_VERSION}" --locked
-          anchor --version
-      - name: Install JS deps
-        run: yarn install --frozen-lockfile
+      - uses: actions/checkout@v4
 
-      - name: Run anchor tests
-        env:
-          RUST_BACKTRACE: 1
-        run: |
-          export PATH="$HOME/.cargo/bin:$HOME/.local/share/solana/install/active_release/bin:$PATH"
-          anchor test
+      - uses: solana-developers/github-actions/extract-versions@v0.2.5
+        id: versions
+
+      - uses: solana-developers/github-actions/setup-all@v0.2.5
+        with:
+          solana_version: ${{ steps.versions.outputs.solana_version }}
+          anchor_version: ${{ steps.versions.outputs.anchor_version }}
+          node_version: 20
+
+      - uses: solana-developers/github-actions/run-tests@v0.2.5
+        with:
+          solana_version: ${{ steps.versions.outputs.solana_version }}
+          anchor_version: ${{ steps.versions.outputs.anchor_version }}
+          program: ${{ inputs.program }}
