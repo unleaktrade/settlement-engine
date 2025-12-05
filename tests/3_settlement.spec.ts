@@ -14,6 +14,7 @@ import {
 import { v4 as uuidv4, parse as uuidParse } from "uuid";
 import assert from "assert";
 import { CheckResult, fetchJson, sleep } from "./2_quote.spec";
+import { waitForChainTime } from "./utils/time";
 
 anchor.setProvider(anchor.AnchorProvider.env());
 const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -51,7 +52,6 @@ const settlementPda = (rfqPDA: PublicKey) => PublicKey.findProgramAddressSync(
     [Buffer.from("settlement"), rfqPDA.toBuffer()],
     program.programId
 );
-
 
 const getAndLogBalance = async (label: string, owner: string, tokenAccount: PublicKey) => {
     const balance = await provider.connection.getTokenAccountBalance(tokenAccount).then(b => new anchor.BN(b.value.amount));
@@ -355,9 +355,15 @@ describe("SETTLEMENT", () => {
             getAndLogBalance("After commiting quote", "RFQ Bonds Vault", bondsFeesVault),
         ]);
 
-        console.log(`Waiting ${commitTTL} seconds for commit TTL to expire...`);
-        await sleep(commitTTL * 1000); // wait until commit TTL passes
-        console.log("Reveal period begins...");
+        const rfqAfterCommit = await program.account.rfq.fetch(rfqPDA);
+        const openedAt = rfqAfterCommit.openedAt?.toNumber();
+        assert.ok(openedAt, "rfq openedAt should be set");
+        const commitDeadline = openedAt + rfqAfterCommit.commitTtlSecs;
+        const revealDeadline = commitDeadline + rfqAfterCommit.revealTtlSecs;
+
+        console.log("Waiting for commit deadline to pass on-chain...");
+        await waitForChainTime(provider.connection, commitDeadline, "commit deadline");
+        console.log("Reveal period begins (past commit deadline)...");
 
         await program.methods
             .revealQuote(Array.from(salt), new anchor.BN(DEFAULT_QUOTE_AMOUNT))
@@ -372,9 +378,9 @@ describe("SETTLEMENT", () => {
             getAndLogBalance("Before selecting quote", "Maker Base", makerBaseAccount),
         ]);
 
-        console.log(`Waiting ${revealTTL} seconds for reveal TTL to expire...`);
-        await sleep(revealTTL * 1000); // wait until reveal TTL passes
-        console.log("Selection period begins...");
+        console.log("Waiting for reveal deadline to pass on-chain...");
+        await waitForChainTime(provider.connection, revealDeadline, "reveal deadline");
+        console.log("Selection period begins (past reveal deadline)...");
 
         await program.methods.selectQuote()
             .accounts({

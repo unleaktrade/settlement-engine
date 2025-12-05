@@ -43,7 +43,7 @@ const uuidBytes = () => Uint8Array.from(uuidParse(uuidv4()));
 
 // --- tests (ONLY initRfq) --------------------------------------------------
 
-describe.skip("RFQ", () => {
+describe("RFQ", () => {
     const admin = Keypair.generate();
     let configPda: PublicKey;
     let usdcMint: PublicKey;
