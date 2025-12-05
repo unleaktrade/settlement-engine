@@ -80,11 +80,9 @@ pub fn reveal_quote_handler(
     let computed = hash(&buf).to_bytes();
     msg!("Computed commit hash: {:?}", computed);
     msg!("Stored commit hash:   {:?}", quote.commit_hash);
-    //@TODO: if hash does not match, the quote is invalid!
     require!(computed == quote.commit_hash, RfqError::Unauthorized);
 
     // Enforce price floor
-    //@TODO: if the quote_amount is below rfq.min_quote_amount, the quote is invalid!
     require!(
         quote_amount >= rfq.min_quote_amount,
         RfqError::InvalidQuoteAmount

@@ -9,10 +9,7 @@ use anchor_spl::{
 
 #[derive(Accounts)]
 pub struct CompleteSettlement<'info> {
-    #[account(
-        mut,
-        address = settlement.taker
-    )]
+    #[account(mut)]
     pub taker: Signer<'info>,
 
     #[account(
@@ -40,6 +37,7 @@ pub struct CompleteSettlement<'info> {
         seeds = [Settlement::SEED_PREFIX, rfq.key().as_ref()],
         bump,
         has_one = rfq,
+        has_one = taker,
     )]
     pub settlement: Box<Account<'info, Settlement>>,
 
