@@ -1,12 +1,16 @@
 name: Test Program
 
 on:
+  push:
+    branches: [main, master]
+  pull_request:
   workflow_call:
     inputs:
       program:
         description: "Program to test"
-        required: true
+        required: false
         type: string
+        default: "settlement-engine"
       branch:
         description: "Branch to test"
         required: false
