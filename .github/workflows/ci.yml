@@ -31,11 +31,12 @@ jobs:
       - name: Install Anchor CLI
         run: |
           export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           cargo install anchor-cli --git https://github.com/coral-xyz/anchor --tag "v${ANCHOR_VERSION}" --locked
           anchor --version
 
       - name: Run anchor tests
         env:
-          PATH: "$HOME/.local/share/solana/install/active_release/bin:${PATH}"
+          PATH: "$HOME/.cargo/bin:$HOME/.local/share/solana/install/active_release/bin:${PATH}"
           RUST_BACKTRACE: 1
         run: anchor test
