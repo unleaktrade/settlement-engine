@@ -28,7 +28,6 @@ pub struct CompleteSettlement<'info> {
         mut,
         seeds = [Rfq::SEED_PREFIX, rfq.maker.key().as_ref(), rfq.uuid.as_ref()],
         bump = rfq.bump,
-        has_one = config,
     )]
     pub rfq: Box<Account<'info, Rfq>>,
 
@@ -36,8 +35,6 @@ pub struct CompleteSettlement<'info> {
         mut,
         seeds = [Settlement::SEED_PREFIX, rfq.key().as_ref()],
         bump,
-        has_one = rfq,
-        has_one = taker,
     )]
     pub settlement: Box<Account<'info, Settlement>>,
 
@@ -140,6 +137,10 @@ pub fn complete_settlement_handler(ctx: Context<CompleteSettlement>) -> Result<(
         matches!(rfq.state, RfqState::Selected),
         RfqError::InvalidRfqState
     );
+    require!(rfq.config == ctx.accounts.config.key(),RfqError::InvalidConfig);
+    require!(settlement.rfq == rfq.key(),RfqError::InvalidRfq);
+    require!(settlement.taker == ctx.accounts.taker.key(), RfqError::InvalidTaker);
+
 
     // Refund maker's bond
     let seeds_rfq: &[&[u8]] = &[

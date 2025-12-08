@@ -72,6 +72,12 @@ pub enum RfqError {
     InvalidOffset,
     #[msg("Invalid message size")]
     InvalidMessageSize,
+    #[msg("Invalid config account")]
+    InvalidConfig,
+    #[msg("Settlement does not belong to RFQ")]
+    InvalidRfq,
+    #[msg("Settlement does not belong to taker")]
+    InvalidTaker,
     #[msg("Unauthorized liquidity guard signer - not the expected public key")]
     UnauthorizedSigner,
     #[msg("Commit hash mismatch")]
