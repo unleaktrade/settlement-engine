@@ -7,7 +7,7 @@ pub struct FeesTracker {
     pub taker: Pubkey,
     pub usdc_mint: Pubkey,
     pub treasury_usdc_owner: Pubkey,
-    pub amount: i64,
+    pub amount: u64,
     pub payed_at: i64,
     pub bump: u8,
 }

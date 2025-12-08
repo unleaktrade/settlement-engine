@@ -1,6 +1,6 @@
 use crate::rfq_errors::RfqError;
 use crate::state::rfq::{Rfq, RfqState};
-use crate::state::{Config, Settlement};
+use crate::state::{Config, FeesTracker, Settlement};
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
@@ -112,6 +112,15 @@ pub struct CompleteSettlement<'info> {
     )]
     pub taker_quote_account: Box<Account<'info, TokenAccount>>,
 
+    #[account(
+        init,
+        payer = taker,
+        space = 8 + FeesTracker::INIT_SPACE,
+        seeds = [FeesTracker::SEED_PREFIX, rfq.key().as_ref()],
+        bump,
+    )]
+    pub fees_tracker: Box<Account<'info, FeesTracker>>,
+
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
@@ -121,6 +130,7 @@ pub fn complete_settlement_handler(ctx: Context<CompleteSettlement>) -> Result<(
     let now = Clock::get()?.unix_timestamp;
     let rfq = &mut ctx.accounts.rfq;
     let settlement = &mut ctx.accounts.settlement;
+    let fees_tracker = &mut ctx.accounts.fees_tracker;
 
     let Some(funding_deadline) = rfq.funding_deadline() else {
         return err!(RfqError::InvalidRfqState);
@@ -213,6 +223,14 @@ pub fn complete_settlement_handler(ctx: Context<CompleteSettlement>) -> Result<(
     settlement.taker_funded_at = Some(now);
     settlement.taker_base_account = Some(ctx.accounts.taker_base_account.key());
     settlement.taker_quote_account = Some(ctx.accounts.taker_quote_account.key());
+    // fill fees tracker
+    fees_tracker.rfq = settlement.rfq;
+    fees_tracker.taker = settlement.taker;
+    fees_tracker.usdc_mint = ctx.accounts.config.usdc_mint;
+    fees_tracker.treasury_usdc_owner = ctx.accounts.config.treasury_usdc_owner;
+    fees_tracker.amount = settlement.fee_amount;
+    fees_tracker.payed_at = now;
+    fees_tracker.bump = ctx.bumps.fees_tracker;
 
     Ok(())
 }
