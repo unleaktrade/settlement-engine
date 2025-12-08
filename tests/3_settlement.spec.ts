@@ -53,6 +53,11 @@ const settlementPda = (rfqPDA: PublicKey) => PublicKey.findProgramAddressSync(
     program.programId
 );
 
+const feesTrackerPda = (rfqPDA: PublicKey) => PublicKey.findProgramAddressSync(
+    [Buffer.from("fees_tracker"), rfqPDA.toBuffer()],
+    program.programId
+);
+
 const getAndLogBalance = async (label: string, owner: string, tokenAccount: PublicKey) => {
     const balance = await provider.connection.getTokenAccountBalance(tokenAccount).then(b => new anchor.BN(b.value.amount));
     console.log(`${label} - ${owner}:`, balance.toNumber().toLocaleString("en-US"));
@@ -150,10 +155,12 @@ describe("SETTLEMENT", () => {
     });
 
     after(async () => {
+        console.log("All CONFIG:", JSON.stringify((await program.account.config.all()), null, 2));
         console.log("All RFQ:", JSON.stringify((await program.account.rfq.all()), null, 2));
         console.log("All QUOTE:", JSON.stringify((await program.account.quote.all()), null, 2));
         console.log("All COMMIT GUARDS:", JSON.stringify((await program.account.commitGuard.all()), null, 2));
         console.log("All SETTLEMENT:", JSON.stringify((await program.account.settlement.all()), null, 2));
+        console.log("All FEES_TRAKER:", JSON.stringify((await program.account.feesTracker.all()), null, 2));
         await program.methods
             .closeConfig()
             .accounts({ admin: admin.publicKey, config: configPda })
@@ -172,6 +179,7 @@ describe("SETTLEMENT", () => {
         const u = uuidBytes();
         const [rfqPDA, rfqBump] = rfqPda(maker.publicKey, u);
         const [settlementPDA, bumpSettlement] = settlementPda(rfqPDA);
+        const [feesTrackerPDA, bumpFeesTracker] = feesTrackerPda(rfqPDA);
 
         // create token accounts & mint usdc, base and quote.
         const makerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
@@ -429,9 +437,10 @@ describe("SETTLEMENT", () => {
             .signers([taker])
             .rpc();
 
-        const [rfq, settlement] = await Promise.all([
+        const [rfq, settlement, feesTracker] = await Promise.all([
             program.account.rfq.fetch(rfqPDA),
             program.account.settlement.fetch(settlementPDA),
+            program.account.feesTracker.fetch(feesTrackerPDA),
         ]);
 
         assert.strictEqual(rfq.bump, rfqBump, "rfq bump mismatch");
@@ -444,6 +453,13 @@ describe("SETTLEMENT", () => {
         assert(settlement.takerFundedAt.eq(rfq.completedAt), "settlement takerFundedAt and rfq completedAt should be equal");
         assert(settlement.takerBaseAccount.equals(takerBaseAccount), "taker base account mismatch in settlement");
         assert(settlement.takerQuoteAccount.equals(takerQuoteAccount), "taker quote account mismatch in settlement");
+        assert.strictEqual(feesTracker.bump, bumpFeesTracker, "feesTracker bump mismatch");
+        assert(feesTracker.rfq.equals(rfqPDA), "RFQ mismatch in feesTracker");
+        assert(feesTracker.taker.equals(taker.publicKey), "Taker mismatch in feesTracker");
+        assert(feesTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in feesTracker");
+        assert(feesTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in feesTracker");
+        assert(feesTracker.amount.eq(settlement.feeAmount), "amount mismatch in feesTracker");
+        assert.ok(feesTracker.payedAt!.toNumber() > 0, "feesTracker payedAt should be set");
 
         const [
             makerUsdcBalance,
