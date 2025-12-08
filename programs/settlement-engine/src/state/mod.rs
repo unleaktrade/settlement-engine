@@ -6,3 +6,5 @@ pub mod quote;
 pub use quote::*;
 pub mod settlement;
 pub use settlement::*;
+pub mod fees_tracker;
+pub use fees_tracker::*;
