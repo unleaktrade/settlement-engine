@@ -78,6 +78,12 @@ pub enum RfqError {
     InvalidRfq,
     #[msg("Settlement does not belong to taker")]
     InvalidTaker,
+    #[msg("Invalid slashed bonds tracker bump")]
+    InvalidSlashedBondsTrackerBump,
+    #[msg("Slashed Bonds Tracker Account must be provided in remainings accounts")]
+    MissingSlashedBondsTrackerAccount,
+    #[msg("Slashed Bonds Tracker account owner mismatch")]
+    MissingSlashedBondsTrackerOwner,
     #[msg("Unauthorized liquidity guard signer - not the expected public key")]
     UnauthorizedSigner,
     #[msg("Commit hash mismatch")]

@@ -1,6 +1,6 @@
 use crate::rfq_errors::RfqError;
 use crate::state::rfq::{Rfq, RfqState};
-use crate::state::{Config, FeesTracker, Settlement};
+use crate::state::{Config, FeesTracker, Settlement, SlashedBondsTracker};
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
@@ -123,8 +123,9 @@ pub struct CompleteSettlement<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
-pub fn complete_settlement_handler(ctx: Context<CompleteSettlement>) -> Result<()> {
-    let now = Clock::get()?.unix_timestamp;
+pub fn complete_settlement_handler<'info>(
+    ctx: Context<'_, '_, 'info, 'info, CompleteSettlement<'info>>,
+) -> Result<()> {
     let rfq = &mut ctx.accounts.rfq;
     let settlement = &mut ctx.accounts.settlement;
     let fees_tracker = &mut ctx.accounts.fees_tracker;
@@ -132,15 +133,21 @@ pub fn complete_settlement_handler(ctx: Context<CompleteSettlement>) -> Result<(
     let Some(funding_deadline) = rfq.funding_deadline() else {
         return err!(RfqError::InvalidRfqState);
     };
+    let now = Clock::get()?.unix_timestamp;
     require!(now <= funding_deadline, RfqError::FundingTooLate);
     require!(
         matches!(rfq.state, RfqState::Selected),
         RfqError::InvalidRfqState
     );
-    require!(rfq.config == ctx.accounts.config.key(),RfqError::InvalidConfig);
-    require!(settlement.rfq == rfq.key(),RfqError::InvalidRfq);
-    require!(settlement.taker == ctx.accounts.taker.key(), RfqError::InvalidTaker);
-
+    require!(
+        rfq.config == ctx.accounts.config.key(),
+        RfqError::InvalidConfig
+    );
+    require!(settlement.rfq == rfq.key(), RfqError::InvalidRfq);
+    require!(
+        settlement.taker == ctx.accounts.taker.key(),
+        RfqError::InvalidTaker
+    );
 
     // Refund maker's bond
     let seeds_rfq: &[&[u8]] = &[
@@ -216,6 +223,9 @@ pub fn complete_settlement_handler(ctx: Context<CompleteSettlement>) -> Result<(
         settlement.quote_amount,
     )?;
 
+    //TODO: compute seized_amount and redeem bonds to treasury
+    let seized_amount: u64 = 0;
+
     // update rfq
     rfq.state = RfqState::Settled;
     rfq.completed_at = Some(now);
@@ -232,6 +242,14 @@ pub fn complete_settlement_handler(ctx: Context<CompleteSettlement>) -> Result<(
     fees_tracker.amount = settlement.fee_amount;
     fees_tracker.payed_at = now;
     fees_tracker.bump = ctx.bumps.fees_tracker;
+
+    // inject slashed_bonds_tracker from remaining_accounts
+    let slashed_ai: &AccountInfo<'info> = &ctx.remaining_accounts[0];
+    let mut slashed_bonds_tracker: Account<'info, SlashedBondsTracker> =
+        Account::try_from(slashed_ai)?;
+    slashed_bonds_tracker.amount = Some(seized_amount);
+    slashed_bonds_tracker.seized_at = Some(now);
+    slashed_bonds_tracker.exit(ctx.program_id)?; // persist modifications
 
     Ok(())
 }
