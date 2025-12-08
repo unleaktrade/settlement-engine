@@ -39,14 +39,20 @@ const rfqPda = (maker: PublicKey, u16: Uint8Array) =>
         program.programId
     );
 
-const uuidBytes = () => Uint8Array.from(uuidParse(uuidv4()));
+export const uuidBytes = () => Uint8Array.from(uuidParse(uuidv4()));
+
+export const slashedBondsTrackerPda = (rfqPDA: PublicKey) => PublicKey.findProgramAddressSync(
+    [Buffer.from("slashed_bonds_tracker"), rfqPDA.toBuffer()],
+    program.programId
+);
 
 // --- tests (ONLY initRfq) --------------------------------------------------
 
-describe.skip("RFQ", () => {
+describe("RFQ", () => {
     const admin = Keypair.generate();
     let configPda: PublicKey;
     let usdcMint: PublicKey;
+    let treasury: PublicKey;
 
     before(async () => {
         await fund(admin);
@@ -67,10 +73,11 @@ describe.skip("RFQ", () => {
         );
         let needInit = false;
         try {
-            await program.account.config.fetch(configPda);
+            let fetchedConfig = await program.account.config.fetch(configPda);
+            treasury = fetchedConfig.treasuryUsdcOwner;
         } catch { needInit = true; }
         if (needInit) {
-            const treasury = Keypair.generate().publicKey;
+            treasury = Keypair.generate().publicKey;
             const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
             await program.methods
                 .initConfig(usdcMint, treasury, liquidityGuard)
@@ -601,6 +608,7 @@ describe.skip("RFQ", () => {
 
         const u = uuidBytes();
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
+        const [slashedBondsTrackerPDA, bumpslashedBondsTracker] = slashedBondsTrackerPda(rfqAddr);
 
         const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqAddr, true);
         const makerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
@@ -610,6 +618,7 @@ describe.skip("RFQ", () => {
 
         console.log("maker:", maker.publicKey.toBase58());
         console.log("rfqAddr:", rfqAddr.toBase58());
+        console.log("slashedBondsTrackerPDA", slashedBondsTrackerPDA.toBase58());
         console.log("bondsFeesVault:", bondsFeesVault.toBase58());
         console.log("baseMint:", baseMint.toBase58());
         console.log("quoteMint:", quoteMint.toBase58());
@@ -702,6 +711,13 @@ describe.skip("RFQ", () => {
         assert.strictEqual(makerBalance, "0", "maker should have no USDC left after bonding");
         assert.strictEqual(vaultBalance, rfq.bondAmount.toString(), "vault should hold the exact bond amount");
 
+        const slashedBondsTracker = await program.account.slashedBondsTracker.fetch(slashedBondsTrackerPDA);
+        assert(slashedBondsTracker.rfq.equals(rfqAddr), "RFQ mismatch in slashBoundsTracker");
+        assert.strictEqual(slashedBondsTracker.bump, bumpslashedBondsTracker, "bump mismatch for slashedBondsTracker");
+        assert(slashedBondsTracker.amount == null || slashedBondsTracker.amount == undefined, "amount should be null or undefined in slashedBondsTracker");
+        assert(slashedBondsTracker.seizedAt == null || slashedBondsTracker.seizedAt == undefined, "seizedAt should be null or undefined in slashedBondsTracker");
+        assert(slashedBondsTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in slashedBondsTracker");
+        assert(slashedBondsTracker.treasuryUsdcOwner.equals(treasury), "treasury mismatch in slashedBondsTracker");
         // Should fail to re-open
         let failed = false;
         try {

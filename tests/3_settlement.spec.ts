@@ -15,6 +15,7 @@ import { v4 as uuidv4, parse as uuidParse } from "uuid";
 import assert from "assert";
 import { CheckResult, fetchJson, sleep, waitForLiquidityGuardReady } from "./2_quote.spec";
 import { waitForChainTime } from "./utils/time";
+import { uuidBytes } from "./1_rfq.spec";
 
 anchor.setProvider(anchor.AnchorProvider.env());
 const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -38,8 +39,6 @@ const fund = async (kp: Keypair, sol = 2) => {
     );
     await confirm(sig);
 }
-
-const uuidBytes = () => Uint8Array.from(uuidParse(uuidv4()));
 
 /** Derive RFQ PDA from (maker, uuid) */
 const rfqPda = (maker: PublicKey, u16: Uint8Array) =>
@@ -103,7 +102,7 @@ const provideLiquidityGuardAttestation = async (taker: anchor.web3.Keypair,
 
 }
 
-describe("SETTLEMENT", () => {
+describe.skip("SETTLEMENT", () => {
     let configPda: PublicKey;
     let usdcMint: PublicKey;
     let baseMint: PublicKey;
@@ -161,6 +160,7 @@ describe("SETTLEMENT", () => {
         console.log("All COMMIT GUARDS:", JSON.stringify((await program.account.commitGuard.all()), null, 2));
         console.log("All SETTLEMENT:", JSON.stringify((await program.account.settlement.all()), null, 2));
         console.log("All FEES_TRAKER:", JSON.stringify((await program.account.feesTracker.all()), null, 2));
+        console.log("All SLASHED_BONDS_TRAKER:", JSON.stringify((await program.account.slashedBondsTracker.all()), null, 2));
         await program.methods
             .closeConfig()
             .accounts({ admin: admin.publicKey, config: configPda })

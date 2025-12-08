@@ -7,7 +7,7 @@ pub struct SlashedBondsTracker {
     pub usdc_mint: Pubkey,
     pub treasury_usdc_owner: Pubkey,
     pub amount: Option<u64>,
-    pub payed_at: Option<i64>,
+    pub seized_at: Option<i64>,
     pub bump: u8,
 }
 

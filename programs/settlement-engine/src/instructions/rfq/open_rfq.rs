@@ -1,5 +1,5 @@
 use crate::state::rfq::{Rfq, RfqState};
-use crate::{state::config::Config, RfqError};
+use crate::{state::Config, state::SlashedBondsTracker, RfqError};
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
@@ -42,6 +42,15 @@ pub struct OpenRfq<'info> {
     )]
     pub maker_payment_account: Account<'info, TokenAccount>,
 
+    #[account(
+        init,
+        payer = maker,
+        space = 8 + SlashedBondsTracker::INIT_SPACE,
+        seeds = [SlashedBondsTracker::SEED_PREFIX, rfq.key().as_ref()],
+        bump,
+    )]
+    pub slashed_bonds_tracker: Account<'info, SlashedBondsTracker>,
+
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
 }
@@ -49,6 +58,7 @@ pub struct OpenRfq<'info> {
 pub fn open_rfq_handler(ctx: Context<OpenRfq>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let rfq = &mut ctx.accounts.rfq;
+    let slashed_bonds_tracker = &mut ctx.accounts.slashed_bonds_tracker;
 
     // last-moment sanity (already enforced on init/update, but double-check)
     require!(rfq.bond_amount > 0, RfqError::InvalidParams);
@@ -70,8 +80,16 @@ pub fn open_rfq_handler(ctx: Context<OpenRfq>) -> Result<()> {
     let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
     token::transfer(cpi_ctx, rfq.bond_amount)?;
 
+    //update RFQ
     rfq.opened_at = Some(now);
     rfq.state = RfqState::Open;
+    //init slashed bonds tracker
+    slashed_bonds_tracker.rfq = rfq.key();
+    slashed_bonds_tracker.usdc_mint = ctx.accounts.config.usdc_mint;
+    slashed_bonds_tracker.treasury_usdc_owner = ctx.accounts.config.treasury_usdc_owner;
+    slashed_bonds_tracker.amount = None;
+    slashed_bonds_tracker.seized_at = None;
+    slashed_bonds_tracker.bump = ctx.bumps.slashed_bonds_tracker;
 
     Ok(())
 }
