@@ -266,7 +266,10 @@ pub fn complete_settlement_handler<'info>(
     fees_tracker.bump = ctx.bumps.fees_tracker;
 
     // inject slashed_bonds_tracker from remaining_accounts
-    let slashed_ai: &AccountInfo<'info> = &ctx.remaining_accounts[0];
+    let slashed_ai: &AccountInfo<'info> = ctx
+        .remaining_accounts
+        .get(0)
+        .ok_or(RfqError::MissingSlashedBondsTrackerAccount)?;
     require_keys_eq!(*slashed_ai.owner, crate::ID, RfqError::InvalidOwner);
 
     let seeds: &[&[u8]] = &[SlashedBondsTracker::SEED_PREFIX, settlement.rfq.as_ref()];

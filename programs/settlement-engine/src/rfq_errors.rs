@@ -102,4 +102,6 @@ pub enum RfqError {
     ArithmeticOverflow,
     #[msg("Quote does not belong to the expected RFQ")]
     InvalidRfqAssociation,
+    #[msg("SlashedBondsTracker account missing")]
+    MissingSlashedBondsTrackerAccount,
 }
