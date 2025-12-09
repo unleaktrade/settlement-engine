@@ -98,6 +98,8 @@ pub enum RfqError {
     InvalidQuoteState,
     #[msg("Taker payment account is frozen or closed")]
     TakerPaymentAccountClosed,
+    #[msg("Arithmetic overflow encountered during calculation")]
+    ArithmeticOverflow,
     #[msg("Quote does not belong to the expected RFQ")]
     InvalidRfqAssociation,
 }

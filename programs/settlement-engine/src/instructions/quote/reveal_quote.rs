@@ -93,7 +93,10 @@ pub fn reveal_quote_handler(
     quote.quote_amount = Some(quote_amount);
 
     // Update RFQ reveal counters/state
-    rfq.revealed_count = rfq.revealed_count.saturating_add(1);
+    rfq.revealed_count = rfq
+        .revealed_count
+        .checked_add(1)
+        .ok_or(RfqError::ArithmeticOverflow)?;
     rfq.state = RfqState::Revealed;
 
     Ok(())

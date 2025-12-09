@@ -222,9 +222,31 @@ pub fn complete_settlement_handler<'info>(
         ),
         settlement.quote_amount,
     )?;
+ 
+    // Seize bond collateral from violators and send it to the treasury
+    let violations = rfq
+        .committed_count
+        .checked_sub(rfq.revealed_count)
+        .ok_or(RfqError::ArithmeticOverflow)?;
+    let seized_amount: u64 = rfq
+        .bond_amount
+        .checked_mul(violations.into())
+        .ok_or(RfqError::ArithmeticOverflow)?;
 
-    //TODO: compute seized_amount and redeem bonds to treasury
-    let seized_amount: u64 = 0;
+    if seized_amount > 0 {
+        token::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.bonds_fees_vault.to_account_info(),
+                    to: ctx.accounts.treasury_ata.to_account_info(),
+                    authority: rfq.to_account_info(),
+                },
+                &[seeds_rfq], // assuming seeds_rfq: &[&[u8]]
+            ),
+            seized_amount,
+        )?;
+    }
 
     // update rfq
     rfq.state = RfqState::Settled;
@@ -243,6 +265,7 @@ pub fn complete_settlement_handler<'info>(
     fees_tracker.payed_at = now;
     fees_tracker.bump = ctx.bumps.fees_tracker;
 
+    //TODO: control seed and bump
     // inject slashed_bonds_tracker from remaining_accounts
     let slashed_ai: &AccountInfo<'info> = &ctx.remaining_accounts[0];
     let mut slashed_bonds_tracker: Account<'info, SlashedBondsTracker> =

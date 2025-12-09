@@ -207,7 +207,10 @@ pub fn commit_quote_handler(
     quote.taker_payment_account = ctx.accounts.taker_payment_account.key();
 
     rfq.state = RfqState::Committed;
-    rfq.committed_count = rfq.committed_count.saturating_add(1);
+    rfq.committed_count = rfq
+        .committed_count
+        .checked_add(1)
+        .ok_or(RfqError::ArithmeticOverflow)?;
 
     Ok(())
 }
