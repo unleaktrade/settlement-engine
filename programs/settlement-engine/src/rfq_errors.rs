@@ -72,6 +72,18 @@ pub enum RfqError {
     InvalidOffset,
     #[msg("Invalid message size")]
     InvalidMessageSize,
+    #[msg("Invalid config account")]
+    InvalidConfig,
+    #[msg("Settlement does not belong to RFQ")]
+    InvalidRfq,
+    #[msg("Settlement does not belong to taker")]
+    InvalidTaker,
+    #[msg("Invalid owner for provided account")]
+    InvalidOwner,
+    #[msg("PDA derived does not match expected address")]
+    PdaMismatch,
+    #[msg("Bump provided does not match derived value")]
+    BumpMismatch,
     #[msg("Unauthorized liquidity guard signer - not the expected public key")]
     UnauthorizedSigner,
     #[msg("Commit hash mismatch")]
@@ -86,6 +98,8 @@ pub enum RfqError {
     InvalidQuoteState,
     #[msg("Taker payment account is frozen or closed")]
     TakerPaymentAccountClosed,
+    #[msg("Arithmetic overflow encountered during calculation")]
+    ArithmeticOverflow,
     #[msg("Quote does not belong to the expected RFQ")]
     InvalidRfqAssociation,
 }

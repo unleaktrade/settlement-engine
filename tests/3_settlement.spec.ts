@@ -11,10 +11,10 @@ import {
     ASSOCIATED_TOKEN_PROGRAM_ID,
     getOrCreateAssociatedTokenAccount,
 } from "@solana/spl-token";
-import { v4 as uuidv4, parse as uuidParse } from "uuid";
 import assert from "assert";
 import { CheckResult, fetchJson, sleep, waitForLiquidityGuardReady } from "./2_quote.spec";
 import { waitForChainTime } from "./utils/time";
+import { slashedBondsTrackerPda, uuidBytes } from "./1_rfq.spec";
 
 anchor.setProvider(anchor.AnchorProvider.env());
 const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -39,8 +39,6 @@ const fund = async (kp: Keypair, sol = 2) => {
     await confirm(sig);
 }
 
-const uuidBytes = () => Uint8Array.from(uuidParse(uuidv4()));
-
 /** Derive RFQ PDA from (maker, uuid) */
 const rfqPda = (maker: PublicKey, u16: Uint8Array) =>
     PublicKey.findProgramAddressSync(
@@ -50,6 +48,11 @@ const rfqPda = (maker: PublicKey, u16: Uint8Array) =>
 
 const settlementPda = (rfqPDA: PublicKey) => PublicKey.findProgramAddressSync(
     [Buffer.from("settlement"), rfqPDA.toBuffer()],
+    program.programId
+);
+
+const feesTrackerPda = (rfqPDA: PublicKey) => PublicKey.findProgramAddressSync(
+    [Buffer.from("fees_tracker"), rfqPDA.toBuffer()],
     program.programId
 );
 
@@ -106,7 +109,7 @@ describe("SETTLEMENT", () => {
 
     const admin = Keypair.generate();
     const treasury = Keypair.generate();
-    const commitTTL = 10, revealTTL = 10, selectionTTL = 10, fundingTTL = 10;
+    const commitTTL = 10, revealTTL = 10, selectionTTL = 10, fundingTTL = 20;
 
     const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
 
@@ -150,10 +153,13 @@ describe("SETTLEMENT", () => {
     });
 
     after(async () => {
+        console.log("All CONFIG:", JSON.stringify((await program.account.config.all()), null, 2));
         console.log("All RFQ:", JSON.stringify((await program.account.rfq.all()), null, 2));
         console.log("All QUOTE:", JSON.stringify((await program.account.quote.all()), null, 2));
         console.log("All COMMIT GUARDS:", JSON.stringify((await program.account.commitGuard.all()), null, 2));
         console.log("All SETTLEMENT:", JSON.stringify((await program.account.settlement.all()), null, 2));
+        console.log("All FEES_TRAKER:", JSON.stringify((await program.account.feesTracker.all()), null, 2));
+        console.log("All SLASHED_BONDS_TRAKER:", JSON.stringify((await program.account.slashedBondsTracker.all()), null, 2));
         await program.methods
             .closeConfig()
             .accounts({ admin: admin.publicKey, config: configPda })
@@ -172,6 +178,8 @@ describe("SETTLEMENT", () => {
         const u = uuidBytes();
         const [rfqPDA, rfqBump] = rfqPda(maker.publicKey, u);
         const [settlementPDA, bumpSettlement] = settlementPda(rfqPDA);
+        const [feesTrackerPDA, bumpFeesTracker] = feesTrackerPda(rfqPDA);
+        const [slashedBondsTrackerPDA, bumpslashedBondsTracker] = slashedBondsTrackerPda(rfqPDA);
 
         // create token accounts & mint usdc, base and quote.
         const makerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
@@ -284,7 +292,7 @@ describe("SETTLEMENT", () => {
         await getAndLogBalance("Before opening RFQ", "RFQ Bonds Vault", bondsFeesVault);
 
         console.log("Rfq PDA:", rfqPDA.toBase58());
-
+        console.log("Slashed Bonds Tracker PDA", slashedBondsTrackerPDA.toBase58());
         //OPEN RFQ
         failed = false;
         try {
@@ -405,10 +413,6 @@ describe("SETTLEMENT", () => {
             getAndLogBalance("After selecting quote", "RFQ Vault Base", baseVault),
         ]);
 
-        console.log(`Waiting 2 seconds for complete settlement...`);
-        await sleep(2_000);
-        console.log("Completing settlement...");
-
         await program.methods.completeSettlement()
             .accounts({
                 taker: taker.publicKey,
@@ -425,13 +429,21 @@ describe("SETTLEMENT", () => {
                 takerBaseAccount,
                 makerQuoteAccount,
                 takerQuoteAccount,
+                feesTracker: feesTrackerPDA,
             })
+            .remainingAccounts([{
+                pubkey: slashedBondsTrackerPDA,
+                isSigner: false,
+                isWritable: true,
+            }])
             .signers([taker])
             .rpc();
 
-        const [rfq, settlement] = await Promise.all([
+        const [rfq, settlement, feesTracker, slashedBondsTracker] = await Promise.all([
             program.account.rfq.fetch(rfqPDA),
             program.account.settlement.fetch(settlementPDA),
+            program.account.feesTracker.fetch(feesTrackerPDA),
+            program.account.slashedBondsTracker.fetch(slashedBondsTrackerPDA),
         ]);
 
         assert.strictEqual(rfq.bump, rfqBump, "rfq bump mismatch");
@@ -444,7 +456,20 @@ describe("SETTLEMENT", () => {
         assert(settlement.takerFundedAt.eq(rfq.completedAt), "settlement takerFundedAt and rfq completedAt should be equal");
         assert(settlement.takerBaseAccount.equals(takerBaseAccount), "taker base account mismatch in settlement");
         assert(settlement.takerQuoteAccount.equals(takerQuoteAccount), "taker quote account mismatch in settlement");
-
+        assert.strictEqual(feesTracker.bump, bumpFeesTracker, "feesTracker bump mismatch");
+        assert(feesTracker.rfq.equals(rfqPDA), "RFQ mismatch in feesTracker");
+        assert(feesTracker.taker.equals(taker.publicKey), "Taker mismatch in feesTracker");
+        assert(feesTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in feesTracker");
+        assert(feesTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in feesTracker");
+        assert(feesTracker.amount.eq(settlement.feeAmount), "amount mismatch in feesTracker");
+        assert.ok(feesTracker.payedAt!.toNumber() > 0, "feesTracker payedAt should be set");
+        assert(slashedBondsTracker.rfq.equals(rfqPDA), "RFQ mismatch in slashBoundsTracker");
+        assert.strictEqual(slashedBondsTracker.bump, bumpslashedBondsTracker, "bump mismatch for slashedBondsTracker");
+        assert(slashedBondsTracker.amount.isZero(), "amount should be zero in slashedBondsTracker");
+        assert(slashedBondsTracker.seizedAt.toNumber() > 0, "seizedAt should be set in slashedBondsTracker");
+        assert(slashedBondsTracker.seizedAt.eq(rfq.completedAt), "seizedAt in slashedBondsTracker and completedAt in Rfq should be equal");
+        assert(slashedBondsTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in slashedBondsTracker");
+        assert(slashedBondsTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in slashedBondsTracker");
         const [
             makerUsdcBalance,
             makerBaseBalance,

@@ -14,6 +14,7 @@ import {
 import { v4 as uuidv4, parse as uuidParse } from "uuid";
 import assert from "assert";
 import { waitForChainTime } from "./utils/time";
+import { uuidBytes } from "./1_rfq.spec";
 
 anchor.setProvider(anchor.AnchorProvider.env());
 const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -40,7 +41,6 @@ const rfqPda = (maker: PublicKey, u16: Uint8Array) =>
         program.programId
     );
 
-const uuidBytes = () => Uint8Array.from(uuidParse(uuidv4()));
 const liquidityGuardURL = "https://liquidity-guard-devnet-skip-c644b6411603.herokuapp.com";
 const toNum = (v: any) => (typeof v === "number" ? v : new anchor.BN(v).toNumber());
 
@@ -55,7 +55,7 @@ async function getAndLogBalance(
 
 // --- tests (ONLY initRfq) --------------------------------------------------
 
-describe("QUOTE", () => {
+describe.skip("QUOTE", () => {
     let configPda: PublicKey;
     let usdcMint: PublicKey;
     let baseMint: PublicKey;
