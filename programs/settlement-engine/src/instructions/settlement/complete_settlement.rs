@@ -222,7 +222,7 @@ pub fn complete_settlement_handler<'info>(
         ),
         settlement.quote_amount,
     )?;
- 
+
     // Seize bond collateral from violators and send it to the treasury
     let violations = rfq
         .committed_count
@@ -265,11 +265,18 @@ pub fn complete_settlement_handler<'info>(
     fees_tracker.payed_at = now;
     fees_tracker.bump = ctx.bumps.fees_tracker;
 
-    //TODO: control seed and bump
     // inject slashed_bonds_tracker from remaining_accounts
     let slashed_ai: &AccountInfo<'info> = &ctx.remaining_accounts[0];
+    require_keys_eq!(*slashed_ai.owner, crate::ID, RfqError::InvalidOwner);
+
+    let seeds: &[&[u8]] = &[SlashedBondsTracker::SEED_PREFIX, settlement.rfq.as_ref()];
+    let (expected_pda, bump) = Pubkey::find_program_address(seeds, &crate::ID);
+    require_keys_eq!(*slashed_ai.key, expected_pda, RfqError::PdaMismatch);
+
     let mut slashed_bonds_tracker: Account<'info, SlashedBondsTracker> =
         Account::try_from(slashed_ai)?;
+    require_eq!(bump, slashed_bonds_tracker.bump, RfqError::BumpMismatch);
+
     slashed_bonds_tracker.amount = Some(seized_amount);
     slashed_bonds_tracker.seized_at = Some(now);
     slashed_bonds_tracker.exit(ctx.program_id)?; // persist modifications
