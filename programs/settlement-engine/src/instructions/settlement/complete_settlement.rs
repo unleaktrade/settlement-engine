@@ -224,13 +224,11 @@ pub fn complete_settlement_handler<'info>(
     )?;
 
     // Seize bond collateral from violators and send it to the treasury
-    let violations = rfq
-        .committed_count
-        .checked_sub(rfq.revealed_count)
-        .ok_or(RfqError::ArithmeticOverflow)?;
+
     let seized_amount: u64 = rfq
-        .bond_amount
-        .checked_mul(violations.into())
+        .committed_count
+        .checked_sub(rfq.revealed_count) // violations = commits - reveals
+        .and_then(|v| rfq.bond_amount.checked_mul(v.into()))
         .ok_or(RfqError::ArithmeticOverflow)?;
 
     if seized_amount > 0 {
