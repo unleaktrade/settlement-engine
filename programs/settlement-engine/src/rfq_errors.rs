@@ -6,6 +6,8 @@ pub enum RfqError {
     InvalidRfqState,
     #[msg("Deadline has not been reached yet")]
     TooEarly,
+    #[msg("RFQ cannot be expired yet")]
+    ExpireTooEarly,
     #[msg("Deadline passed")]
     TooLate,
     #[msg("Commit Deadline passed")]

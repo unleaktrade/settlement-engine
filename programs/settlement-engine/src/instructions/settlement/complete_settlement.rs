@@ -240,7 +240,7 @@ pub fn complete_settlement_handler<'info>(
                     to: ctx.accounts.treasury_ata.to_account_info(),
                     authority: rfq.to_account_info(),
                 },
-                &[seeds_rfq], // assuming seeds_rfq: &[&[u8]]
+                &[seeds_rfq], 
             ),
             seized_amount,
         )?;

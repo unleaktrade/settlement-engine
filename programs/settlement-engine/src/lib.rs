@@ -132,11 +132,12 @@ pub mod settlement_engine {
         complete_settlement::complete_settlement_handler(ctx)
     }
 
+    pub fn close_expired(ctx: Context<CloseExpired>) -> Result<()> {
+        close_expired::close_expired_handler(ctx)
+    }
+
     // pub fn close_ignored(ctx: Context<CloseIgnored>) -> Result<()> {
     //     close_ignored::close_ignored_handler(ctx)
-    // }
-    // pub fn close_expired(ctx: Context<CloseExpired>) -> Result<()> {
-    //     close_expired::close_expired_handler(ctx)
     // }
     // pub fn close_aborted(ctx: Context<CloseAborted>) -> Result<()> {
     //     close_aborted::close_aborted_handler(ctx)
