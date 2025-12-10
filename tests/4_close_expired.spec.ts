@@ -432,106 +432,45 @@ describe("CLOSE_EXPIRED", () => {
             .signers([maker])
             .rpc();
 
-        await Promise.all([
-            getAndLogBalance("After Rfq Expiration", "Maker USDC", makerPaymentAccount),
-            getAndLogBalance("After Rfq Expiration", "Taker USDC", takerPaymentAccount),
-            getAndLogBalance("After Rfq Expiration", "Taker2 USDC", taker2PaymentAccount),
-            getAndLogBalance("After Rfq Expiration", "Taker3 USDC", taker3PaymentAccount),
-            getAndLogBalance("After Rfq Expiration", "Taker4 USDC", taker4PaymentAccount),
-            getAndLogBalance("After Rfq Expiration", "RFQ Bonds Vault", bondsFeesVault),
-            getAndLogBalance("After Rfq Expiration", "Treasury USCD", treasuryPaymentAccount),
+        const [
+            makerPaymentAccountBalance,
+            takerPaymentAccountBalance,
+            taker2PaymentAccountBalance,
+            taker3PaymentAccountBalance,
+            taker4PaymentAccountBalance,
+            bondsFeesVaultBalance,
+            treasuryPaymentAccountBalance
+        ]
+            = await Promise.all([
+                getAndLogBalance("After Rfq Expiration", "Maker USDC", makerPaymentAccount),
+                getAndLogBalance("After Rfq Expiration", "Taker USDC", takerPaymentAccount),
+                getAndLogBalance("After Rfq Expiration", "Taker2 USDC", taker2PaymentAccount),
+                getAndLogBalance("After Rfq Expiration", "Taker3 USDC", taker3PaymentAccount),
+                getAndLogBalance("After Rfq Expiration", "Taker4 USDC", taker4PaymentAccount),
+                getAndLogBalance("After Rfq Expiration", "RFQ Bonds Vault", bondsFeesVault),
+                getAndLogBalance("After Rfq Expiration", "Treasury USCD", treasuryPaymentAccount),
+            ]);
+
+        const [rfq, slashedBondsTracker] = await Promise.all([
+            program.account.rfq.fetch(rfqPDA),
+            program.account.slashedBondsTracker.fetch(slashedBondsTrackerPDA),
         ]);
-        /*
-               await program.methods.completeSettlement()
-                   .accounts({
-                       taker: taker.publicKey,
-                       config: configPda,
-                       treasuryUsdcOwner: treasury.publicKey,
-                       rfq: rfqPDA,
-                       settlement: settlementPDA,
-                       usdcMint,
-                       baseMint,
-                       quoteMint,
-                       takerPaymentAccount,
-                       makerPaymentAccount,
-                       vaultBaseAta: baseVault,
-                       takerBaseAccount,
-                       makerQuoteAccount,
-                       takerQuoteAccount,
-                       feesTracker: feesTrackerPDA,
-                   })
-                   .remainingAccounts([{
-                       pubkey: slashedBondsTrackerPDA,
-                       isSigner: false,
-                       isWritable: true,
-                   }])
-                   .signers([taker])
-                   .rpc();
-        
-               const [rfq, settlement, feesTracker, slashedBondsTracker] = await Promise.all([
-                   program.account.rfq.fetch(rfqPDA),
-                   program.account.settlement.fetch(settlementPDA),
-                   program.account.feesTracker.fetch(feesTrackerPDA),
-                   program.account.slashedBondsTracker.fetch(slashedBondsTrackerPDA),
-               ]);
-        
-               assert.strictEqual(rfq.bump, rfqBump, "rfq bump mismatch");
-               assert.ok(rfq.state.settled, "rfq state should be settled");
-               assert.ok(rfq.completedAt!.toNumber() > 0, "rfq completedAt should be set");
-               assert.strictEqual(settlement.bump, bumpSettlement, "settlement bump mismatch");
-               assert.ok(settlement.completedAt!.toNumber() > 0, "rfq completedAt should be set");
-               assert(rfq.completedAt.eq(settlement.completedAt), "rfq and settlement completeAt should be equal");
-               assert(settlement.takerFundedAt!.toNumber() > 0, "settlement takerFundedAt should be set");
-               assert(settlement.takerFundedAt.eq(rfq.completedAt), "settlement takerFundedAt and rfq completedAt should be equal");
-               assert(settlement.takerBaseAccount.equals(takerBaseAccount), "taker base account mismatch in settlement");
-               assert(settlement.takerQuoteAccount.equals(takerQuoteAccount), "taker quote account mismatch in settlement");
-               assert.strictEqual(feesTracker.bump, bumpFeesTracker, "feesTracker bump mismatch");
-               assert(feesTracker.rfq.equals(rfqPDA), "RFQ mismatch in feesTracker");
-               assert(feesTracker.taker.equals(taker.publicKey), "Taker mismatch in feesTracker");
-               assert(feesTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in feesTracker");
-               assert(feesTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in feesTracker");
-               assert(feesTracker.amount.eq(settlement.feeAmount), "amount mismatch in feesTracker");
-               assert.ok(feesTracker.payedAt!.toNumber() > 0, "feesTracker payedAt should be set");
-               assert(slashedBondsTracker.rfq.equals(rfqPDA), "RFQ mismatch in slashBoundsTracker");
-               assert.strictEqual(slashedBondsTracker.bump, bumpslashedBondsTracker, "bump mismatch for slashedBondsTracker");
-               //bonds of invalid quote should be seized
-               assert(slashedBondsTracker.amount.eq(rfq.bondAmount), "amount should be equal to Rfq bondAmount");
-               assert(slashedBondsTracker.seizedAt.toNumber() > 0, "seizedAt should be set in slashedBondsTracker");
-               assert(slashedBondsTracker.seizedAt.eq(rfq.completedAt), "seizedAt in slashedBondsTracker and completedAt in Rfq should be equal");
-               assert(slashedBondsTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in slashedBondsTracker");
-               assert(slashedBondsTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in slashedBondsTracker");
-               const [
-                   makerUsdcBalance,
-                   makerBaseBalance,
-                   makerQuoteBalance,
-                   takerUsdcBalance,
-                   takerBaseBalance,
-                   takerQuoteBalance,
-                   bondsVaultBalance,
-                   baseVaultBalance,
-                   treasuryUsdcBalance,
-               ] = await Promise.all([
-                   getAndLogBalance("After complete settlement", "Maker USDC", makerPaymentAccount),
-                   getAndLogBalance("After complete settlement", "Maker Base", makerBaseAccount),
-                   getAndLogBalance("After complete settlement", "Maker Quote", makerQuoteAccount),
-                   getAndLogBalance("After complete settlement", "Taker USDC", takerPaymentAccount),
-                   getAndLogBalance("After complete settlement", "Taker Base", takerBaseAccount),
-                   getAndLogBalance("After complete settlement", "Taker Quote", takerQuoteAccount),
-                   getAndLogBalance("After complete settlement", "RFQ Bonds Vault", bondsFeesVault),
-                   getAndLogBalance("After complete settlement", "RFQ Vault Base", baseVault),
-                   getAndLogBalance("After complete settlement", "Treasury USCD", treasuryPaymentAccount),
-               ]);
-        
-               assert.ok(makerUsdcBalance.eq(new anchor.BN(DEFAULT_BOND_AMOUNT)), "maker should get bond back");
-               assert.ok(makerBaseBalance.isZero(), "maker base should be transferred out");
-               assert.ok(makerQuoteBalance.eq(new anchor.BN(DEFAULT_QUOTE_AMOUNT)), "maker should receive quote amount");
-               assert.ok(takerUsdcBalance.eq(new anchor.BN(DEFAULT_BOND_AMOUNT)), "taker should get bond back minus fee");
-               assert.ok(takerBaseBalance.eq(new anchor.BN(DEFAULT_BASE_AMOUNT)), "taker should receive base amount");
-               assert.ok(takerQuoteBalance.isZero(), "taker quote should be transferred out");
-               assert.ok(bondsVaultBalance.isZero(), "bonds vault should be empty");
-               assert.ok(baseVaultBalance.isZero(), "base vault should be empty");
-               assert.ok(treasuryUsdcBalance.eq(new anchor.BN(DEFAULT_FEE_AMOUNT).add(new anchor.BN(DEFAULT_BOND_AMOUNT))), "treasury should receive fee and bonds of invalid quote");
-               */
+        assert.strictEqual(rfq.bump, rfqBump, "rfq bump mismatch");
+        assert.ok(rfq.state.expired, "rfq state should be expired");
+        assert.ok(rfq.completedAt!.toNumber() > 0, "rfq completedAt should be set");
+        assert(slashedBondsTracker.rfq.equals(rfqPDA), "RFQ mismatch in slashBoundsTracker");
+        assert.strictEqual(slashedBondsTracker.bump, bumpslashedBondsTracker, "bump mismatch for slashedBondsTracker");
+        assert(slashedBondsTracker.seizedAt.eq(rfq.completedAt), "seizedAt in slashedBondsTracker and completedAt in Rfq should be equal");
+        assert(slashedBondsTracker.amount.eq(rfq.bondAmount.muln(4)), "amount should be equal to 4x Rfq bondAmount");
+        assert(slashedBondsTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in slashedBondsTracker");
+        assert(slashedBondsTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in slashedBondsTracker");
+        assert(new anchor.BN(DEFAULT_BOND_AMOUNT).eq(makerPaymentAccountBalance), "maker balance mismatch");
+        assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(takerPaymentAccountBalance), "taker balance mismatch");
+        assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(taker2PaymentAccountBalance), "taker2 balance mismatch");
+        assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(taker3PaymentAccountBalance), "taker3 balance mismatch");
+        assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(taker4PaymentAccountBalance), "taker4 balance mismatch");
+        assert(bondsFeesVaultBalance.isZero(), "bonds and fees vault should be empty");
+        assert(treasuryPaymentAccountBalance.eq(slashedBondsTracker.amount), "treasury payment balance should be equalt to slashed bonds tracker amount");
     });
 
 
