@@ -369,7 +369,6 @@ describe("SETTLEMENT", () => {
         ]);
 
         const [saltQ1, commit_hashQ1, liquidity_proofQ1] = await provideLiquidityGuardAttestation(taker, rfqPDA, quoteMint);
-
         await commitQuote(
             commit_hashQ1,
             liquidity_proofQ1,
@@ -379,17 +378,40 @@ describe("SETTLEMENT", () => {
             configPda,
             takerPaymentAccount);
 
-        const [quotePda, bumpQuote] = PublicKey.findProgramAddressSync(
+        // taker2 will commit an invalid quote (smaller quote amount)
+        const [saltQ2, commit_hashQ2, liquidity_proofQ2] = await provideLiquidityGuardAttestation(taker2, rfqPDA, quoteMint, DEFAULT_QUOTE_AMOUNT / 10);
+        await commitQuote(
+            commit_hashQ2,
+            liquidity_proofQ2,
+            taker2,
+            rfqPDA,
+            usdcMint,
+            configPda,
+            taker2PaymentAccount);
+
+        const [quotePda] = PublicKey.findProgramAddressSync(
             [Buffer.from("quote"), rfqPDA.toBuffer(), taker.publicKey.toBuffer()],
             program.programId
         );
         console.log("Quote PDA:", quotePda.toBase58());
 
-        const [commitGuardPda, bumpCommit] = PublicKey.findProgramAddressSync(
+        const [commitGuardPda] = PublicKey.findProgramAddressSync(
             [Buffer.from("commit-guard"), commit_hashQ1],
             program.programId
         );
         console.log("Commit Guard PDA:", commitGuardPda.toBase58());
+
+        const [quote2Pda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("quote"), rfqPDA.toBuffer(), taker2.publicKey.toBuffer()],
+            program.programId
+        );
+        console.log("Quote2 PDA:", quote2Pda.toBase58());
+
+        const [commitGuard2Pda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("commit-guard"), commit_hashQ2],
+            program.programId
+        );
+        console.log("Commit Guard PDA:", commitGuard2Pda.toBase58());
 
         await Promise.all([
             getAndLogBalance("After commiting quote", "Maker USDC", makerPaymentAccount),
@@ -399,11 +421,11 @@ describe("SETTLEMENT", () => {
         ]);
 
         const rfqAfterCommit = await program.account.rfq.fetch(rfqPDA);
+
         const openedAt = rfqAfterCommit.openedAt?.toNumber();
         assert.ok(openedAt, "rfq openedAt should be set");
         const commitDeadline = openedAt + rfqAfterCommit.commitTtlSecs;
         const revealDeadline = commitDeadline + rfqAfterCommit.revealTtlSecs;
-
         console.log("Waiting for commit deadline to pass on-chain...");
         await waitForChainTime(provider.connection, commitDeadline, "commit deadline");
         console.log("Reveal period begins (past commit deadline)...");
@@ -414,10 +436,23 @@ describe("SETTLEMENT", () => {
             .signers([taker])
             .rpc();
 
+        failed = false;
+        try {
+            await program.methods
+                .revealQuote(Array.from(saltQ2), new anchor.BN(DEFAULT_QUOTE_AMOUNT / 10))
+                .accounts({ rfq: rfqPDA, quote: quote2Pda, taker: taker2.publicKey, config: configPda })
+                .signers([taker2])
+                .rpc();
+        } catch { failed = true; }
+        assert(failed, "Taker2 can't reveal invalid quote");
+
+        const bondsFeesVaultBeforeSelection = await getAndLogBalance("After revealing ALL quotes", "RFQ Bonds Vault", bondsFeesVault);
+        assert(bondsFeesVaultBeforeSelection.eq(new anchor.BN(DEFAULT_BOND_AMOUNT).muln(3)), `RFQ Bonds Vault should contain ${DEFAULT_BOND_AMOUNT * 3} USDC`);
+
         await Promise.all([
             getAndLogBalance("After revealing quote", "Maker USDC", makerPaymentAccount),
             getAndLogBalance("After revealing quote", "Taker USDC", takerPaymentAccount),
-            getAndLogBalance("After revealing quote", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After commiting quote", "Taker2 USDC", taker2PaymentAccount),
             getAndLogBalance("Before selecting quote", "Maker Base", makerBaseAccount),
         ]);
 
@@ -499,7 +534,8 @@ describe("SETTLEMENT", () => {
         assert.ok(feesTracker.payedAt!.toNumber() > 0, "feesTracker payedAt should be set");
         assert(slashedBondsTracker.rfq.equals(rfqPDA), "RFQ mismatch in slashBoundsTracker");
         assert.strictEqual(slashedBondsTracker.bump, bumpslashedBondsTracker, "bump mismatch for slashedBondsTracker");
-        assert(slashedBondsTracker.amount.isZero(), "amount should be zero in slashedBondsTracker");
+        //bonds of invalid quote should be seized
+        assert(slashedBondsTracker.amount.eq(rfq.bondAmount), "amount should be equal to Rfq bondAmount");
         assert(slashedBondsTracker.seizedAt.toNumber() > 0, "seizedAt should be set in slashedBondsTracker");
         assert(slashedBondsTracker.seizedAt.eq(rfq.completedAt), "seizedAt in slashedBondsTracker and completedAt in Rfq should be equal");
         assert(slashedBondsTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in slashedBondsTracker");
@@ -534,7 +570,7 @@ describe("SETTLEMENT", () => {
         assert.ok(takerQuoteBalance.isZero(), "taker quote should be transferred out");
         assert.ok(bondsVaultBalance.isZero(), "bonds vault should be empty");
         assert.ok(baseVaultBalance.isZero(), "base vault should be empty");
-        assert.ok(treasuryUsdcBalance.eq(new anchor.BN(DEFAULT_FEE_AMOUNT)), "treasury should receive fee");
+        assert.ok(treasuryUsdcBalance.eq(new anchor.BN(DEFAULT_FEE_AMOUNT).add(new anchor.BN(DEFAULT_BOND_AMOUNT))), "treasury should receive fee and bonds of invalid quote");
     });
 
 
