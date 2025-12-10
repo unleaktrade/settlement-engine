@@ -223,27 +223,47 @@ pub fn complete_settlement_handler<'info>(
         settlement.quote_amount,
     )?;
 
-    // Seize bond collateral from violators and send it to the treasury
+    // inject slashed_bonds_tracker from remaining_accounts
+    let slashed_ai: &AccountInfo<'info> = ctx
+        .remaining_accounts
+        .get(0)
+        .ok_or(RfqError::MissingSlashedBondsTrackerAccount)?;
+    require_keys_eq!(*slashed_ai.owner, crate::ID, RfqError::InvalidOwner);
 
-    let seized_amount: u64 = rfq
-        .committed_count
-        .checked_sub(rfq.revealed_count) // violations = commits - reveals
-        .and_then(|v| rfq.bond_amount.checked_mul(v.into()))
-        .ok_or(RfqError::ArithmeticOverflow)?;
+    let seeds: &[&[u8]] = &[SlashedBondsTracker::SEED_PREFIX, settlement.rfq.as_ref()];
+    let (expected_pda, bump) = Pubkey::find_program_address(seeds, &crate::ID);
+    require_keys_eq!(*slashed_ai.key, expected_pda, RfqError::PdaMismatch);
 
-    if seized_amount > 0 {
-        token::transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.bonds_fees_vault.to_account_info(),
-                    to: ctx.accounts.treasury_ata.to_account_info(),
-                    authority: rfq.to_account_info(),
-                },
-                &[seeds_rfq], 
-            ),
-            seized_amount,
-        )?;
+    let mut slashed_bonds_tracker: Account<'info, SlashedBondsTracker> =
+        Account::try_from(slashed_ai)?;
+    require_eq!(bump, slashed_bonds_tracker.bump, RfqError::BumpMismatch);
+
+    if !slashed_bonds_tracker.is_resolved() {
+        // Seize bond collateral from violators and send it to the treasury
+        let seized_amount: u64 = rfq
+            .committed_count
+            .checked_sub(rfq.revealed_count) // violations = commits - reveals
+            .and_then(|v| rfq.bond_amount.checked_mul(v.into()))
+            .ok_or(RfqError::ArithmeticOverflow)?;
+
+        if seized_amount > 0 {
+            token::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    Transfer {
+                        from: ctx.accounts.bonds_fees_vault.to_account_info(),
+                        to: ctx.accounts.treasury_ata.to_account_info(),
+                        authority: rfq.to_account_info(),
+                    },
+                    &[seeds_rfq],
+                ),
+                seized_amount,
+            )?;
+        }
+
+        slashed_bonds_tracker.amount = Some(seized_amount);
+        slashed_bonds_tracker.seized_at = Some(now);
+        slashed_bonds_tracker.exit(ctx.program_id)?; // persist modifications
     }
 
     // update rfq
@@ -262,25 +282,6 @@ pub fn complete_settlement_handler<'info>(
     fees_tracker.amount = settlement.fee_amount;
     fees_tracker.payed_at = now;
     fees_tracker.bump = ctx.bumps.fees_tracker;
-
-    // inject slashed_bonds_tracker from remaining_accounts
-    let slashed_ai: &AccountInfo<'info> = ctx
-        .remaining_accounts
-        .get(0)
-        .ok_or(RfqError::MissingSlashedBondsTrackerAccount)?;
-    require_keys_eq!(*slashed_ai.owner, crate::ID, RfqError::InvalidOwner);
-
-    let seeds: &[&[u8]] = &[SlashedBondsTracker::SEED_PREFIX, settlement.rfq.as_ref()];
-    let (expected_pda, bump) = Pubkey::find_program_address(seeds, &crate::ID);
-    require_keys_eq!(*slashed_ai.key, expected_pda, RfqError::PdaMismatch);
-
-    let mut slashed_bonds_tracker: Account<'info, SlashedBondsTracker> =
-        Account::try_from(slashed_ai)?;
-    require_eq!(bump, slashed_bonds_tracker.bump, RfqError::BumpMismatch);
-
-    slashed_bonds_tracker.amount = Some(seized_amount);
-    slashed_bonds_tracker.seized_at = Some(now);
-    slashed_bonds_tracker.exit(ctx.program_id)?; // persist modifications
 
     Ok(())
 }
