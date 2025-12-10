@@ -21,6 +21,7 @@ const provider = anchor.getProvider() as anchor.AnchorProvider;
 const program = anchor.workspace.SettlementEngine as Program<SettlementEngine>;
 
 const liquidityGuardURL = "https://liquidity-guard-devnet-skip-c644b6411603.herokuapp.com";
+const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
 const DEFAULT_QUOTE_AMOUNT = 1_000_000_001;
 const DEFAULT_BASE_AMOUNT = 1_000_000_000;
 const DEFAULT_BOND_AMOUNT = 1_000_000;
@@ -29,7 +30,7 @@ const DEFAULT_FEE_AMOUNT = 1_000;
 const confirm = async (signature: string) => {
     const bh = await provider.connection.getLatestBlockhash();
     await provider.connection.confirmTransaction({ signature, ...bh });
-}
+};
 
 const fund = async (kp: Keypair, sol = 2) => {
     const sig = await provider.connection.requestAirdrop(
@@ -37,7 +38,7 @@ const fund = async (kp: Keypair, sol = 2) => {
         sol * anchor.web3.LAMPORTS_PER_SOL
     );
     await confirm(sig);
-}
+};
 
 /** Derive RFQ PDA from (maker, uuid) */
 const rfqPda = (maker: PublicKey, u16: Uint8Array) =>
@@ -60,7 +61,7 @@ const getAndLogBalance = async (label: string, owner: string, tokenAccount: Publ
     const balance = await provider.connection.getTokenAccountBalance(tokenAccount).then(b => new anchor.BN(b.value.amount));
     console.log(`${label} - ${owner}:`, balance.toNumber().toLocaleString("en-US"));
     return balance;
-}
+};
 
 const provideLiquidityGuardAttestation = async (taker: anchor.web3.Keypair,
     rfqPDA: anchor.web3.PublicKey,
@@ -98,8 +99,43 @@ const provideLiquidityGuardAttestation = async (taker: anchor.web3.Keypair,
             Buffer.from(response.liquidity_proof, "hex"),
         ];
     }
+};
 
-}
+const commitQuote = async (
+    commit_hash: Uint8Array<ArrayBufferLike> | Buffer<ArrayBuffer>,
+    liquidity_proof: Uint8Array<ArrayBufferLike> | Buffer<ArrayBuffer>,
+    taker: Keypair,
+    rfqPDA: PublicKey,
+    usdcMint: PublicKey,
+    configPda: PublicKey,
+    takerPaymentAccount: PublicKey) => {
+    // Create Ed25519 verification instruction using the helper
+    const ed25519Ix = Ed25519Program.createInstructionWithPublicKey({
+        publicKey: liquidityGuard.toBytes(),
+        message: commit_hash,
+        signature: liquidity_proof,
+    });
+    const commitQuoteIx1 = await program.methods
+        .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
+        .accounts({
+            taker: taker.publicKey,
+            rfq: rfqPDA,
+            usdcMint: usdcMint,
+            config: configPda,
+            instructionSysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+            takerPaymentAccount: takerPaymentAccount,
+        })
+        .instruction();
+
+    const tx = new anchor.web3.Transaction();
+    // Add ONLY these two instructions, in this exact order:
+    tx.add(ed25519Ix);
+    tx.add(commitQuoteIx1);
+
+    // Send and confirm
+    const txSig = await provider.sendAndConfirm(tx, [taker], { skipPreflight: false });
+    console.log("Transaction signature:", txSig);
+};
 
 describe("SETTLEMENT", () => {
     let configPda: PublicKey;
@@ -111,7 +147,6 @@ describe("SETTLEMENT", () => {
     const treasury = Keypair.generate();
     const commitTTL = 10, revealTTL = 10, selectionTTL = 10, fundingTTL = 20;
 
-    const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
 
     before(async () => {
         await waitForLiquidityGuardReady();
@@ -171,9 +206,10 @@ describe("SETTLEMENT", () => {
         const maker = Keypair.generate();
         await fund(maker);
         console.log("Maker:", maker.publicKey.toBase58());
-        const taker = Keypair.generate();
-        await fund(taker);
+        const [taker, taker2] = [Keypair.generate(), Keypair.generate()];
+        await Promise.all([fund(taker), fund(taker2)]);
         console.log("Taker:", taker.publicKey.toBase58());
+        console.log("Taker2:", taker2.publicKey.toBase58());
 
         const u = uuidBytes();
         const [rfqPDA, rfqBump] = rfqPda(maker.publicKey, u);
@@ -186,6 +222,7 @@ describe("SETTLEMENT", () => {
         const makerBaseAccount = getAssociatedTokenAddressSync(baseMint, maker.publicKey);
         const makerQuoteAccount = getAssociatedTokenAddressSync(quoteMint, maker.publicKey);
         const takerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker.publicKey);
+        const taker2PaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker2.publicKey);
         const takerBaseAccount = getAssociatedTokenAddressSync(baseMint, taker.publicKey);
         const takerQuoteAccount = getAssociatedTokenAddressSync(quoteMint, taker.publicKey);
         const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
@@ -236,6 +273,19 @@ describe("SETTLEMENT", () => {
             await getOrCreateAssociatedTokenAccount(
                 provider.connection,
                 admin,
+                usdcMint,
+                taker2.publicKey
+            ).then(account => mintTo(
+                provider.connection,
+                admin,
+                usdcMint,
+                account.address,
+                admin,
+                DEFAULT_BOND_AMOUNT + DEFAULT_FEE_AMOUNT //sufficient for bonds + fees
+            )),
+            await getOrCreateAssociatedTokenAccount(
+                provider.connection,
+                admin,
                 quoteMint,
                 taker.publicKey
             ).then(account => mintTo(
@@ -252,6 +302,7 @@ describe("SETTLEMENT", () => {
             getAndLogBalance("Before Init RFQ", "Maker USDC", makerPaymentAccount),
             getAndLogBalance("Before Init RFQ", "Maker Base", makerBaseAccount),
             getAndLogBalance("Before Init RFQ", "Taker USDC", takerPaymentAccount),
+            getAndLogBalance("Before Init RFQ", "Taker2 USDC", taker2PaymentAccount),
             getAndLogBalance("Before Init RFQ", "Taker Quote", takerQuoteAccount),
         ]);
 
@@ -317,34 +368,16 @@ describe("SETTLEMENT", () => {
             getAndLogBalance("After opening RFQ", "RFQ Bonds Vault", bondsFeesVault),
         ]);
 
-        const [salt, commit_hash, liquidity_proof] = await provideLiquidityGuardAttestation(taker, rfqPDA, quoteMint);
-        // Create Ed25519 verification instruction using the helper
-        const ed25519Ix = Ed25519Program.createInstructionWithPublicKey({
-            publicKey: liquidityGuard.toBytes(),
-            message: commit_hash,
-            signature: liquidity_proof,
-        });
+        const [saltQ1, commit_hashQ1, liquidity_proofQ1] = await provideLiquidityGuardAttestation(taker, rfqPDA, quoteMint);
 
-        const commitQuoteIx1 = await program.methods
-            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
-            .accounts({
-                taker: taker.publicKey,
-                rfq: rfqPDA,
-                usdcMint: usdcMint,
-                config: configPda,
-                instructionSysvar: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
-                takerPaymentAccount: takerPaymentAccount,
-            })
-            .instruction();
-
-        const tx = new anchor.web3.Transaction();
-        // Add ONLY these two instructions, in this exact order:
-        tx.add(ed25519Ix);
-        tx.add(commitQuoteIx1);
-
-        // Send and confirm
-        const txSig = await provider.sendAndConfirm(tx, [taker], { skipPreflight: false });
-        console.log("Transaction signature:", txSig);
+        await commitQuote(
+            commit_hashQ1,
+            liquidity_proofQ1,
+            taker,
+            rfqPDA,
+            usdcMint,
+            configPda,
+            takerPaymentAccount);
 
         const [quotePda, bumpQuote] = PublicKey.findProgramAddressSync(
             [Buffer.from("quote"), rfqPDA.toBuffer(), taker.publicKey.toBuffer()],
@@ -353,7 +386,7 @@ describe("SETTLEMENT", () => {
         console.log("Quote PDA:", quotePda.toBase58());
 
         const [commitGuardPda, bumpCommit] = PublicKey.findProgramAddressSync(
-            [Buffer.from("commit-guard"), commit_hash],
+            [Buffer.from("commit-guard"), commit_hashQ1],
             program.programId
         );
         console.log("Commit Guard PDA:", commitGuardPda.toBase58());
@@ -361,6 +394,7 @@ describe("SETTLEMENT", () => {
         await Promise.all([
             getAndLogBalance("After commiting quote", "Maker USDC", makerPaymentAccount),
             getAndLogBalance("After commiting quote", "Taker USDC", takerPaymentAccount),
+            getAndLogBalance("After commiting quote", "Taker2 USDC", taker2PaymentAccount),
             getAndLogBalance("After commiting quote", "RFQ Bonds Vault", bondsFeesVault),
         ]);
 
@@ -375,7 +409,7 @@ describe("SETTLEMENT", () => {
         console.log("Reveal period begins (past commit deadline)...");
 
         await program.methods
-            .revealQuote(Array.from(salt), new anchor.BN(DEFAULT_QUOTE_AMOUNT))
+            .revealQuote(Array.from(saltQ1), new anchor.BN(DEFAULT_QUOTE_AMOUNT))
             .accounts({ rfq: rfqPDA, quote: quotePda, taker: taker.publicKey, config: configPda })
             .signers([taker])
             .rpc();
