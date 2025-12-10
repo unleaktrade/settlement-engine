@@ -59,7 +59,7 @@ pub struct CloseExpired<'info> {
     #[account(
         mut,
         seeds = [SlashedBondsTracker::SEED_PREFIX, rfq.key().as_ref()],
-        bump = rfq.bump,
+        bump = slashed_bonds_tracker.bump,
         has_one = usdc_mint,
         has_one = treasury_usdc_owner,
     )]
