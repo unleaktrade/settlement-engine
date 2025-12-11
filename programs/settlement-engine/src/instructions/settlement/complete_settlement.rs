@@ -118,6 +118,8 @@ pub struct CompleteSettlement<'info> {
     )]
     pub fees_tracker: Box<Account<'info, FeesTracker>>,
 
+    // slashed_bonds_tracker provided in remaining_accounts
+
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,

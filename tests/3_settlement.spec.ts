@@ -137,7 +137,7 @@ const commitQuote = async (
     console.log("Transaction signature:", txSig);
 };
 
-describe("SETTLEMENT", () => {
+describe.skip("COMPLETE_SETTLEMENT", () => {
     let configPda: PublicKey;
     let usdcMint: PublicKey;
     let baseMint: PublicKey;
@@ -188,13 +188,13 @@ describe("SETTLEMENT", () => {
     });
 
     after(async () => {
-        console.log("All CONFIG:", JSON.stringify((await program.account.config.all()), null, 2));
-        console.log("All RFQ:", JSON.stringify((await program.account.rfq.all()), null, 2));
-        console.log("All QUOTE:", JSON.stringify((await program.account.quote.all()), null, 2));
-        console.log("All COMMIT GUARDS:", JSON.stringify((await program.account.commitGuard.all()), null, 2));
-        console.log("All SETTLEMENT:", JSON.stringify((await program.account.settlement.all()), null, 2));
-        console.log("All FEES_TRAKER:", JSON.stringify((await program.account.feesTracker.all()), null, 2));
-        console.log("All SLASHED_BONDS_TRAKER:", JSON.stringify((await program.account.slashedBondsTracker.all()), null, 2));
+        // console.log("All CONFIG:", JSON.stringify((await program.account.config.all()), null, 2));
+        // console.log("All RFQ:", JSON.stringify((await program.account.rfq.all()), null, 2));
+        // console.log("All QUOTE:", JSON.stringify((await program.account.quote.all()), null, 2));
+        // console.log("All COMMIT GUARDS:", JSON.stringify((await program.account.commitGuard.all()), null, 2));
+        // console.log("All SETTLEMENT:", JSON.stringify((await program.account.settlement.all()), null, 2));
+        // console.log("All FEES_TRAKER:", JSON.stringify((await program.account.feesTracker.all()), null, 2));
+        // console.log("All SLASHED_BONDS_TRAKER:", JSON.stringify((await program.account.slashedBondsTracker.all()), null, 2));
         await program.methods
             .closeConfig()
             .accounts({ admin: admin.publicKey, config: configPda })

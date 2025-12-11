@@ -138,8 +138,8 @@ pub mod settlement_engine {
         close_expired::close_expired_handler(ctx)
     }
 
-    pub fn close_dropped(ctx: Context<CloseDropped>) -> Result<()> {
-        close_dropped::close_dropped_handler(ctx)
+    pub fn close_incomplete(ctx: Context<CloseIncomplete>) -> Result<()> {
+        close_incomplete::close_incomplete_handler(ctx)
     }
 
     // refund_quote_bonds
