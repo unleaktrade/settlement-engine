@@ -99,33 +99,35 @@ pub fn close_expired_handler(ctx: Context<CloseExpired>) -> Result<()> {
         rfq.bond_amount,
     )?;
 
-    // Seize other bonds
-    let seized_amount: u64 = rfq
-        .bond_amount
-        .checked_mul(rfq.committed_count.into())
-        .ok_or(RfqError::ArithmeticOverflow)?;
+    if !slashed_bonds_tracker.is_resolved() {
+        // Seize other bonds
+        let seized_amount: u64 = rfq
+            .bond_amount
+            .checked_mul(rfq.committed_count.into())
+            .ok_or(RfqError::ArithmeticOverflow)?;
 
-    if seized_amount > 0 {
-        token::transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.bonds_fees_vault.to_account_info(),
-                    to: ctx.accounts.treasury_ata.to_account_info(),
-                    authority: rfq.to_account_info(),
-                },
-                &[seeds_rfq], 
-            ),
-            seized_amount,
-        )?;
+        if seized_amount > 0 {
+            token::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    Transfer {
+                        from: ctx.accounts.bonds_fees_vault.to_account_info(),
+                        to: ctx.accounts.treasury_ata.to_account_info(),
+                        authority: rfq.to_account_info(),
+                    },
+                    &[seeds_rfq],
+                ),
+                seized_amount,
+            )?;
+        }
+
+        // update slashed bonds tracker
+        slashed_bonds_tracker.amount = Some(seized_amount);
+        slashed_bonds_tracker.seized_at = Some(now);
     }
-
     // update rfq
     rfq.state = RfqState::Expired;
     rfq.completed_at = Some(now);
-    // update slashed bonds tracker
-    slashed_bonds_tracker.amount = Some(seized_amount);
-    slashed_bonds_tracker.seized_at = Some(now);
 
     Ok(())
 }
