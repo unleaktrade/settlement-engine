@@ -142,7 +142,5 @@ pub mod settlement_engine {
         close_dropped::close_dropped_handler(ctx)
     }
 
-    // pub fn close_ignored(ctx: Context<CloseIgnored>) -> Result<()> {
-    //     close_ignored::close_ignored_handler(ctx)
-    // }
+    // refund_quote_bonds
 }

@@ -13,7 +13,7 @@ pub struct SlashedBondsTracker {
 
 impl SlashedBondsTracker {
     pub const SEED_PREFIX: &'static [u8] = b"slashed_bonds_tracker";
-    
+
     pub fn is_resolved(&self) -> bool {
         self.amount.is_some() && self.seized_at.is_some()
     }

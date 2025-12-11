@@ -4,8 +4,6 @@ pub mod close_dropped;
 pub use close_dropped::*;
 pub mod close_expired;
 pub use close_expired::*;
-pub mod close_ignored;
-pub use close_ignored::*;
 pub mod init_rfq;
 pub use init_rfq::*;
 pub mod open_rfq;
