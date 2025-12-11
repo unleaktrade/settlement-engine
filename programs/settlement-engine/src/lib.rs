@@ -128,7 +128,9 @@ pub mod settlement_engine {
         select_quote::select_quote_handler(ctx)
     }
 
-    pub fn complete_settlement<'info>(ctx: Context<'_, '_, 'info, 'info, CompleteSettlement<'info>>) -> Result<()> {
+    pub fn complete_settlement<'info>(
+        ctx: Context<'_, '_, 'info, 'info, CompleteSettlement<'info>>,
+    ) -> Result<()> {
         complete_settlement::complete_settlement_handler(ctx)
     }
 
@@ -136,10 +138,11 @@ pub mod settlement_engine {
         close_expired::close_expired_handler(ctx)
     }
 
+    pub fn close_dropped(ctx: Context<CloseDropped>) -> Result<()> {
+        close_dropped::close_dropped_handler(ctx)
+    }
+
     // pub fn close_ignored(ctx: Context<CloseIgnored>) -> Result<()> {
     //     close_ignored::close_ignored_handler(ctx)
-    // }
-    // pub fn close_aborted(ctx: Context<CloseAborted>) -> Result<()> {
-    //     close_aborted::close_aborted_handler(ctx)
     // }
 }
