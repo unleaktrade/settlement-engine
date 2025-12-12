@@ -47,6 +47,10 @@ const rfqPda = (maker: PublicKey, u16: Uint8Array) =>
         program.programId
     );
 
+const settlementPda = (rfqPDA: PublicKey) => PublicKey.findProgramAddressSync(
+    [Buffer.from("settlement"), rfqPDA.toBuffer()],
+    program.programId
+);
 
 const getAndLogBalance = async (label: string, owner: string, tokenAccount: PublicKey) => {
     const balance = await provider.connection.getTokenAccountBalance(tokenAccount).then(b => new anchor.BN(b.value.amount));
@@ -128,15 +132,26 @@ const commitQuote = async (
     console.log("Transaction signature:", txSig);
 };
 
-describe.skip("CLOSE_EXPIRED_RFQ", () => {
+describe("CLOSE_INCOMPLETE + REFUND_QUOTE_BONDS", () => {
     let configPda: PublicKey;
     let usdcMint: PublicKey;
     let baseMint: PublicKey;
     let quoteMint: PublicKey;
+    let maker: Keypair;
+    let taker: Keypair;
+    let taker2: Keypair;
+    let taker3: Keypair;
+    let taker4: Keypair;
+    let rfqPDA: PublicKey;
+    let rfqBump: Number;
+    let settlementPDA: PublicKey;
+    let bumpSettlement: number;
+    let slashedBondsTrackerPDA: PublicKey;
+    let bumpslashedBondsTracker: number;
 
     const admin = Keypair.generate();
     const treasury = Keypair.generate();
-    const commitTTL = 10, revealTTL = 3, selectionTTL = 10, fundingTTL = 20;
+    const commitTTL = 10, revealTTL = 3, selectionTTL = 3, fundingTTL = 2;
 
     before(async () => {
         await waitForLiquidityGuardReady();
@@ -181,6 +196,7 @@ describe.skip("CLOSE_EXPIRED_RFQ", () => {
         console.log("All RFQ:", JSON.stringify((await program.account.rfq.all()), null, 2));
         console.log("All QUOTE:", JSON.stringify((await program.account.quote.all()), null, 2));
         console.log("All COMMIT GUARDS:", JSON.stringify((await program.account.commitGuard.all()), null, 2));
+        console.log("All SETTLEMENT:", JSON.stringify((await program.account.settlement.all()), null, 2));
         console.log("All SLASHED_BONDS_TRAKER:", JSON.stringify((await program.account.slashedBondsTracker.all()), null, 2));
         await program.methods
             .closeConfig()
@@ -189,11 +205,11 @@ describe.skip("CLOSE_EXPIRED_RFQ", () => {
             .rpc();
     });
 
-    it("should close expired Rfq", async () => {
-        const maker = Keypair.generate();
+    it("should close incomplete Rfq", async () => {
+        maker = Keypair.generate();
         await fund(maker);
         console.log("Maker:", maker.publicKey.toBase58());
-        const [taker, taker2, taker3, taker4] = [Keypair.generate(), Keypair.generate(), Keypair.generate(), Keypair.generate()];
+        [taker, taker2, taker3, taker4] = [Keypair.generate(), Keypair.generate(), Keypair.generate(), Keypair.generate()];
         await Promise.all([fund(taker), fund(taker2), fund(taker3), fund(taker4)]);
         console.log("Taker:", taker.publicKey.toBase58());
         console.log("Taker2:", taker2.publicKey.toBase58());
@@ -201,16 +217,19 @@ describe.skip("CLOSE_EXPIRED_RFQ", () => {
         console.log("Taker4:", taker4.publicKey.toBase58());
 
         const u = uuidBytes();
-        const [rfqPDA, rfqBump] = rfqPda(maker.publicKey, u);
-        const [slashedBondsTrackerPDA, bumpslashedBondsTracker] = slashedBondsTrackerPda(rfqPDA);
+        [rfqPDA, rfqBump] = rfqPda(maker.publicKey, u);
+        [settlementPDA, bumpSettlement] = settlementPda(rfqPDA);
+        [slashedBondsTrackerPDA, bumpslashedBondsTracker] = slashedBondsTrackerPda(rfqPDA);
 
         // create token accounts & mint usdc, base and quote.
         const makerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
+        const makerBaseAccount = getAssociatedTokenAddressSync(baseMint, maker.publicKey);
         const takerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker.publicKey);
         const taker2PaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker2.publicKey);
         const taker3PaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker3.publicKey);
         const taker4PaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker4.publicKey);
         const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
+        const baseVault = getAssociatedTokenAddressSync(baseMint, rfqPDA, true);
         const treasuryPaymentAccount = getAssociatedTokenAddressSync(usdcMint, treasury.publicKey);
 
         // mint USDC for bonds
@@ -228,6 +247,19 @@ describe.skip("CLOSE_EXPIRED_RFQ", () => {
                 admin,
                 DEFAULT_BOND_AMOUNT
             )),
+            await getOrCreateAssociatedTokenAccount(
+                provider.connection,
+                admin,
+                baseMint,
+                maker.publicKey
+            ).then(account => mintTo(
+                provider.connection,
+                admin,
+                baseMint,
+                account.address,
+                admin,
+                DEFAULT_BASE_AMOUNT
+            )), ,
             await getOrCreateAssociatedTokenAccount(
                 provider.connection,
                 admin,
@@ -285,6 +317,7 @@ describe.skip("CLOSE_EXPIRED_RFQ", () => {
 
         await Promise.all([
             getAndLogBalance("Before Init RFQ", "Maker USDC", makerPaymentAccount),
+            getAndLogBalance("Before Init RFQ", "Maker Base", makerBaseAccount),
             getAndLogBalance("Before Init RFQ", "Taker USDC", takerPaymentAccount),
             getAndLogBalance("Before Init RFQ", "Taker2 USDC", taker2PaymentAccount),
             getAndLogBalance("Before Init RFQ", "Taker3 USDC", taker3PaymentAccount),
@@ -356,8 +389,7 @@ describe.skip("CLOSE_EXPIRED_RFQ", () => {
             getAndLogBalance("After opening RFQ", "RFQ Bonds Vault", bondsFeesVault),
         ]);
 
-        // taker will commit a valid quote but won't reveal
-        const [_saltQ1, commit_hashQ1, liquidity_proofQ1] = await provideLiquidityGuardAttestation(taker, rfqPDA, quoteMint);
+        const [saltQ1, commit_hashQ1, liquidity_proofQ1] = await provideLiquidityGuardAttestation(taker, rfqPDA, quoteMint);
         await commitQuote(
             commit_hashQ1,
             liquidity_proofQ1,
@@ -367,8 +399,7 @@ describe.skip("CLOSE_EXPIRED_RFQ", () => {
             configPda,
             takerPaymentAccount);
 
-        // taker2 will commit an invalid quote (smaller quote amount)
-        const [_saltQ2, commit_hashQ2, liquidity_proofQ2] = await provideLiquidityGuardAttestation(taker2, rfqPDA, quoteMint, DEFAULT_QUOTE_AMOUNT / 10);
+        const [saltQ2, commit_hashQ2, liquidity_proofQ2] = await provideLiquidityGuardAttestation(taker2, rfqPDA, quoteMint);
         await commitQuote(
             commit_hashQ2,
             liquidity_proofQ2,
@@ -378,8 +409,7 @@ describe.skip("CLOSE_EXPIRED_RFQ", () => {
             configPda,
             taker2PaymentAccount);
 
-        // taker3 will commit a valid quote but won't reveal
-        const [_saltQ3, commit_hashQ3, liquidity_proofQ3] = await provideLiquidityGuardAttestation(taker3, rfqPDA, quoteMint);
+        const [saltQ3, commit_hashQ3, liquidity_proofQ3] = await provideLiquidityGuardAttestation(taker3, rfqPDA, quoteMint, DEFAULT_QUOTE_AMOUNT / 10);
         await commitQuote(
             commit_hashQ3,
             liquidity_proofQ3,
@@ -389,8 +419,7 @@ describe.skip("CLOSE_EXPIRED_RFQ", () => {
             configPda,
             taker3PaymentAccount);
 
-        // taker4 will commit an invalid quote (smaller quote amount)
-        const [_saltQ4, commit_hashQ4, liquidity_proofQ4] = await provideLiquidityGuardAttestation(taker4, rfqPDA, quoteMint, DEFAULT_QUOTE_AMOUNT / 10);
+        const [saltQ4, commit_hashQ4, liquidity_proofQ4] = await provideLiquidityGuardAttestation(taker4, rfqPDA, quoteMint, DEFAULT_QUOTE_AMOUNT / 10);
         await commitQuote(
             commit_hashQ4,
             liquidity_proofQ4,
@@ -399,6 +428,54 @@ describe.skip("CLOSE_EXPIRED_RFQ", () => {
             usdcMint,
             configPda,
             taker4PaymentAccount);
+
+        const [quotePda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("quote"), rfqPDA.toBuffer(), taker.publicKey.toBuffer()],
+            program.programId
+        );
+        console.log("Quote PDA:", quotePda.toBase58());
+
+        const [commitGuardPda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("commit-guard"), commit_hashQ1],
+            program.programId
+        );
+        console.log("Commit Guard PDA:", commitGuardPda.toBase58());
+
+        const [quote2Pda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("quote"), rfqPDA.toBuffer(), taker2.publicKey.toBuffer()],
+            program.programId
+        );
+        console.log("Quote2 PDA:", quote2Pda.toBase58());
+
+        const [commitGuard2Pda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("commit-guard"), commit_hashQ2],
+            program.programId
+        );
+        console.log("Commit Guard 2 PDA:", commitGuard2Pda.toBase58());
+
+        const [quote3Pda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("quote"), rfqPDA.toBuffer(), taker3.publicKey.toBuffer()],
+            program.programId
+        );
+        console.log("Quote3 PDA:", quote3Pda.toBase58());
+
+        const [commitGuard3Pda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("commit-guard"), commit_hashQ3],
+            program.programId
+        );
+        console.log("Commit Guard 3 PDA:", commitGuard3Pda.toBase58());
+
+        const [quote4Pda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("quote"), rfqPDA.toBuffer(), taker4.publicKey.toBuffer()],
+            program.programId
+        );
+        console.log("Quote4 PDA:", quote4Pda.toBase58());
+
+        const [commitGuard4Pda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("commit-guard"), commit_hashQ4],
+            program.programId
+        );
+        console.log("Commit Guard 4 PDA:", commitGuard4Pda.toBase58());
 
         await Promise.all([
             getAndLogBalance("After commiting quote", "Maker USDC", makerPaymentAccount),
@@ -414,23 +491,107 @@ describe.skip("CLOSE_EXPIRED_RFQ", () => {
         assert.ok(openedAt, "rfq openedAt should be set");
         const commitDeadline = openedAt + rfqAfterCommit.commitTtlSecs;
         const revealDeadline = commitDeadline + rfqAfterCommit.revealTtlSecs;
+        const fundingDeadline = revealDeadline + rfqAfterCommit.selectionTtlSecs + rfqAfterCommit.fundTtlSecs;
+        console.log("Waiting for commit deadline to pass on-chain...");
+        await waitForChainTime(provider.connection, commitDeadline, "commit deadline");
+        console.log("Reveal period begins (past commit deadline)...");
 
-        console.log("Waiting for commit/reveal deadline to pass on-chain...");
+        await Promise.all([
+            program.methods
+                .revealQuote(Array.from(saltQ1), new anchor.BN(DEFAULT_QUOTE_AMOUNT))
+                .accounts({ rfq: rfqPDA, quote: quotePda, taker: taker.publicKey, config: configPda })
+                .signers([taker])
+                .rpc(),
+            program.methods
+                .revealQuote(Array.from(saltQ2), new anchor.BN(DEFAULT_QUOTE_AMOUNT))
+                .accounts({ rfq: rfqPDA, quote: quote2Pda, taker: taker2.publicKey, config: configPda })
+                .signers([taker2])
+                .rpc()
+        ]);
+
+        console.log("Waiting for reveal deadline to pass on-chain...");
         await waitForChainTime(provider.connection, revealDeadline, "reveal deadline");
         console.log("Selection period begins (past reveal deadline)...");
 
-        await program.methods.closeExpired()
+        await program.methods.selectQuote()
             .accounts({
                 maker: maker.publicKey,
                 rfq: rfqPDA,
+                quote: quotePda,
+                baseMint,
+                quoteMint,
+                vaultBaseAta: baseVault,
+                makerBaseAccount,
                 config: configPda,
-                usdcMint,
-                bondsFeesVault,
-                treasuryUsdcOwner: treasury.publicKey,
-                makerPaymentAccount,
             })
             .signers([maker])
             .rpc();
+
+        await Promise.all([
+            getAndLogBalance("After selecting quote", "Maker USDC", makerPaymentAccount),
+            getAndLogBalance("After selecting quote", "Taker USDC", takerPaymentAccount),
+            getAndLogBalance("After selecting quote", "Taker2 USDC", taker2PaymentAccount),
+            getAndLogBalance("After selecting quote", "Taker3 USDC", taker3PaymentAccount),
+            getAndLogBalance("After selecting quote", "Taker4 USDC", taker4PaymentAccount),
+            getAndLogBalance("After selecting quote", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After selecting quote", "Maker Base", makerBaseAccount),
+        ]);
+
+        let [rfq, settlement, slashedBondsTracker, quote, quote2] = await Promise.all([
+            program.account.rfq.fetch(rfqPDA),
+            program.account.settlement.fetch(settlementPDA),
+            program.account.slashedBondsTracker.fetch(slashedBondsTrackerPDA),
+            program.account.quote.fetch(quotePda),
+            program.account.quote.fetch(quote2Pda),
+        ]);
+
+        assert.strictEqual(rfq.bump, rfqBump, "rfq bump mismatch");
+        assert.ok(rfq.state.selected, "rfq state should be selected");
+        assert(rfq.selectedAt!.toNumber() > 0, "rfq selectedAt should be set");
+        assert(rfq.completedAt === null || rfq.completedAt === undefined, "rfq completeAt should be None");
+        assert.strictEqual(settlement.bump, bumpSettlement, "settlement bump mismatch");
+        assert(settlement.completedAt === null || settlement.completedAt === undefined, "settlement completeAt should be None");
+        assert(slashedBondsTracker.seizedAt === null || slashedBondsTracker.seizedAt === undefined, "slashBondsTracker seizedAt should be None");
+        assert(quote.bondsRefundedAt === null || quote.bondsRefundedAt === null, "quote bondsRefundedAt should be None");
+        assert(quote2.bondsRefundedAt === null || quote2.bondsRefundedAt === null, "quote2 bondsRefundedAt should be None");
+
+        console.log("Waiting for funding deadline to pass on-chain...");
+        await waitForChainTime(provider.connection, fundingDeadline, "funding deadline");
+        console.log("Funding deadline past...");
+
+        await program.methods.closeIncomplete()
+            .accounts({
+                maker: maker.publicKey,
+                config: configPda,
+                rfq: rfqPDA,
+                settlement: settlementPDA,
+                baseMint,
+                vaultBaseAta: baseVault,
+                makerBaseAccount,
+                usdcMint,
+                bondsFeesVault,
+                makerPaymentAccount,
+                treasuryUsdcOwner: treasury.publicKey,
+                slashBoundsTracker: slashedBondsTrackerPDA,
+            })
+            .signers([maker])
+            .rpc();
+
+        let settlementClosed = false;
+        try { await program.account.settlement.fetch(settlementPDA); } catch { settlementClosed = true; }
+        assert(settlementClosed, "settlement should be closed");
+
+        [rfq, slashedBondsTracker, quote, quote2] = await Promise.all([
+            program.account.rfq.fetch(rfqPDA),
+            program.account.slashedBondsTracker.fetch(slashedBondsTrackerPDA),
+            program.account.quote.fetch(quotePda),
+            program.account.quote.fetch(quote2Pda),
+        ]);
+
+        const [quote3, quote4] = await Promise.all([
+            program.account.quote.fetch(quote3Pda),
+            program.account.quote.fetch(quote4Pda),
+        ]);
 
         const [
             makerPaymentAccountBalance,
@@ -439,38 +600,44 @@ describe.skip("CLOSE_EXPIRED_RFQ", () => {
             taker3PaymentAccountBalance,
             taker4PaymentAccountBalance,
             bondsFeesVaultBalance,
-            treasuryPaymentAccountBalance
+            treasuryPaymentAccountBalance,
+            makerBaseAccountBalance,
         ]
             = await Promise.all([
-                getAndLogBalance("After Rfq Expiration", "Maker USDC", makerPaymentAccount),
-                getAndLogBalance("After Rfq Expiration", "Taker USDC", takerPaymentAccount),
-                getAndLogBalance("After Rfq Expiration", "Taker2 USDC", taker2PaymentAccount),
-                getAndLogBalance("After Rfq Expiration", "Taker3 USDC", taker3PaymentAccount),
-                getAndLogBalance("After Rfq Expiration", "Taker4 USDC", taker4PaymentAccount),
-                getAndLogBalance("After Rfq Expiration", "RFQ Bonds Vault", bondsFeesVault),
-                getAndLogBalance("After Rfq Expiration", "Treasury USCD", treasuryPaymentAccount),
+                getAndLogBalance("After closing incomplete Rfq", "Maker USDC", makerPaymentAccount),
+                getAndLogBalance("After closing incomplete Rfq", "Taker USDC", takerPaymentAccount),
+                getAndLogBalance("After closing incomplete Rfq", "Taker2 USDC", taker2PaymentAccount),
+                getAndLogBalance("After closing incomplete Rfq", "Taker3 USDC", taker3PaymentAccount),
+                getAndLogBalance("After closing incomplete Rfq", "Taker4 USDC", taker4PaymentAccount),
+                getAndLogBalance("After closing incomplete Rfq", "RFQ Bonds Vault", bondsFeesVault),
+                getAndLogBalance("After closing incomplete Rfq", "Treasury USCD", treasuryPaymentAccount),
+                getAndLogBalance("After closing incomplete Rfq", "Maker Base", makerBaseAccount),
             ]);
 
-        const [rfq, slashedBondsTracker] = await Promise.all([
-            program.account.rfq.fetch(rfqPDA),
-            program.account.slashedBondsTracker.fetch(slashedBondsTrackerPDA),
-        ]);
-        assert.strictEqual(rfq.bump, rfqBump, "rfq bump mismatch");
-        assert.ok(rfq.state.expired, "rfq state should be expired");
-        assert.ok(rfq.completedAt!.toNumber() > 0, "rfq completedAt should be set");
+        assert.ok(rfq.state.incomplete, "rfq state should be incomplete");
+        assert(rfq.settlement === null || rfq.settlement === undefined, "rfq settlement should be None");
+        assert(rfq.completedAt!.toNumber() > 0, "rfq should be set");
         assert(slashedBondsTracker.rfq.equals(rfqPDA), "RFQ mismatch in slashBoundsTracker");
+        assert(slashedBondsTracker.seizedAt.eq(rfq.completedAt), "slashBondsTracker seizedAt and rfq completeAt shoud be equal");
         assert.strictEqual(slashedBondsTracker.bump, bumpslashedBondsTracker, "bump mismatch for slashedBondsTracker");
-        assert(slashedBondsTracker.seizedAt.eq(rfq.completedAt), "seizedAt in slashedBondsTracker and completedAt in Rfq should be equal");
-        assert(slashedBondsTracker.amount.eq(rfq.bondAmount.muln(4)), "amount should be equal to 4x Rfq bondAmount");
         assert(slashedBondsTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in slashedBondsTracker");
         assert(slashedBondsTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in slashedBondsTracker");
+
+        //no-show for valid taker + 2 invalid quotes (taker3 and taker4)
+        assert(slashedBondsTracker.amount.eq(rfq.bondAmount.muln(3)), "amount should be equal to 3x Rfq bondAmount");
         assert(new anchor.BN(DEFAULT_BOND_AMOUNT).eq(makerPaymentAccountBalance), "maker balance mismatch");
         assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(takerPaymentAccountBalance), "taker balance mismatch");
         assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(taker2PaymentAccountBalance), "taker2 balance mismatch");
         assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(taker3PaymentAccountBalance), "taker3 balance mismatch");
         assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(taker4PaymentAccountBalance), "taker4 balance mismatch");
-        assert(bondsFeesVaultBalance.isZero(), "bonds and fees vault should be empty");
+        assert(new anchor.BN(DEFAULT_BOND_AMOUNT).eq(bondsFeesVaultBalance), `bonds and fees vault should not be empty and 1x ${DEFAULT_BOND_AMOUNT}`);
         assert(treasuryPaymentAccountBalance.eq(slashedBondsTracker.amount), "treasury payment balance should be equalt to slashed bonds tracker amount");
+        assert(new anchor.BN(DEFAULT_BASE_AMOUNT).eq(makerBaseAccountBalance), "maker base balance mismatch");
+
+        assert(quote.bondsRefundedAt === null || quote.bondsRefundedAt === null, "quote bondsRefundedAt should be None");
+        assert(quote2.bondsRefundedAt === null || quote2.bondsRefundedAt === null, "quote2 bondsRefundedAt should be None");
+        assert(quote3.bondsRefundedAt === null || quote3.bondsRefundedAt === null, "quote3 bondsRefundedAt should be None");
+        assert(quote4.bondsRefundedAt === null || quote4.bondsRefundedAt === null, "quote4 bondsRefundedAt should be None");
     });
 
 

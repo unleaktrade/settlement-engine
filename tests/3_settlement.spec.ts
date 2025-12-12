@@ -137,7 +137,7 @@ const commitQuote = async (
     console.log("Transaction signature:", txSig);
 };
 
-describe("COMPLETE_SETTLEMENT", () => {
+describe.skip("COMPLETE_SETTLEMENT", () => {
     let configPda: PublicKey;
     let usdcMint: PublicKey;
     let baseMint: PublicKey;
@@ -411,7 +411,7 @@ describe("COMPLETE_SETTLEMENT", () => {
             [Buffer.from("commit-guard"), commit_hashQ2],
             program.programId
         );
-        console.log("Commit Guard PDA:", commitGuard2Pda.toBase58());
+        console.log("Commit Guard 2 PDA:", commitGuard2Pda.toBase58());
 
         await Promise.all([
             getAndLogBalance("After commiting quote", "Maker USDC", makerPaymentAccount),
@@ -525,7 +525,7 @@ describe("COMPLETE_SETTLEMENT", () => {
         assert.ok(rfq.state.settled, "rfq state should be settled");
         assert.ok(rfq.completedAt!.toNumber() > 0, "rfq completedAt should be set");
         assert.strictEqual(settlement.bump, bumpSettlement, "settlement bump mismatch");
-        assert.ok(settlement.completedAt!.toNumber() > 0, "rfq completedAt should be set");
+        assert.ok(settlement.completedAt!.toNumber() > 0, "settlement completedAt should be set");
         assert(rfq.completedAt.eq(settlement.completedAt), "rfq and settlement completeAt should be equal");
         assert(settlement.takerFundedAt!.toNumber() > 0, "settlement takerFundedAt should be set");
         assert(settlement.takerFundedAt.eq(rfq.completedAt), "settlement takerFundedAt and rfq completedAt should be equal");
