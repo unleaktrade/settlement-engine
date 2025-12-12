@@ -16,8 +16,8 @@ pub struct Quote {
     pub revealed_at: Option<i64>,
     pub bonds_refunded_at: Option<i64>,
     pub quote_amount: Option<u64>,
-
     pub taker_payment_account: Pubkey,
+    pub selected: bool,
 
     pub bump: u8,
 }
