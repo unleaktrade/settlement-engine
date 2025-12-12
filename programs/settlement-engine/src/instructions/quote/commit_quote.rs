@@ -203,6 +203,7 @@ pub fn commit_quote_handler(
     quote.liquidity_proof = liquidity_proof;
     quote.committed_at = now;
     quote.revealed_at = None;
+    quote.bonds_refunded_at = None;
     quote.quote_amount = None; // to be filled on reveal
     quote.taker_payment_account = ctx.accounts.taker_payment_account.key();
 

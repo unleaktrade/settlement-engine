@@ -137,7 +137,7 @@ const commitQuote = async (
     console.log("Transaction signature:", txSig);
 };
 
-describe.skip("COMPLETE_SETTLEMENT", () => {
+describe("COMPLETE_SETTLEMENT", () => {
     let configPda: PublicKey;
     let usdcMint: PublicKey;
     let baseMint: PublicKey;
@@ -504,15 +504,21 @@ describe.skip("COMPLETE_SETTLEMENT", () => {
                 pubkey: slashedBondsTrackerPDA,
                 isSigner: false,
                 isWritable: true,
+            }, {
+                pubkey: quotePda,
+                isSigner: false,
+                isWritable: true,
             }])
             .signers([taker])
             .rpc();
 
-        const [rfq, settlement, feesTracker, slashedBondsTracker] = await Promise.all([
+        const [rfq, settlement, feesTracker, slashedBondsTracker, quote, quote2] = await Promise.all([
             program.account.rfq.fetch(rfqPDA),
             program.account.settlement.fetch(settlementPDA),
             program.account.feesTracker.fetch(feesTrackerPDA),
             program.account.slashedBondsTracker.fetch(slashedBondsTrackerPDA),
+            program.account.quote.fetch(quotePda),
+            program.account.quote.fetch(quote2Pda),
         ]);
 
         assert.strictEqual(rfq.bump, rfqBump, "rfq bump mismatch");
@@ -540,6 +546,8 @@ describe.skip("COMPLETE_SETTLEMENT", () => {
         assert(slashedBondsTracker.seizedAt.eq(rfq.completedAt), "seizedAt in slashedBondsTracker and completedAt in Rfq should be equal");
         assert(slashedBondsTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in slashedBondsTracker");
         assert(slashedBondsTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in slashedBondsTracker");
+        assert(quote.bondsRefundedAt.eq(settlement.completedAt), "quote bondsRefundedAt and settlement completedAt should be equal");
+        assert(quote2.bondsRefundedAt === null || quote2.bondsRefundedAt === undefined, "quote2 bondsRefundedAt should be None");
         const [
             makerUsdcBalance,
             makerBaseBalance,

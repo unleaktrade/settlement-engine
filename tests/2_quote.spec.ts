@@ -55,7 +55,7 @@ async function getAndLogBalance(
 
 // --- tests (ONLY initRfq) --------------------------------------------------
 
-describe.skip("QUOTE", () => {
+describe("QUOTE", () => {
     let configPda: PublicKey;
     let usdcMint: PublicKey;
     let baseMint: PublicKey;
@@ -392,6 +392,7 @@ describe.skip("QUOTE", () => {
         assert(quote.quoteAmount === null || quote.quoteAmount === null, "quoteAmount should be None before reveal");
         assert.strictEqual(quote.bump, bumpQuote, "quote bump mismatch");
         assert(quote.takerPaymentAccount.equals(takerPaymentAccount), "taker payment account mismatch");
+        assert(quote.bondsRefundedAt === null || quote.bondsRefundedAt === undefined, "bondsRefundedAt should be None");
 
         rfq = await program.account.rfq.fetch(rfqPDA);
         assert.strictEqual(rfq.committedCount, 1, "rfq revealedCount should be 1");

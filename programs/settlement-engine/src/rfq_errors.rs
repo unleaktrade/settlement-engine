@@ -80,6 +80,10 @@ pub enum RfqError {
     InvalidRfq,
     #[msg("Settlement does not belong to taker")]
     InvalidTaker,
+    #[msg("Settlement does not belong to quote")]
+    InvalidQuote,
+    #[msg("Taker payment account mismatch with expected settlement account")]
+    InvalidTakerPaymentAccount,
     #[msg("Invalid owner for provided account")]
     InvalidOwner,
     #[msg("PDA derived does not match expected address")]
@@ -106,4 +110,6 @@ pub enum RfqError {
     InvalidRfqAssociation,
     #[msg("SlashedBondsTracker account missing")]
     MissingSlashedBondsTrackerAccount,
+    #[msg("Quote account missing")]
+    MissingQuoteAccount,
 }
