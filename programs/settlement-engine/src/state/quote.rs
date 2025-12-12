@@ -28,6 +28,10 @@ impl Quote {
     pub fn is_revealed(&self) -> bool {
         self.revealed_at.is_some()
     }
+
+    pub fn bonds_refunded(&self) -> bool {
+        self.bonds_refunded_at.is_some()
+    }
 }
 
 /// Tiny PDA keyed by commit_hash to forbid reuse of the same hash.
