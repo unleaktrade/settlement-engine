@@ -393,13 +393,13 @@ describe("QUOTE", () => {
         assert.deepStrictEqual(quote.commitHash, Array.from(commit_hash));
         assert.deepStrictEqual(quote.liquidityProof, Array.from(liquidity_proof));
         assert.ok(quote.committedAt.toNumber() > 0);
-        assert(quote.revealedAt === null || quote.revealedAt === undefined, "revealedAt should be None before reveal");
+        assert(!quote.revealedAt, "revealedAt should be None before reveal");
         assert(quote.maxFundingDeadline.toNumber() > 0, "quote maxFundingDeadline should be set");
         assert(quote.maxFundingDeadline.eq(fundingHorizon), "quote maxFundingDeadline should be funding horizon");
-        assert(quote.quoteAmount === null || quote.quoteAmount === undefined, "quoteAmount should be None before reveal");
+        assert(!quote.quoteAmount, "quoteAmount should be None before reveal");
         assert.strictEqual(quote.bump, bumpQuote, "quote bump mismatch");
         assert(quote.takerPaymentAccount.equals(takerPaymentAccount), "taker payment account mismatch");
-        assert(quote.bondsRefundedAt === null || quote.bondsRefundedAt === undefined, "bondsRefundedAt should be None");
+        assert(!quote.bondsRefundedAt, "bondsRefundedAt should be None");
         assert(!quote.selected, "quote selected should be false");
 
         rfq = await program.account.rfq.fetch(rfqPDA);
@@ -779,6 +779,7 @@ describe("QUOTE", () => {
         assert.ok(rfq.selectedAt!.toNumber() > 0, "rfq selectedAt should be set");
         assert.strictEqual(quote.bump, bumpQuote, "quote bump mismatch");
         assert(quote.selected, "quote selected should be true");
+        assert(!quote.bondsRefundedAt, "quote bondsRefundedAt should be None");
         assert.ok(rfq.selectedQuote!.equals(quotePda), "rfq selectedQuote mismatch");
         assert.ok(rfq.settlement!.equals(settlementPda), "rfq settlement mismatch");
 

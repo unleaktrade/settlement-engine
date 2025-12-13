@@ -132,7 +132,7 @@ const commitQuote = async (
     console.log("Transaction signature:", txSig);
 };
 
-describe("CLOSE_INCOMPLETE + REFUND_QUOTE_BONDS", () => {
+describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
     let configPda: PublicKey;
     let usdcMint: PublicKey;
     let baseMint: PublicKey;
@@ -634,12 +634,26 @@ describe("CLOSE_INCOMPLETE + REFUND_QUOTE_BONDS", () => {
         assert(treasuryPaymentAccountBalance.eq(slashedBondsTracker.amount), "treasury payment balance should be equalt to slashed bonds tracker amount");
         assert(new anchor.BN(DEFAULT_BASE_AMOUNT).eq(makerBaseAccountBalance), "maker base balance mismatch");
 
-        assert(quote.bondsRefundedAt === null || quote.bondsRefundedAt === null, "quote bondsRefundedAt should be None");
-        assert(quote2.bondsRefundedAt === null || quote2.bondsRefundedAt === null, "quote2 bondsRefundedAt should be None");
-        assert(quote3.bondsRefundedAt === null || quote3.bondsRefundedAt === null, "quote3 bondsRefundedAt should be None");
-        assert(quote4.bondsRefundedAt === null || quote4.bondsRefundedAt === null, "quote4 bondsRefundedAt should be None");
+        const fundingHorizon = rfq.openedAt.addn(commitTTL)
+            .addn(revealTTL)
+            .addn(selectionTTL)
+            .addn(fundingTTL);
+
+        assert(!!quote.revealedAt, "quote revealedAt should be set");
+        assert(quote.maxFundingDeadline.eq(fundingHorizon), "quote maxFundingDeadline should be fundingHorizon");
+        assert(!quote.bondsRefundedAt, "quote bondsRefundedAt should be None");
+        assert(quote.selected, "quote should be selected");
+        assert(!!quote2.revealedAt, "quote2 revealedAt should be set");
+        assert(quote2.maxFundingDeadline.eq(fundingHorizon), "quote2 maxFundingDeadline should be fundingHorizon");
+        assert(!quote2.bondsRefundedAt, "quote2 bondsRefundedAt should be None");
+        assert(!quote2.selected, "quote2 should not be selected");
+        assert(!quote3.revealedAt, "quote3 revealedAt should be None");
+        assert(quote3.maxFundingDeadline.eq(fundingHorizon), "quote3 maxFundingDeadline should be fundingHorizon");
+        assert(!quote3.bondsRefundedAt, "quote3 bondsRefundedAt should be None");
+        assert(!quote3.selected, "quote3 should not be selected");
+        assert(!quote4.revealedAt, "quote4 revealedAt should be None");
+        assert(quote4.maxFundingDeadline.eq(fundingHorizon), "quote4 maxFundingDeadline should be fundingHorizon");
+        assert(!quote4.bondsRefundedAt, "quote4 bondsRefundedAt should be None");
+        assert(!quote4.selected, "quote4 should not be selected");
     });
-
-
-
 });

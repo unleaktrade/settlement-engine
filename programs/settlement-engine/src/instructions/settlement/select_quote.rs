@@ -101,6 +101,8 @@ pub fn select_quote_handler(ctx: Context<SelectQuote>) -> Result<()> {
 
     require!(quote.rfq == rfq.key(), RfqError::InvalidRfqAssociation);
     require!(quote.is_revealed(), RfqError::InvalidQuoteState);
+    require!(!quote.selected, RfqError::InvalidQuoteState);
+    
     require!(
         matches!(rfq.state, RfqState::Revealed),
         RfqError::InvalidRfqState
@@ -160,6 +162,9 @@ pub fn select_quote_handler(ctx: Context<SelectQuote>) -> Result<()> {
     settlement.vault_base_ata = ctx.accounts.vault_base_ata.key();
     settlement.maker_quote_account = ctx.accounts.maker_quote_account.key();
     settlement.taker_quote_account = None;
+
+    //update quote
+    quote.selected = true;
 
     Ok(())
 }

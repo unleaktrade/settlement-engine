@@ -173,6 +173,7 @@ pub fn complete_settlement_handler<'info>(
     require_eq!(quote_bump, quote.bump, RfqError::BumpMismatch);
 
     require_eq!(quote.key(),settlement.quote,RfqError::InvalidQuote);
+    require!(quote.selected, RfqError::InvalidQuoteState);
 
     // Refund maker's bond
     let seeds_rfq: &[&[u8]] = &[
