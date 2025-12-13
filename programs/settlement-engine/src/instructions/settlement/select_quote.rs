@@ -28,7 +28,7 @@ pub struct SelectQuote<'info> {
     )]
     pub rfq: Box<Account<'info, Rfq>>,
 
-    #[account()]
+    #[account(mut)]
     pub quote: Box<Account<'info, Quote>>,
 
     #[account(
