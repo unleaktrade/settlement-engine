@@ -176,6 +176,10 @@ pub fn commit_quote_handler(
     };
     require!(now <= commit_deadline, RfqError::CommitTooLate);
 
+    let Some(funding_deadline) = rfq.funding_deadline() else {
+        return err!(RfqError::InvalidRfqState);
+    };
+
     // Transfer taker bond USDC into RFQ's vault
     let cpi_accounts = Transfer {
         from: ctx.accounts.taker_payment_account.to_account_info(),
@@ -203,6 +207,9 @@ pub fn commit_quote_handler(
     quote.liquidity_proof = liquidity_proof;
     quote.committed_at = now;
     quote.revealed_at = None;
+    quote.max_funding_deadline = funding_deadline;
+    quote.selected = false;
+    quote.bonds_refunded_at = None;
     quote.quote_amount = None; // to be filled on reveal
     quote.taker_payment_account = ctx.accounts.taker_payment_account.key();
 
