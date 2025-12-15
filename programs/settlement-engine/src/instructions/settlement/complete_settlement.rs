@@ -172,7 +172,7 @@ pub fn complete_settlement_handler<'info>(
     let mut quote: Account<'info, Quote> = Account::try_from(quote_ai)?;
     require_eq!(quote_bump, quote.bump, RfqError::BumpMismatch);
 
-    require_eq!(quote.key(),settlement.quote,RfqError::InvalidQuote);
+    require_eq!(quote.key(), settlement.quote, RfqError::InvalidQuote);
     require!(quote.selected, RfqError::InvalidQuoteState);
 
     // Refund maker's bond

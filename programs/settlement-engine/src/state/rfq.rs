@@ -68,7 +68,7 @@ impl Rfq {
     }
 
     pub fn has_selection(&self) -> bool {
-        matches!(self.state, RfqState::Selected) && self.selected_at.is_some()
+        self.selected_at.is_some()
     }
 
     pub fn opened(&self) -> Option<i64> {

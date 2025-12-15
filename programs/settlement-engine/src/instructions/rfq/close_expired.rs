@@ -103,7 +103,7 @@ pub fn close_expired_handler(ctx: Context<CloseExpired>) -> Result<()> {
         // Seize other bonds
         let seized_amount: u64 = rfq
             .bond_amount
-            .checked_mul(rfq.committed_count.into())// there are only invalid commits (unrevealed)
+            .checked_mul(rfq.committed_count.into()) // there are only invalid commits (unrevealed)
             .ok_or(RfqError::ArithmeticOverflow)?;
 
         if seized_amount > 0 {

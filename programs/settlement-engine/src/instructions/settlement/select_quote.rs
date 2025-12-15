@@ -102,7 +102,7 @@ pub fn select_quote_handler(ctx: Context<SelectQuote>) -> Result<()> {
     require!(quote.rfq == rfq.key(), RfqError::InvalidRfqAssociation);
     require!(quote.is_revealed(), RfqError::InvalidQuoteState);
     require!(!quote.selected, RfqError::InvalidQuoteState);
-    
+
     require!(
         matches!(rfq.state, RfqState::Revealed),
         RfqError::InvalidRfqState

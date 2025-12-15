@@ -6,6 +6,8 @@ pub enum RfqError {
     InvalidRfqState,
     #[msg("Deadline has not been reached yet")]
     TooEarly,
+    #[msg("Cannot refund quote bonds before the funding deadline has passed")]
+    QuoteRefundBeforeFundingDeadline,
     #[msg("RFQ cannot be expired yet")]
     ExpireTooEarly,
     #[msg("Deadline passed")]
@@ -76,6 +78,12 @@ pub enum RfqError {
     InvalidMessageSize,
     #[msg("Invalid config account")]
     InvalidConfig,
+    #[msg("Quote must be revealed before bonds can be refunded")]
+    UnrevealedQuoteNotRefundable,
+    #[msg("Bonds have already been refunded for this quote")]
+    QuoteBondsAlreadyRefunded,
+    #[msg("Selected quote cannot be refunded; taker should complete settlement")]
+    SelectedQuoteNotRefundable,
     #[msg("Settlement does not belong to RFQ")]
     InvalidRfq,
     #[msg("Settlement does not belong to taker")]
