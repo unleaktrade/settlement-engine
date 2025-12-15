@@ -1,5 +1,5 @@
 use crate::state::rfq::{Rfq, RfqState};
-use crate::state::{Config, Quote, SlashedBondsTracker};
+use crate::state::{Config, Quote, SlashedBondsTracker, slashed_bonds_tracker};
 use crate::RfqError;
 use anchor_lang::prelude::*;
 use anchor_spl::{
@@ -83,12 +83,16 @@ pub struct RefundQuoteBonds<'info> {
 pub fn refund_quote_bonds_handler(ctx: Context<RefundQuoteBonds>) -> Result<()> {
     let rfq = &mut ctx.accounts.rfq;
     let quote = &mut ctx.accounts.quote;
+    let slashed_bonds_tracker = &mut ctx.accounts.slashed_bonds_tracker;
 
     require!(rfq.revealed_count > 0, RfqError::InvalidRfqState);
 
     require!(!quote.selected, RfqError::SelectedQuoteNotRefundable);
     require!(quote.is_revealed(), RfqError::UnrevealedQuoteNotRefundable);
-    require!(!quote.bonds_refunded(), RfqError::QuoteBondsAlreadyRefunded);
+    require!(
+        !quote.are_bonds_refunded(),
+        RfqError::QuoteBondsAlreadyRefunded
+    );
 
     let now = Clock::get()?.unix_timestamp;
     let funding_deadline = rfq.funding_deadline().ok_or(RfqError::InvalidRfqState)?;
@@ -97,6 +101,67 @@ pub fn refund_quote_bonds_handler(ctx: Context<RefundQuoteBonds>) -> Result<()> 
         RfqError::QuoteRefundBeforeFundingDeadline
     );
 
-    rfq.state = RfqState::Ignored;
+    let seeds_rfq: &[&[u8]] = &[
+        Rfq::SEED_PREFIX,
+        rfq.maker.as_ref(),
+        rfq.uuid.as_ref(),
+        &[rfq.bump],
+    ];
+
+    // Refund taker's bond
+    token::transfer(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.bonds_fees_vault.to_account_info(),
+                to: ctx.accounts.taker_payment_account.to_account_info(),
+                authority: rfq.to_account_info(),
+            },
+            &[seeds_rfq],
+        ),
+        rfq.bond_amount,
+    )?;
+
+    // update quote
+    quote.bonds_refunded_at = Some(now);
+
+    if !slashed_bonds_tracker.is_resolved() {
+        match rfq.state {
+            // maker didn't select a valid quote
+            // or taker didn't complete settlement
+            RfqState::Revealed | RfqState::Selected => {
+                let seized_amount: u64 = rfq
+                    .committed_count
+                    .checked_sub(rfq.revealed_count) // violations = commits - reveals
+                    .and_then(|v| v.checked_add(1)) // bonds of maker or selected taker
+                    .and_then(|v| rfq.bond_amount.checked_mul(v.into()))
+                    .ok_or(RfqError::ArithmeticOverflow)?;
+
+                if seized_amount > 0 {
+                    token::transfer(
+                        CpiContext::new_with_signer(
+                            ctx.accounts.token_program.to_account_info(),
+                            Transfer {
+                                from: ctx.accounts.bonds_fees_vault.to_account_info(),
+                                to: ctx.accounts.treasury_ata.to_account_info(),
+                                authority: rfq.to_account_info(),
+                            },
+                            &[seeds_rfq],
+                        ),
+                        seized_amount,
+                    )?;
+                }
+
+                // update slashed bonds tracker
+                slashed_bonds_tracker.amount = Some(seized_amount);
+                slashed_bonds_tracker.seized_at = Some(now);
+                //TODO: update rfq only if rfq state is RfqState::Revealed
+                // rfq.state = RfqState::Ignored;
+                // rfq.completed_at = Some(now);
+            }
+            _ => {} // do nothing
+        }
+    }
+
     Ok(())
 }

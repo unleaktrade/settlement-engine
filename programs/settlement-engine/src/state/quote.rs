@@ -30,7 +30,7 @@ impl Quote {
         self.revealed_at.is_some()
     }
 
-    pub fn bonds_refunded(&self) -> bool {
+    pub fn are_bonds_refunded(&self) -> bool {
         self.bonds_refunded_at.is_some()
     }
 }
