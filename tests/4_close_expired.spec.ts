@@ -177,11 +177,11 @@ describe.skip("CLOSE_EXPIRED_RFQ", () => {
     });
 
     after(async () => {
-        console.log("All CONFIG:", JSON.stringify((await program.account.config.all()), null, 2));
-        console.log("All RFQ:", JSON.stringify((await program.account.rfq.all()), null, 2));
-        console.log("All QUOTE:", JSON.stringify((await program.account.quote.all()), null, 2));
-        console.log("All COMMIT GUARDS:", JSON.stringify((await program.account.commitGuard.all()), null, 2));
-        console.log("All SLASHED_BONDS_TRAKER:", JSON.stringify((await program.account.slashedBondsTracker.all()), null, 2));
+        // console.log("All CONFIG:", JSON.stringify((await program.account.config.all()), null, 2));
+        // console.log("All RFQ:", JSON.stringify((await program.account.rfq.all()), null, 2));
+        // console.log("All QUOTE:", JSON.stringify((await program.account.quote.all()), null, 2));
+        // console.log("All COMMIT GUARDS:", JSON.stringify((await program.account.commitGuard.all()), null, 2));
+        // console.log("All SLASHED_BONDS_TRAKER:", JSON.stringify((await program.account.slashedBondsTracker.all()), null, 2));
         await program.methods
             .closeConfig()
             .accounts({ admin: admin.publicKey, config: configPda })

@@ -30,7 +30,7 @@ const configPda = (programId: PublicKey) =>
   PublicKey.findProgramAddressSync([Buffer.from("config")], programId);
 
 describe.skip("CONFIG", () => {
-  it("init/update/close works", async () => {
+  it("should init/update/close", async () => {
     const [cfgPda] = configPda(program.programId);
 
     const admin = Keypair.generate();
