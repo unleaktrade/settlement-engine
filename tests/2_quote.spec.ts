@@ -55,7 +55,7 @@ async function getAndLogBalance(
 
 // --- tests (ONLY initRfq) --------------------------------------------------
 
-describe.skip("QUOTE", () => {
+describe("QUOTE", () => {
     let configPda: PublicKey;
     let usdcMint: PublicKey;
     let baseMint: PublicKey;
@@ -382,16 +382,25 @@ describe.skip("QUOTE", () => {
         );
         console.log("Quote PDA:", quotePda.toBase58());
 
+        const fundingHorizon = rfq.openedAt.addn(commitTTL)
+            .addn(revealTTL)
+            .addn(selectionTTL)
+            .addn(fundingTTL);
+
         const quote = await program.account.quote.fetch(quotePda);
         assert(quote.taker.equals(taker.publicKey));
         assert(quote.rfq.equals(rfqPDA));
         assert.deepStrictEqual(quote.commitHash, Array.from(commit_hash));
         assert.deepStrictEqual(quote.liquidityProof, Array.from(liquidity_proof));
         assert.ok(quote.committedAt.toNumber() > 0);
-        assert(quote.revealedAt === null || quote.revealedAt === undefined, "revealedAt should be None before reveal");
-        assert(quote.quoteAmount === null || quote.quoteAmount === null, "quoteAmount should be None before reveal");
+        assert(!quote.revealedAt, "revealedAt should be None before reveal");
+        assert(quote.maxFundingDeadline.toNumber() > 0, "quote maxFundingDeadline should be set");
+        assert(quote.maxFundingDeadline.eq(fundingHorizon), "quote maxFundingDeadline should be funding horizon");
+        assert(!quote.quoteAmount, "quoteAmount should be None before reveal");
         assert.strictEqual(quote.bump, bumpQuote, "quote bump mismatch");
         assert(quote.takerPaymentAccount.equals(takerPaymentAccount), "taker payment account mismatch");
+        assert(!quote.bondsRefundedAt, "bondsRefundedAt should be None");
+        assert(!quote.selected, "quote selected should be false");
 
         rfq = await program.account.rfq.fetch(rfqPDA);
         assert.strictEqual(rfq.committedCount, 1, "rfq revealedCount should be 1");
@@ -769,6 +778,8 @@ describe.skip("QUOTE", () => {
         assert.ok(rfq.state.selected, "rfq state should be selected");
         assert.ok(rfq.selectedAt!.toNumber() > 0, "rfq selectedAt should be set");
         assert.strictEqual(quote.bump, bumpQuote, "quote bump mismatch");
+        assert(quote.selected, "quote selected should be true");
+        assert(!quote.bondsRefundedAt, "quote bondsRefundedAt should be None");
         assert.ok(rfq.selectedQuote!.equals(quotePda), "rfq selectedQuote mismatch");
         assert.ok(rfq.settlement!.equals(settlementPda), "rfq settlement mismatch");
 

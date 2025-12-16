@@ -128,17 +128,21 @@ pub mod settlement_engine {
         select_quote::select_quote_handler(ctx)
     }
 
-    pub fn complete_settlement<'info>(ctx: Context<'_, '_, 'info, 'info, CompleteSettlement<'info>>) -> Result<()> {
+    pub fn complete_settlement<'info>(
+        ctx: Context<'_, '_, 'info, 'info, CompleteSettlement<'info>>,
+    ) -> Result<()> {
         complete_settlement::complete_settlement_handler(ctx)
     }
 
-    // pub fn close_ignored(ctx: Context<CloseIgnored>) -> Result<()> {
-    //     close_ignored::close_ignored_handler(ctx)
-    // }
-    // pub fn close_expired(ctx: Context<CloseExpired>) -> Result<()> {
-    //     close_expired::close_expired_handler(ctx)
-    // }
-    // pub fn close_aborted(ctx: Context<CloseAborted>) -> Result<()> {
-    //     close_aborted::close_aborted_handler(ctx)
-    // }
+    pub fn close_expired(ctx: Context<CloseExpired>) -> Result<()> {
+        close_expired::close_expired_handler(ctx)
+    }
+
+    pub fn close_incomplete(ctx: Context<CloseIncomplete>) -> Result<()> {
+        close_incomplete::close_incomplete_handler(ctx)
+    }
+
+    pub fn refund_quote_bonds(ctx: Context<RefundQuoteBonds>) -> Result<()> {
+        refund_quote_bonds::refund_quote_bonds_handler(ctx)
+    }
 }
