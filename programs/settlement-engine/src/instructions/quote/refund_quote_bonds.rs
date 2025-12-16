@@ -1,5 +1,5 @@
 use crate::state::rfq::{Rfq, RfqState};
-use crate::state::{Config, Quote, SlashedBondsTracker, slashed_bonds_tracker};
+use crate::state::{Config, Quote, SlashedBondsTracker};
 use crate::RfqError;
 use anchor_lang::prelude::*;
 use anchor_spl::{
@@ -155,11 +155,13 @@ pub fn refund_quote_bonds_handler(ctx: Context<RefundQuoteBonds>) -> Result<()> 
                 // update slashed bonds tracker
                 slashed_bonds_tracker.amount = Some(seized_amount);
                 slashed_bonds_tracker.seized_at = Some(now);
-                //TODO: update rfq only if rfq state is RfqState::Revealed
-                // rfq.state = RfqState::Ignored;
-                // rfq.completed_at = Some(now);
+                // update rfq
+                if matches!(rfq.state, RfqState::Revealed) {
+                    rfq.state = RfqState::Ignored;
+                    rfq.completed_at = Some(now);
+                }
             }
-            _ => {} // do nothing
+            _ => (), // do nothing
         }
     }
 

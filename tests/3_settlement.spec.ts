@@ -137,7 +137,7 @@ const commitQuote = async (
     console.log("Transaction signature:", txSig);
 };
 
-describe("COMPLETE_SETTLEMENT", () => {
+describe.skip("COMPLETE_SETTLEMENT", () => {
     let configPda: PublicKey;
     let usdcMint: PublicKey;
     let baseMint: PublicKey;

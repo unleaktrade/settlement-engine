@@ -142,5 +142,7 @@ pub mod settlement_engine {
         close_incomplete::close_incomplete_handler(ctx)
     }
 
-    // refund_quote_bonds
+    pub fn refund_quote_bonds(ctx: Context<RefundQuoteBonds>) -> Result<()> {
+        refund_quote_bonds::refund_quote_bonds_handler(ctx)
+    }
 }

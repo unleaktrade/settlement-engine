@@ -47,6 +47,11 @@ const rfqPda = (maker: PublicKey, u16: Uint8Array) =>
         program.programId
     );
 
+const quotePda = (rfqPDA: PublicKey, taker: Keypair) => PublicKey.findProgramAddressSync(
+    [Buffer.from("quote"), rfqPDA.toBuffer(), taker.publicKey.toBuffer()],
+    program.programId
+);
+
 const settlementPda = (rfqPDA: PublicKey) => PublicKey.findProgramAddressSync(
     [Buffer.from("settlement"), rfqPDA.toBuffer()],
     program.programId
@@ -429,11 +434,8 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
             configPda,
             taker4PaymentAccount);
 
-        const [quotePda] = PublicKey.findProgramAddressSync(
-            [Buffer.from("quote"), rfqPDA.toBuffer(), taker.publicKey.toBuffer()],
-            program.programId
-        );
-        console.log("Quote PDA:", quotePda.toBase58());
+        const [quotePDA] = quotePda(rfqPDA, taker);
+        console.log("Quote PDA:", quotePDA.toBase58());
 
         const [commitGuardPda] = PublicKey.findProgramAddressSync(
             [Buffer.from("commit-guard"), commit_hashQ1],
@@ -441,11 +443,8 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
         );
         console.log("Commit Guard PDA:", commitGuardPda.toBase58());
 
-        const [quote2Pda] = PublicKey.findProgramAddressSync(
-            [Buffer.from("quote"), rfqPDA.toBuffer(), taker2.publicKey.toBuffer()],
-            program.programId
-        );
-        console.log("Quote2 PDA:", quote2Pda.toBase58());
+        const [quote2PDA] = quotePda(rfqPDA, taker2);
+        console.log("Quote2 PDA:", quote2PDA.toBase58());
 
         const [commitGuard2Pda] = PublicKey.findProgramAddressSync(
             [Buffer.from("commit-guard"), commit_hashQ2],
@@ -453,11 +452,8 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
         );
         console.log("Commit Guard 2 PDA:", commitGuard2Pda.toBase58());
 
-        const [quote3Pda] = PublicKey.findProgramAddressSync(
-            [Buffer.from("quote"), rfqPDA.toBuffer(), taker3.publicKey.toBuffer()],
-            program.programId
-        );
-        console.log("Quote3 PDA:", quote3Pda.toBase58());
+        const [quote3PDA] = quotePda(rfqPDA, taker3);
+        console.log("Quote3 PDA:", quote3PDA.toBase58());
 
         const [commitGuard3Pda] = PublicKey.findProgramAddressSync(
             [Buffer.from("commit-guard"), commit_hashQ3],
@@ -465,11 +461,8 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
         );
         console.log("Commit Guard 3 PDA:", commitGuard3Pda.toBase58());
 
-        const [quote4Pda] = PublicKey.findProgramAddressSync(
-            [Buffer.from("quote"), rfqPDA.toBuffer(), taker4.publicKey.toBuffer()],
-            program.programId
-        );
-        console.log("Quote4 PDA:", quote4Pda.toBase58());
+        const [quote4PDA] = quotePda(rfqPDA, taker4);
+        console.log("Quote4 PDA:", quote4PDA.toBase58());
 
         const [commitGuard4Pda] = PublicKey.findProgramAddressSync(
             [Buffer.from("commit-guard"), commit_hashQ4],
@@ -499,12 +492,12 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
         await Promise.all([
             program.methods
                 .revealQuote(Array.from(saltQ1), new anchor.BN(DEFAULT_QUOTE_AMOUNT))
-                .accounts({ rfq: rfqPDA, quote: quotePda, taker: taker.publicKey, config: configPda })
+                .accounts({ rfq: rfqPDA, quote: quotePDA, taker: taker.publicKey, config: configPda })
                 .signers([taker])
                 .rpc(),
             program.methods
                 .revealQuote(Array.from(saltQ2), new anchor.BN(DEFAULT_QUOTE_AMOUNT))
-                .accounts({ rfq: rfqPDA, quote: quote2Pda, taker: taker2.publicKey, config: configPda })
+                .accounts({ rfq: rfqPDA, quote: quote2PDA, taker: taker2.publicKey, config: configPda })
                 .signers([taker2])
                 .rpc()
         ]);
@@ -517,7 +510,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
             .accounts({
                 maker: maker.publicKey,
                 rfq: rfqPDA,
-                quote: quotePda,
+                quote: quotePDA,
                 baseMint,
                 quoteMint,
                 vaultBaseAta: baseVault,
@@ -541,8 +534,8 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
             program.account.rfq.fetch(rfqPDA),
             program.account.settlement.fetch(settlementPDA),
             program.account.slashedBondsTracker.fetch(slashedBondsTrackerPDA),
-            program.account.quote.fetch(quotePda),
-            program.account.quote.fetch(quote2Pda),
+            program.account.quote.fetch(quotePDA),
+            program.account.quote.fetch(quote2PDA),
         ]);
 
         assert.strictEqual(rfq.bump, rfqBump, "rfq bump mismatch");
@@ -584,13 +577,13 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
         [rfq, slashedBondsTracker, quote, quote2] = await Promise.all([
             program.account.rfq.fetch(rfqPDA),
             program.account.slashedBondsTracker.fetch(slashedBondsTrackerPDA),
-            program.account.quote.fetch(quotePda),
-            program.account.quote.fetch(quote2Pda),
+            program.account.quote.fetch(quotePDA),
+            program.account.quote.fetch(quote2PDA),
         ]);
 
         const [quote3, quote4] = await Promise.all([
-            program.account.quote.fetch(quote3Pda),
-            program.account.quote.fetch(quote4Pda),
+            program.account.quote.fetch(quote3PDA),
+            program.account.quote.fetch(quote4PDA),
         ]);
 
         const [
@@ -616,7 +609,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
 
         assert.ok(rfq.state.incomplete, "rfq state should be incomplete");
         assert(rfq.settlement === null || rfq.settlement === undefined, "rfq settlement should be None");
-        assert(rfq.completedAt!.toNumber() > 0, "rfq should be set");
+        assert(rfq.completedAt!.toNumber() > 0, "rfq completedAt should be set");
         assert(slashedBondsTracker.rfq.equals(rfqPDA), "RFQ mismatch in slashBoundsTracker");
         assert(slashedBondsTracker.seizedAt.eq(rfq.completedAt), "slashBondsTracker seizedAt and rfq completeAt shoud be equal");
         assert.strictEqual(slashedBondsTracker.bump, bumpslashedBondsTracker, "bump mismatch for slashedBondsTracker");
@@ -655,5 +648,138 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
         assert(quote4.maxFundingDeadline.eq(fundingHorizon), "quote4 maxFundingDeadline should be fundingHorizon");
         assert(!quote4.bondsRefundedAt, "quote4 bondsRefundedAt should be None");
         assert(!quote4.selected, "quote4 should not be selected");
+    });
+
+    it("should refund quote bonds", async () => {
+        console.log("Taker:", taker.publicKey.toBase58());
+        console.log("Taker2:", taker2.publicKey.toBase58());
+        console.log("Taker3:", taker3.publicKey.toBase58());
+        console.log("Taker4:", taker4.publicKey.toBase58());
+
+        console.log("Rfq PDA:", rfqPDA.toBase58());
+        console.log("Slashed Bonds Tracker PDA", slashedBondsTrackerPDA.toBase58());
+
+        const [quotePDA] = quotePda(rfqPDA, taker);
+        console.log("Quote PDA:", quotePDA.toBase58());
+        const [quote2PDA] = quotePda(rfqPDA, taker2);
+        console.log("Quote2 PDA:", quote2PDA.toBase58());
+        const [quote3PDA] = quotePda(rfqPDA, taker3);
+        console.log("Quote3 PDA:", quote3PDA.toBase58());
+        const [quote4PDA] = quotePda(rfqPDA, taker4);
+        console.log("Quote4 PDA:", quote4PDA.toBase58());
+
+        const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
+        const takerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker.publicKey);
+        const taker2PaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker2.publicKey);
+        const taker3PaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker3.publicKey);
+        const taker4PaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker4.publicKey);
+        const treasuryPaymentAccount = getAssociatedTokenAddressSync(usdcMint, treasury.publicKey);
+
+        let failed = false;
+        try {
+            await program.methods.refundQuoteBonds()
+                .accounts({
+                    taker: taker.publicKey,
+                    config: configPda,
+                    rfq: rfqPDA,
+                    usdcMint,
+                    bondsFeesVault,
+                    takerPaymentAccount,
+                    treasuryUsdcOwner: treasury.publicKey,
+                    slashBoundsTracker: slashedBondsTrackerPDA,
+                })
+                .signers([taker])
+                .rpc();
+        } catch {
+            failed = true;
+        }
+        assert(failed, "refundQuoteBonds() should fail for taker: selected quote not refundable");
+
+        await program.methods.refundQuoteBonds()
+            .accounts({
+                taker: taker2.publicKey,
+                config: configPda,
+                rfq: rfqPDA,
+                usdcMint,
+                bondsFeesVault,
+                takerPaymentAccount: taker2PaymentAccount,
+                treasuryUsdcOwner: treasury.publicKey,
+                slashBoundsTracker: slashedBondsTrackerPDA,
+            })
+            .signers([taker2])
+            .rpc();
+
+
+        try {
+            await program.methods.refundQuoteBonds()
+                .accounts({
+                    taker: taker3.publicKey,
+                    config: configPda,
+                    rfq: rfqPDA,
+                    usdcMint,
+                    bondsFeesVault,
+                    takerPaymentAccount: taker3PaymentAccount,
+                    treasuryUsdcOwner: treasury.publicKey,
+                    slashBoundsTracker: slashedBondsTrackerPDA,
+                })
+                .signers([taker3])
+                .rpc();
+        } catch {
+            failed = true;
+        }
+        assert(failed, "refundQuoteBonds() should fail for taker3: unrevealed quote not refundable");
+
+        try {
+            await program.methods.refundQuoteBonds()
+                .accounts({
+                    taker: taker4.publicKey,
+                    config: configPda,
+                    rfq: rfqPDA,
+                    usdcMint,
+                    bondsFeesVault,
+                    takerPaymentAccount: taker4PaymentAccount,
+                    treasuryUsdcOwner: treasury.publicKey,
+                    slashBoundsTracker: slashedBondsTrackerPDA,
+                })
+                .signers([taker4])
+                .rpc();
+        } catch {
+            failed = true;
+        }
+        assert(failed, "refundQuoteBonds() should fail for taker4: unrevealed quote not refundable");
+
+        const [rfq, slashedBondsTracker, quote, quote2, quote3, quote4] = await Promise.all([
+            program.account.rfq.fetch(rfqPDA),
+            program.account.slashedBondsTracker.fetch(slashedBondsTrackerPDA),
+            program.account.quote.fetch(quotePDA),
+            program.account.quote.fetch(quote2PDA),
+            program.account.quote.fetch(quote3PDA),
+            program.account.quote.fetch(quote4PDA),
+        ]);
+
+        const [
+            takerPaymentAccountBalance,
+            taker2PaymentAccountBalance,
+            taker3PaymentAccountBalance,
+            taker4PaymentAccountBalance,
+            bondsFeesVaultBalance,
+            treasuryPaymentAccountBalance,
+        ]
+            = await Promise.all([
+                getAndLogBalance("After closing incomplete Rfq", "Taker USDC", takerPaymentAccount),
+                getAndLogBalance("After closing incomplete Rfq", "Taker2 USDC", taker2PaymentAccount),
+                getAndLogBalance("After closing incomplete Rfq", "Taker3 USDC", taker3PaymentAccount),
+                getAndLogBalance("After closing incomplete Rfq", "Taker4 USDC", taker4PaymentAccount),
+                getAndLogBalance("After closing incomplete Rfq", "RFQ Bonds Vault", bondsFeesVault),
+                getAndLogBalance("After closing incomplete Rfq", "Treasury USCD", treasuryPaymentAccount),
+            ]);
+
+        assert.ok(rfq.state.incomplete, "rfq state should be incomplete");
+        assert(!!rfq.completedAt, "rfq completedAt should be set");
+        assert(slashedBondsTracker.seizedAt.eq(rfq.completedAt), "slashBondsTracker seizedAt and rfq completeAt shoud be equal");
+        assert(!quote.bondsRefundedAt, "quote bondsRefundedAt should be None");
+        assert(!!quote2.bondsRefundedAt, "quote bondsRefundedAt should be set");
+        assert(!quote3.bondsRefundedAt, "quote bondsRefundedAt should be None");
+        assert(!quote3.bondsRefundedAt, "quote bondsRefundedAt should be None");
     });
 });
