@@ -764,22 +764,27 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
             taker4PaymentAccountBalance,
             bondsFeesVaultBalance,
             treasuryPaymentAccountBalance,
-        ]
-            = await Promise.all([
-                getAndLogBalance("After closing incomplete Rfq", "Taker USDC", takerPaymentAccount),
-                getAndLogBalance("After closing incomplete Rfq", "Taker2 USDC", taker2PaymentAccount),
-                getAndLogBalance("After closing incomplete Rfq", "Taker3 USDC", taker3PaymentAccount),
-                getAndLogBalance("After closing incomplete Rfq", "Taker4 USDC", taker4PaymentAccount),
-                getAndLogBalance("After closing incomplete Rfq", "RFQ Bonds Vault", bondsFeesVault),
-                getAndLogBalance("After closing incomplete Rfq", "Treasury USCD", treasuryPaymentAccount),
-            ]);
+        ] = await Promise.all([
+            getAndLogBalance("After refunding quote bonds", "Taker USDC", takerPaymentAccount),
+            getAndLogBalance("After refunding quote bonds", "Taker2 USDC", taker2PaymentAccount),
+            getAndLogBalance("After refunding quote bonds", "Taker3 USDC", taker3PaymentAccount),
+            getAndLogBalance("After refunding quote bonds", "Taker4 USDC", taker4PaymentAccount),
+            getAndLogBalance("After refunding quote bonds", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After refunding quote bonds", "Treasury USCD", treasuryPaymentAccount),
+        ]);
 
         assert.ok(rfq.state.incomplete, "rfq state should be incomplete");
         assert(!!rfq.completedAt, "rfq completedAt should be set");
         assert(slashedBondsTracker.seizedAt.eq(rfq.completedAt), "slashBondsTracker seizedAt and rfq completeAt shoud be equal");
-        assert(!quote.bondsRefundedAt, "quote bondsRefundedAt should be None");
-        assert(!!quote2.bondsRefundedAt, "quote bondsRefundedAt should be set");
-        assert(!quote3.bondsRefundedAt, "quote bondsRefundedAt should be None");
-        assert(!quote3.bondsRefundedAt, "quote bondsRefundedAt should be None");
+        assert(!quote.bondsRefundedAt, "quote bondsRefundedAt should be None"); // no-show
+        assert(!!quote2.bondsRefundedAt, "quote2 bondsRefundedAt should be set");
+        assert(!quote3.bondsRefundedAt, "quote3 bondsRefundedAt should be None");// invalid quote
+        assert(!quote4.bondsRefundedAt, "quote4 bondsRefundedAt should be None");// invalid quote
+        assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(takerPaymentAccountBalance), "taker balance mismatch");
+        assert(taker2PaymentAccountBalance.eq(new anchor.BN(DEFAULT_FEE_AMOUNT).addn(DEFAULT_BOND_AMOUNT)), "taker2 balance mismatch");
+        assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(taker3PaymentAccountBalance), "taker3 balance mismatch");
+        assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(taker4PaymentAccountBalance), "taker4 balance mismatch");
+        assert(bondsFeesVaultBalance.isZero(), `bonds and fees vault should be 0`);
+        assert(treasuryPaymentAccountBalance.eq(slashedBondsTracker.amount), "treasury payment balance should be equalt to slashed bonds tracker amount");
     });
 });
