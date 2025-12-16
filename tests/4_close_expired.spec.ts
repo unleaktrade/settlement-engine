@@ -128,7 +128,7 @@ const commitQuote = async (
     console.log("Transaction signature:", txSig);
 };
 
-describe.skip("CLOSE_EXPIRED_RFQ", () => {
+describe("CLOSE_EXPIRED_RFQ", () => {
     let configPda: PublicKey;
     let usdcMint: PublicKey;
     let baseMint: PublicKey;
