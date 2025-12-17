@@ -22,6 +22,8 @@ pub struct RevealQuote<'info> {
 
     #[account(
         mut,
+        seeds = [Rfq::SEED_PREFIX, rfq.maker.key().as_ref(), rfq.uuid.as_ref()],
+        bump = rfq.bump,
         has_one = config,
         constraint = matches!(rfq.state, RfqState::Committed | RfqState::Revealed) @ RfqError::InvalidRfqState,
     )]

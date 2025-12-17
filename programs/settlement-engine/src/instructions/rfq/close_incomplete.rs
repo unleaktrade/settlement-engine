@@ -66,6 +66,7 @@ pub struct CloseIncomplete<'info> {
         mut,
         token::mint = usdc_mint,
         token::authority = maker,
+        constraint = rfq.maker_payment_account == maker_payment_account.key() @ RfqError::UnauthorizedMakerPaymentAccount,
     )]
     pub maker_payment_account: Box<Account<'info, TokenAccount>>,
 
