@@ -7,10 +7,10 @@ skip-lint = false
 seeds = true
 
 [programs.localnet]
-settlement_engine = "E2amAUcnxFqJPbekUWPEAYkdahFPAnWoCFwaz2bryUJF"
+settlement_engine = "7wrjbU1NbVtUCUGP1obi3aiT6QrjXZnH5XJDXMsKtkPG"
 
 [programs.devnet]
-settlement_engine = "E2amAUcnxFqJPbekUWPEAYkdahFPAnWoCFwaz2bryUJF"
+settlement_engine = "7wrjbU1NbVtUCUGP1obi3aiT6QrjXZnH5XJDXMsKtkPG"
 
 [registry]
 url = "https://api.apr.dev"
