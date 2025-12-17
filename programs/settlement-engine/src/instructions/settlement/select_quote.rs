@@ -17,7 +17,7 @@ pub struct SelectQuote<'info> {
         seeds = [Config::SEED_PREFIX],
         bump = config.bump,
     )]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
 
     #[account(
         mut,
@@ -28,7 +28,11 @@ pub struct SelectQuote<'info> {
     )]
     pub rfq: Box<Account<'info, Rfq>>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [Quote::SEED_PREFIX, rfq.key().as_ref(), quote.taker.as_ref()],
+        bump = quote.bump,
+    )]
     pub quote: Box<Account<'info, Quote>>,
 
     #[account(
@@ -41,7 +45,7 @@ pub struct SelectQuote<'info> {
     pub settlement: Account<'info, Settlement>,
 
     #[account()]
-    pub quote_mint: Account<'info, Mint>,
+    pub quote_mint: Box<Account<'info, Mint>>,
 
     #[account(
         init_if_needed,
@@ -52,7 +56,7 @@ pub struct SelectQuote<'info> {
     pub maker_quote_account: Account<'info, TokenAccount>,
 
     #[account()]
-    pub base_mint: Account<'info, Mint>,
+    pub base_mint: Box<Account<'info, Mint>>,
 
     #[account(
         init_if_needed,
@@ -67,7 +71,7 @@ pub struct SelectQuote<'info> {
         token::mint = base_mint,
         token::authority = maker,
     )]
-    pub maker_base_account: Account<'info, TokenAccount>,
+    pub maker_base_account: Box<Account<'info, TokenAccount>>,
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
@@ -75,7 +79,6 @@ pub struct SelectQuote<'info> {
 }
 
 pub fn select_quote_handler(ctx: Context<SelectQuote>) -> Result<()> {
-    let now = Clock::get()?.unix_timestamp;
     let rfq = &mut ctx.accounts.rfq;
     let quote = &mut ctx.accounts.quote;
     let settlement = &mut ctx.accounts.settlement;
@@ -91,6 +94,7 @@ pub fn select_quote_handler(ctx: Context<SelectQuote>) -> Result<()> {
 
     // require_keys_eq!(rfq.key(), expected_rfq, RfqError::InvalidRfqPda);
 
+    let now = Clock::get()?.unix_timestamp;
     match (rfq.reveal_deadline(), rfq.selection_deadline()) {
         (Some(reveal_deadline), Some(selection_deadline)) => {
             require!(now > reveal_deadline, RfqError::SelectionTooEarly);
