@@ -52,7 +52,8 @@ pub fn update_rfq_handler(
         rfq.min_quote_amount = v;
     }
     if let Some(v) = new_taker_fee_usdc {
-        require!(v > 0, RfqError::InvalidFeeAmount);
+        // fee_amount can be zero
+        // require!(v > 0, RfqError::InvalidFeeAmount);
         rfq.fee_amount = v;
     }
 
