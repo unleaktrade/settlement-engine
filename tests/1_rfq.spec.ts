@@ -162,6 +162,7 @@ describe("RFQ", () => {
 
         const rfq = await program.account.rfq.fetch(rfqAddr);
         assert(rfq.maker.equals(maker.publicKey), "maker mismatch");
+        assert(rfq.facilitator.equals(facilitator.publicKey), "facilitator mismatch");
         assert.strictEqual(rfq.bump, bump, "bump mismatch");
         assert.deepStrictEqual(rfq.uuid, Array.from(u), "uuid mismatch");
         assert(rfq.baseMint.equals(baseMint), "base mint mismatch");
@@ -418,8 +419,10 @@ describe("RFQ", () => {
             program.account.rfq.fetch(pdaB),
         ]);
         assert(a.maker.equals(makerA.publicKey));
+        assert(!a.facilitator, "a's facilitator should be None");
         assert.deepStrictEqual(a.uuid, Array.from(u), "uuid mismatch for rfq a");
         assert(b.maker.equals(makerB.publicKey));
+        assert(!b.facilitator, "b's facilitator should be None");
         assert.deepStrictEqual(b.uuid, Array.from(u), "uuid mismatch for rfq b");
     });
 
@@ -589,6 +592,7 @@ describe("RFQ", () => {
 
         const rfq = await program.account.rfq.fetch(rfqAddr);
         assert(rfq.maker.equals(maker.publicKey), "maker mismatch");
+        assert(rfq.facilitator.equals(facilitator.publicKey), "facilitator mismatch");
         assert.strictEqual(rfq.bump, bump, "bump mismatch");
         assert.deepStrictEqual(rfq.uuid, Array.from(u), "uuid mismatch");
         assert(rfq.baseMint.equals(quoteMint), "base mint mismatch");
@@ -697,6 +701,7 @@ describe("RFQ", () => {
 
         const rfq = await program.account.rfq.fetch(rfqAddr);
         assert(rfq.maker.equals(maker.publicKey), "maker mismatch");
+        assert(rfq.facilitator.equals(facilitator.publicKey), "facilitator mismatch");
         assert.strictEqual(rfq.bump, bump, "bump mismatch");
         assert.deepStrictEqual(rfq.uuid, Array.from(u), "uuid mismatch");
         assert(rfq.baseMint.equals(baseMint), "base mint mismatch");
