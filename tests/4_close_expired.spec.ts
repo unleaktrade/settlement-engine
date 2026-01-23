@@ -164,7 +164,7 @@ describe.skip("CLOSE_EXPIRED_RFQ", () => {
         let failed = false;
         try {
             await program.methods
-                .initConfig(usdcMint, treasury.publicKey, liquidityGuard)
+                .initConfig(usdcMint, treasury.publicKey, liquidityGuard, null)
                 .accounts({ admin: admin.publicKey })
                 .signers([admin])
                 .rpc();

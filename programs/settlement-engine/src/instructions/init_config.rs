@@ -25,6 +25,7 @@ pub fn init_config_handler(
     usdc_mint: Pubkey,
     treasury_usdc_owner: Pubkey,
     liquidity_guard: Pubkey,
+    facilitator_fee_bps: Option<u16>,
 ) -> Result<()> {
     let bump = ctx.bumps.config;
     let cfg = &mut ctx.accounts.config;
@@ -33,7 +34,7 @@ pub fn init_config_handler(
     cfg.usdc_mint = usdc_mint;
     cfg.treasury_usdc_owner = treasury_usdc_owner;
     cfg.liquidity_guard = liquidity_guard;
-    cfg.facilitator_fee_bps = 1000;
+    cfg.facilitator_fee_bps = facilitator_fee_bps.unwrap_or(1000);
     cfg.bump = bump;
 
     Ok(())

@@ -18,8 +18,15 @@ pub mod settlement_engine {
         usdc_mint: Pubkey,
         treasury_usdc_owner: Pubkey,
         liquidity_guard: Pubkey,
+        facilitator_fee_bps: Option<u16>,
     ) -> Result<()> {
-        init_config::init_config_handler(ctx, usdc_mint, treasury_usdc_owner, liquidity_guard)
+        init_config::init_config_handler(
+            ctx,
+            usdc_mint,
+            treasury_usdc_owner,
+            liquidity_guard,
+            facilitator_fee_bps,
+        )
     }
 
     pub fn update_config(
@@ -28,6 +35,7 @@ pub mod settlement_engine {
         new_usdc_mint: Option<Pubkey>,
         new_treasury_usdc_owner: Option<Pubkey>,
         new_liquidity_guard: Option<Pubkey>,
+        new_facilitator_fee_bps: Option<u16>,
     ) -> Result<()> {
         update_config::update_config_handler(
             ctx,
@@ -35,6 +43,7 @@ pub mod settlement_engine {
             new_usdc_mint,
             new_treasury_usdc_owner,
             new_liquidity_guard,
+            new_facilitator_fee_bps,
         )
     }
 

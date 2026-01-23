@@ -80,7 +80,7 @@ describe.skip("RFQ", () => {
             treasury = Keypair.generate().publicKey;
             const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
             await program.methods
-                .initConfig(usdcMint, treasury, liquidityGuard)
+                .initConfig(usdcMint, treasury, liquidityGuard, null)
                 .accounts({ admin: admin.publicKey })
                 .signers([admin])
                 .rpc();

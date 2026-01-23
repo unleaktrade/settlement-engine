@@ -108,7 +108,7 @@ describe.skip("QUOTE", () => {
         if (needInit) {
             const treasury = Keypair.generate().publicKey;
             await program.methods
-                .initConfig(usdcMint, treasury, liquidityGuard)
+                .initConfig(usdcMint, treasury, liquidityGuard, null)
                 .accounts({ admin: admin.publicKey })
                 .signers([admin])
                 .rpc();

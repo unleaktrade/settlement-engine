@@ -46,7 +46,7 @@ describe("CONFIG", () => {
 
     // init_config (admin is both payer and signer)
     await program.methods
-      .initConfig(usdcMint, treasury, liquidityGuard)
+      .initConfig(usdcMint, treasury, liquidityGuard, null)
       .accounts({
         admin: admin.publicKey,
       })
@@ -63,7 +63,7 @@ describe("CONFIG", () => {
 
     // update_config (must be signed by current admin)
     await program.methods
-      .updateConfig(newAdmin.publicKey, null, null, null)
+      .updateConfig(newAdmin.publicKey, null, null, null, null)
       .accounts({ admin: admin.publicKey, config: cfgPda })
       .signers([admin])
       .rpc();
@@ -77,7 +77,7 @@ describe("CONFIG", () => {
     const treasury2 = Keypair.generate().publicKey;
     const liquidityGuard2 = Keypair.generate().publicKey;
     await program.methods
-      .updateConfig(null, usdcMint2, treasury2, liquidityGuard2)
+      .updateConfig(null, usdcMint2, treasury2, liquidityGuard2, null)
       .accounts({ admin: newAdmin.publicKey, config: cfgPda })
       .signers([newAdmin])
       .rpc();
