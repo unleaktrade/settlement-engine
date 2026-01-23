@@ -344,7 +344,8 @@ describe.skip("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                     commitTTL,
                     revealTTL,
                     selectionTTL,
-                    fundingTTL
+                    fundingTTL,
+                    null
                 )
                 .accounts({
                     maker: maker.publicKey,

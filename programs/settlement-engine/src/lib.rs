@@ -65,6 +65,7 @@ pub mod settlement_engine {
         reveal_ttl_secs: u32,
         selection_ttl_secs: u32,
         fund_ttl_secs: u32,
+        facilitator: Option<Pubkey>,
     ) -> Result<()> {
         init_rfq::init_rfq_handler(
             ctx,
@@ -79,6 +80,7 @@ pub mod settlement_engine {
             reveal_ttl_secs,
             selection_ttl_secs,
             fund_ttl_secs,
+            facilitator,
         )
     }
 

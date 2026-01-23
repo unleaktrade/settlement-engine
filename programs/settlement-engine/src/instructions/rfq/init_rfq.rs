@@ -69,6 +69,7 @@ pub fn init_rfq_handler(
     reveal_ttl_secs: u32,
     selection_ttl_secs: u32,
     fund_ttl_secs: u32,
+    facilitator: Option<Pubkey>,
 ) -> Result<()> {
     let bump = ctx.bumps.rfq;
 
@@ -120,6 +121,7 @@ pub fn init_rfq_handler(
 
     rfq.bonds_fees_vault = ctx.accounts.bonds_fees_vault.key();
     rfq.maker_payment_account = ctx.accounts.maker_payment_account.key();
+    rfq.facilitator = facilitator;
 
     Ok(())
 }

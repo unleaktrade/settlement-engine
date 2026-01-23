@@ -157,7 +157,8 @@ describe.skip("QUOTE", () => {
                     commitTTL,
                     revealTTL,
                     selectionTTL,
-                    fundingTTL
+                    fundingTTL,
+                    null
                 )
                 .accounts({
                     maker: maker.publicKey,

@@ -48,7 +48,7 @@ export const slashedBondsTrackerPda = (rfqPDA: PublicKey) => PublicKey.findProgr
 
 // --- tests (ONLY initRfq) --------------------------------------------------
 
-describe.skip("RFQ", () => {
+describe("RFQ", () => {
     const admin = Keypair.generate();
     let configPda: PublicKey;
     let usdcMint: PublicKey;
@@ -98,6 +98,8 @@ describe.skip("RFQ", () => {
     it("creates RFQ PDA with uuid and stores fields", async () => {
         const maker = Keypair.generate();
         await fund(maker);
+        const facilitator = Keypair.generate();
+        await fund(facilitator);
 
         const u = uuidBytes();
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
@@ -142,7 +144,8 @@ describe.skip("RFQ", () => {
                 commitTTL,
                 revealTTL,
                 selectionTTL,
-                fundingTTL
+                fundingTTL,
+                facilitator.publicKey
             )
             .accounts({
                 maker: maker.publicKey,
@@ -223,7 +226,7 @@ describe.skip("RFQ", () => {
             .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
                 new anchor.BN(1_000_000_000),
                 new anchor.BN(1_000_000_000),
-                new anchor.BN(1_000), 1, 1, 1, 1)
+                new anchor.BN(1_000), 1, 1, 1, 1, null)
             .accounts({ maker: maker.publicKey, config: configPda, usdcMint, bondsFeesVault, makerPaymentAccount, })
             .signers([maker])
             .rpc();
@@ -235,7 +238,7 @@ describe.skip("RFQ", () => {
                 .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
                     new anchor.BN(1_000_000_000),
                     new anchor.BN(1_000_000_000),
-                    new anchor.BN(1_000), 1, 1, 1, 1)
+                    new anchor.BN(1_000), 1, 1, 1, 1, null)
                 .accounts({ maker: maker.publicKey, config: configPda, usdcMint })
                 .signers([maker])
                 .rpc();
@@ -282,7 +285,7 @@ describe.skip("RFQ", () => {
                 .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(0),
                     new anchor.BN(1_000_000_000),
                     new anchor.BN(1_000_000_000),
-                    new anchor.BN(1_000), 1, 1, 1, 1)
+                    new anchor.BN(1_000), 1, 1, 1, 1, null)
                 .accounts({ maker: maker.publicKey, config: configPda, usdcMint, bondsFeesVault, makerPaymentAccount })
                 .signers([maker])
                 .rpc();
@@ -297,7 +300,7 @@ describe.skip("RFQ", () => {
                 .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
                     new anchor.BN(0),
                     new anchor.BN(1_000_000_000),
-                    new anchor.BN(1_000), 1, 1, 1, 1)
+                    new anchor.BN(1_000), 1, 1, 1, 1, null)
                 .accounts({ maker: maker.publicKey, config: configPda, usdcMint })
                 .signers([maker])
                 .rpc();
@@ -312,7 +315,7 @@ describe.skip("RFQ", () => {
                 .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
                     new anchor.BN(1_000_000_000),
                     new anchor.BN(0),
-                    new anchor.BN(1_000), 1, 1, 1, 1)
+                    new anchor.BN(1_000), 1, 1, 1, 1, null)
                 .accounts({ maker: maker.publicKey, config: configPda, usdcMint })
                 .signers([maker])
                 .rpc();
@@ -327,7 +330,7 @@ describe.skip("RFQ", () => {
                 .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
                     new anchor.BN(1_000_000_000),
                     new anchor.BN(1_000_000_000),
-                    new anchor.BN(0), 1, 1, 1, 1)
+                    new anchor.BN(0), 1, 1, 1, 1, null)
                 .accounts({ maker: maker.publicKey, config: configPda, usdcMint })
                 .signers([maker])
                 .rpc();
@@ -396,7 +399,7 @@ describe.skip("RFQ", () => {
             .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
                 new anchor.BN(1_000_000_000),
                 new anchor.BN(1_000_000_000),
-                new anchor.BN(1_000), 1, 1, 1, 1)
+                new anchor.BN(1_000), 1, 1, 1, 1, null)
             .accounts({ maker: makerA.publicKey, config: configPda, usdcMint, bondsFeesVault: bondsFeesVaultRfq1, makerPaymentAccount: makerAPaymentAccount })
             .signers([makerA])
             .rpc();
@@ -405,7 +408,7 @@ describe.skip("RFQ", () => {
             .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
                 new anchor.BN(1_000_000_000),
                 new anchor.BN(1_000_000_000),
-                new anchor.BN(1_000), 1, 1, 1, 1)
+                new anchor.BN(1_000), 1, 1, 1, 1, null)
             .accounts({ maker: makerB.publicKey, config: configPda, usdcMint, bondsFeesVault: bondsFeesVaultRfq2, makerPaymentAccount: makerBPaymentAccount })
             .signers([makerB])
             .rpc();
@@ -457,7 +460,7 @@ describe.skip("RFQ", () => {
             .initRfq(Array.from(u1) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
                 new anchor.BN(1_000_000_000),
                 new anchor.BN(1_000_000_000),
-                new anchor.BN(1_000), 1, 1, 1, 1)
+                new anchor.BN(1_000), 1, 1, 1, 1, null)
             .accounts({ maker: maker.publicKey, config: configPda, usdcMint, bondsFeesVault: bondsFeesVaultRfq1, makerPaymentAccount })
             .signers([maker])
             .rpc();
@@ -473,7 +476,7 @@ describe.skip("RFQ", () => {
             .initRfq(Array.from(u2) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
                 new anchor.BN(1_000_000_000),
                 new anchor.BN(1_000_000_000),
-                new anchor.BN(1_000), 1, 1, 1, 1)
+                new anchor.BN(1_000), 1, 1, 1, 1, null)
             .accounts({ maker: maker.publicKey, config: configPda, usdcMint, bondsFeesVault: bondsFeesVaultRfq2, makerPaymentAccount })
             .signers([maker])
             .rpc();
@@ -498,6 +501,8 @@ describe.skip("RFQ", () => {
     it("updates RFQ", async () => {
         const maker = Keypair.generate();
         await fund(maker);
+        const facilitator = Keypair.generate();
+        await fund(facilitator);
 
         const u = uuidBytes();
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
@@ -547,7 +552,8 @@ describe.skip("RFQ", () => {
                 commitTTL,
                 revealTTL,
                 selectionTTL,
-                fundingTTL
+                fundingTTL,
+                facilitator.publicKey
             )
             .accounts({
                 maker: maker.publicKey,
@@ -605,6 +611,8 @@ describe.skip("RFQ", () => {
     it("opens RFQ", async () => {
         const maker = Keypair.generate();
         await fund(maker);
+        const facilitator = Keypair.generate();
+        await fund(facilitator);
 
         const u = uuidBytes();
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
@@ -657,7 +665,8 @@ describe.skip("RFQ", () => {
                 commitTTL,
                 revealTTL,
                 selectionTTL,
-                fundingTTL
+                fundingTTL,
+                facilitator.publicKey
             )
             .accounts({
                 maker: maker.publicKey,
@@ -836,7 +845,8 @@ describe.skip("RFQ", () => {
                 commitTTL,
                 revealTTL,
                 selectionTTL,
-                fundingTTL
+                fundingTTL,
+                null
             )
             .accounts({
                 maker: maker.publicKey,

@@ -306,7 +306,8 @@ describe.skip("CLOSE_EXPIRED_RFQ", () => {
                     commitTTL,
                     revealTTL,
                     selectionTTL,
-                    fundingTTL
+                    fundingTTL,
+                    null
                 )
                 .accounts({
                     maker: maker.publicKey,
