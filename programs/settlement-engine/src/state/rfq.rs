@@ -31,9 +31,6 @@ pub struct Rfq {
     pub selected_at: Option<i64>,  // set on selection
     pub completed_at: Option<i64>, // set on settlement completion
 
-    // misc
-    pub bump: u8,
-
     // activity counters
     pub committed_count: u16,
     pub revealed_count: u16,
@@ -45,6 +42,11 @@ pub struct Rfq {
     // escrow & maker references
     pub bonds_fees_vault: Pubkey, // ATA(owner = rfq PDA, mint = Config.usdc_mint)
     pub maker_payment_account: Pubkey,
+
+    //facilitator
+    pub facilitator: Option<Pubkey>,
+
+    pub bump: u8,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, InitSpace)]

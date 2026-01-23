@@ -20,6 +20,9 @@ pub struct Quote {
     pub taker_payment_account: Pubkey,
     pub selected: bool,
 
+    //facilitator
+    pub facilitator: Option<Pubkey>,
+
     pub bump: u8,
 }
 
