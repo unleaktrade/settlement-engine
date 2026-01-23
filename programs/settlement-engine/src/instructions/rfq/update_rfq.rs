@@ -1,4 +1,4 @@
-use crate::state::rfq::{Rfq, RfqState};
+use crate::state::rfq::{FacilitatorUpdate, Rfq, RfqState};
 use crate::RfqError;
 use anchor_lang::prelude::*;
 
@@ -29,6 +29,7 @@ pub fn update_rfq_handler(
     new_reveal_ttl_secs: Option<u32>,
     new_selection_ttl_secs: Option<u32>,
     new_fund_ttl_secs: Option<u32>,
+    new_facilitator_update: Option<FacilitatorUpdate>,
 ) -> Result<()> {
     let rfq = &mut ctx.accounts.rfq;
 
@@ -72,6 +73,16 @@ pub fn update_rfq_handler(
     if let Some(v) = new_fund_ttl_secs {
         require!(v > 0, RfqError::InvalidFundingTTL);
         rfq.fund_ttl_secs = v;
+    }
+    if let Some(update) = new_facilitator_update {
+        match update {
+            FacilitatorUpdate::Clear => {
+                rfq.facilitator = None;
+            }
+            FacilitatorUpdate::Set(key) => {
+                rfq.facilitator = Some(key);
+            }
+        }
     }
 
     Ok(())

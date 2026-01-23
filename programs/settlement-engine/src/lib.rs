@@ -96,6 +96,7 @@ pub mod settlement_engine {
         new_reveal_ttl_secs: Option<u32>,
         new_selection_ttl_secs: Option<u32>,
         new_fund_ttl_secs: Option<u32>,
+        new_facilitator_update: Option<state::rfq::FacilitatorUpdate>,
     ) -> Result<()> {
         update_rfq::update_rfq_handler(
             ctx,
@@ -109,6 +110,7 @@ pub mod settlement_engine {
             new_reveal_ttl_secs,
             new_selection_ttl_secs,
             new_fund_ttl_secs,
+            new_facilitator_update,
         )
     }
 

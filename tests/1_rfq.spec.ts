@@ -99,7 +99,7 @@ describe("RFQ", () => {
         const maker = Keypair.generate();
         await fund(maker);
         const facilitator = Keypair.generate();
-        await fund(facilitator);
+        //await fund(facilitator);
 
         const u = uuidBytes();
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
@@ -505,7 +505,7 @@ describe("RFQ", () => {
         const maker = Keypair.generate();
         await fund(maker);
         const facilitator = Keypair.generate();
-        await fund(facilitator);
+        //await fund(facilitator);
 
         const u = uuidBytes();
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
@@ -542,7 +542,6 @@ describe("RFQ", () => {
         console.log("quoteMint:", quoteMint.toBase58());
 
         const commitTTL = 60, revealTTL = 60, selectionTTL = 60, fundingTTL = 60;
-
         await program.methods
             .initRfq(
                 Array.from(u),
@@ -581,7 +580,8 @@ describe("RFQ", () => {
                 commitTTL + 1,
                 revealTTL + 1,
                 selectionTTL + 1,
-                null //skip funding TTL update
+                null, //skip funding TTL update
+                null,
             )
             .accounts({
                 maker: maker.publicKey,
@@ -590,7 +590,7 @@ describe("RFQ", () => {
             .signers([maker])
             .rpc();
 
-        const rfq = await program.account.rfq.fetch(rfqAddr);
+        let rfq = await program.account.rfq.fetch(rfqAddr);
         assert(rfq.maker.equals(maker.publicKey), "maker mismatch");
         assert(rfq.facilitator.equals(facilitator.publicKey), "facilitator mismatch");
         assert.strictEqual(rfq.bump, bump, "bump mismatch");
@@ -610,13 +610,68 @@ describe("RFQ", () => {
         expect(rfq.state).to.have.property('draft');
         assert.ok(rfq.state.draft);
         expect(rfq.state.open, "state should be draft, not open").to.be.undefined;
+
+        console.log("facilitator", facilitator.publicKey.toBase58());
+        const facilitator2 = Keypair.generate();
+        console.log("facilitator2", facilitator2.publicKey.toBase58());
+
+        // update facilitator 
+        await program.methods
+            .updateRfq(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null, //skip funding TTL update
+                { set: [facilitator2.publicKey] },
+            )
+            .accounts({
+                maker: maker.publicKey,
+                rfq: rfqAddr,
+            })
+            .signers([maker])
+            .rpc();
+
+        rfq = await program.account.rfq.fetch(rfqAddr);
+        assert(rfq.facilitator.equals(facilitator2.publicKey), "facilitator mismatch");
+
+        // clear facilitator 
+        await program.methods
+            .updateRfq(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null, //skip funding TTL update
+                { clear: {} },
+            )
+            .accounts({
+                maker: maker.publicKey,
+                rfq: rfqAddr,
+            })
+            .signers([maker])
+            .rpc();
+
+        rfq = await program.account.rfq.fetch(rfqAddr);
+        assert(!rfq.facilitator, "facilitator should be None after clearing");
+
     });
 
     it("opens RFQ", async () => {
         const maker = Keypair.generate();
         await fund(maker);
         const facilitator = Keypair.generate();
-        await fund(facilitator);
+        //await fund(facilitator);
 
         const u = uuidBytes();
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
@@ -768,7 +823,8 @@ describe("RFQ", () => {
                     commitTTL + 1,
                     revealTTL + 1,
                     selectionTTL + 1,
-                    null //skip funding TTL update
+                    null, //skip funding TTL update
+                    null
                 )
                 .accounts({
                     maker: maker.publicKey,

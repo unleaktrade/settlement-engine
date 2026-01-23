@@ -62,6 +62,12 @@ pub enum RfqState {
     Incomplete, // taker did not fund in time after being selected
 }
 
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, InitSpace)]
+pub enum FacilitatorUpdate {
+    Clear,
+    Set(Pubkey),
+}
+
 impl Rfq {
     pub const SEED_PREFIX: &'static [u8] = b"rfq";
 
