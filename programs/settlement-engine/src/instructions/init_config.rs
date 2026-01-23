@@ -32,7 +32,7 @@ pub fn init_config_handler(
     let cfg = &mut ctx.accounts.config;
 
     let fee_bps = facilitator_fee_bps.unwrap_or(1000);
-    require!(fee_bps < 10_000, RfqError::InvalidFeeAmount);
+    require!(fee_bps <= 10_000, RfqError::InvalidFeeAmount);
 
     cfg.admin = ctx.accounts.admin.key();
     cfg.usdc_mint = usdc_mint;
