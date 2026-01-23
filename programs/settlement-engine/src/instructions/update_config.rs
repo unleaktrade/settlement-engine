@@ -38,6 +38,7 @@ pub fn update_config_handler(
         cfg.liquidity_guard = v;
     }
     if let Some(v) = new_facilitator_fee_bps {
+        require!(v < 10_000, RfqError::InvalidFeeAmount);
         cfg.facilitator_fee_bps = v;
     }
 

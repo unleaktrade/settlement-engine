@@ -77,7 +77,7 @@ describe("CONFIG", () => {
     const treasury2 = Keypair.generate().publicKey;
     const liquidityGuard2 = Keypair.generate().publicKey;
     await program.methods
-      .updateConfig(null, usdcMint2, treasury2, liquidityGuard2, null)
+      .updateConfig(null, usdcMint2, treasury2, liquidityGuard2, 2000)
       .accounts({ admin: newAdmin.publicKey, config: cfgPda })
       .signers([newAdmin])
       .rpc();
@@ -88,10 +88,21 @@ describe("CONFIG", () => {
     assert(cfg3.treasuryUsdcOwner.equals(treasury2));
     assert(cfg3.liquidityGuard.equals(liquidityGuard2));
     assert(!cfg3.liquidityGuard.equals(liquidityGuard));
+    assert(cfg3.facilitatorFeeBps === 2000); // 20%
     console.log("usdc mint:", cfg3.usdcMint.toBase58());
     console.log("treasury:", cfg3.treasuryUsdcOwner.toBase58());
     console.log("liquidity guard:", cfg3.liquidityGuard.toBase58());
 
+    let failed = false;
+    try {
+      await program.methods
+        .updateConfig(null, null, null, null, 20000) // invalid fee bps
+        .accounts({ admin: newAdmin.publicKey, config: cfgPda })
+        .signers([newAdmin])
+        .rpc();
+    } catch { failed = true; }
+    assert(failed, "update_config should fail with invalid fee bps");
+    
     // close_config (must be signed by current admin)
     await program.methods
       .closeConfig()
