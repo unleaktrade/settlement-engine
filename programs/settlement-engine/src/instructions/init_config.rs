@@ -33,6 +33,7 @@ pub fn init_config_handler(
     cfg.usdc_mint = usdc_mint;
     cfg.treasury_usdc_owner = treasury_usdc_owner;
     cfg.liquidity_guard = liquidity_guard;
+    cfg.facilitator_fee_bps = 1000;
     cfg.bump = bump;
 
     Ok(())

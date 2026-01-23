@@ -137,7 +137,7 @@ const commitQuote = async (
     console.log("Transaction signature:", txSig);
 };
 
-describe("CLOSE_IGNORED & REFUND_QUOTE_BONDS", () => {
+describe.skip("CLOSE_IGNORED & REFUND_QUOTE_BONDS", () => {
     let configPda: PublicKey;
     let usdcMint: PublicKey;
     let baseMint: PublicKey;

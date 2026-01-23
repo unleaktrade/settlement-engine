@@ -57,6 +57,8 @@ describe("CONFIG", () => {
     assert(cfg1.admin.equals(admin.publicKey));
     assert(cfg1.usdcMint.equals(usdcMint));
     assert(cfg1.treasuryUsdcOwner.equals(treasury));
+    assert(cfg1.liquidityGuard.equals(liquidityGuard));
+    assert(cfg1.facilitatorFeeBps === 1000); // default 10%
     console.log("stored admin pubkey:", cfg1.admin.toBase58());
 
     // update_config (must be signed by current admin)
