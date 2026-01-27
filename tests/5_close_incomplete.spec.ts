@@ -548,7 +548,9 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
         assert(settlement.completedAt === null || settlement.completedAt === undefined, "settlement completeAt should be None");
         assert(slashedBondsTracker.seizedAt === null || slashedBondsTracker.seizedAt === undefined, "slashBondsTracker seizedAt should be None");
         assert(quote.bondsRefundedAt === null || quote.bondsRefundedAt === null, "quote bondsRefundedAt should be None");
+        assert(!quote.facilitator, "quote facilitator should be None");
         assert(quote2.bondsRefundedAt === null || quote2.bondsRefundedAt === null, "quote2 bondsRefundedAt should be None");
+        assert(!quote2.facilitator, "quote2 facilitator should be None");
 
         console.log("Waiting for funding deadline to pass on-chain...");
         await waitForChainTime(provider.connection, fundingDeadline, "funding deadline");
