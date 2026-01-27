@@ -117,6 +117,12 @@ pub mod settlement_engine {
     pub fn open_rfq(ctx: Context<OpenRfq>) -> Result<()> {
         open_rfq::open_rfq_handler(ctx)
     }
+    pub fn set_rfq_facilitator(
+        ctx: Context<SetRfqFacilitator>,
+        update: state::rfq::FacilitatorUpdate,
+    ) -> Result<()> {
+        set_rfq_facilitator::set_rfq_facilitator_handler(ctx, update)
+    }
     pub fn cancel_rfq(ctx: Context<CancelRfq>) -> Result<()> {
         cancel_rfq::cancel_rfq_handler(ctx)
     }

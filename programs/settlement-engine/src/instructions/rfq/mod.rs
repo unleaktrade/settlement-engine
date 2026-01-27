@@ -8,5 +8,7 @@ pub mod init_rfq;
 pub use init_rfq::*;
 pub mod open_rfq;
 pub use open_rfq::*;
+pub mod set_rfq_facilitator;
+pub use set_rfq_facilitator::*;
 pub mod update_rfq;
 pub use update_rfq::*;

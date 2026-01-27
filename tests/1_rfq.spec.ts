@@ -671,6 +671,7 @@ describe("RFQ", () => {
         const maker = Keypair.generate();
         await fund(maker);
         const facilitator = Keypair.generate();
+        const facilitator2 = Keypair.generate();
         //await fund(facilitator);
 
         const u = uuidBytes();
@@ -754,7 +755,7 @@ describe("RFQ", () => {
             .signers([maker])
             .rpc();
 
-        const rfq = await program.account.rfq.fetch(rfqAddr);
+        let rfq = await program.account.rfq.fetch(rfqAddr);
         assert(rfq.maker.equals(maker.publicKey), "maker mismatch");
         assert(rfq.facilitator.equals(facilitator.publicKey), "facilitator mismatch");
         assert.strictEqual(rfq.bump, bump, "bump mismatch");
@@ -787,6 +788,30 @@ describe("RFQ", () => {
         assert(slashedBondsTracker.seizedAt == null || slashedBondsTracker.seizedAt == undefined, "seizedAt should be null or undefined in slashedBondsTracker");
         assert(slashedBondsTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in slashedBondsTracker");
         assert(slashedBondsTracker.treasuryUsdcOwner.equals(treasury), "treasury mismatch in slashedBondsTracker");
+
+        // Clear facilitator
+        await program.methods
+            .setRfqFacilitator({ clear: {} })
+            .accounts({
+                maker: maker.publicKey,
+                rfq: rfqAddr,
+            })
+            .signers([maker])
+            .rpc();
+        rfq = await program.account.rfq.fetch(rfqAddr);
+        assert(!rfq.facilitator, "facilitator should be None after clearing");
+
+        await program.methods
+            .setRfqFacilitator({ set: [facilitator2.publicKey] })
+            .accounts({
+                maker: maker.publicKey,
+                rfq: rfqAddr,
+            })
+            .signers([maker])
+            .rpc();
+        rfq = await program.account.rfq.fetch(rfqAddr);
+        assert(rfq.facilitator.equals(facilitator2.publicKey), "facilitator mismatch");
+
         // Should fail to re-open
         let failed = false;
         try {
