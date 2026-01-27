@@ -86,6 +86,7 @@ pub fn commit_quote_handler(
     ctx: Context<CommitQuote>,
     commit_hash: [u8; 32],
     liquidity_proof: [u8; 64],
+    facilitator: Option<Pubkey>,
 ) -> Result<()> {
     // Verify preflighted Ed25519 signature
     // Safely get prior instruction
@@ -212,6 +213,7 @@ pub fn commit_quote_handler(
     quote.bonds_refunded_at = None;
     quote.quote_amount = None; // to be filled on reveal
     quote.taker_payment_account = ctx.accounts.taker_payment_account.key();
+    quote.facilitator = facilitator;
 
     rfq.state = RfqState::Committed;
     rfq.committed_count = rfq

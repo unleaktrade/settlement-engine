@@ -99,7 +99,8 @@ const commitQuote = async (
     rfqPDA: PublicKey,
     usdcMint: PublicKey,
     configPda: PublicKey,
-    takerPaymentAccount: PublicKey) => {
+    takerPaymentAccount: PublicKey,
+    facilitator: PublicKey | null = null) => {
     // Create Ed25519 verification instruction using the helper
     const ed25519Ix = Ed25519Program.createInstructionWithPublicKey({
         publicKey: liquidityGuard.toBytes(),
@@ -107,7 +108,7 @@ const commitQuote = async (
         signature: liquidity_proof,
     });
     const commitQuoteIx1 = await program.methods
-        .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
+        .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof), facilitator)
         .accounts({
             taker: taker.publicKey,
             rfq: rfqPDA,
@@ -128,7 +129,7 @@ const commitQuote = async (
     console.log("Transaction signature:", txSig);
 };
 
-describe.skip("CLOSE_EXPIRED_RFQ", () => {
+describe("CLOSE_EXPIRED_RFQ", () => {
     let configPda: PublicKey;
     let usdcMint: PublicKey;
     let baseMint: PublicKey;

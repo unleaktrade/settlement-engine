@@ -125,8 +125,9 @@ pub mod settlement_engine {
         ctx: Context<CommitQuote>,
         commit_hash: [u8; 32],
         liquidity_proof: [u8; 64],
+        facilitator: Option<Pubkey>,
     ) -> Result<()> {
-        commit_quote::commit_quote_handler(ctx, commit_hash, liquidity_proof)
+        commit_quote::commit_quote_handler(ctx, commit_hash, liquidity_proof, facilitator)
     }
 
     pub fn reveal_quote(

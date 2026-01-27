@@ -55,7 +55,7 @@ async function getAndLogBalance(
 
 // --- tests (ONLY initRfq) --------------------------------------------------
 
-describe.skip("QUOTE", () => {
+describe("QUOTE", () => {
     let configPda: PublicKey;
     let usdcMint: PublicKey;
     let baseMint: PublicKey;
@@ -354,7 +354,7 @@ describe.skip("QUOTE", () => {
         console.log('OFFSETS:', { sigOffset, pubkeyOffset, msgOffset, msgSize });
 
         const commitQuoteIx1 = await program.methods
-            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
+            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof), null)
             .accounts({
                 taker: taker.publicKey,
                 rfq: rfqPDA,
@@ -459,7 +459,7 @@ describe.skip("QUOTE", () => {
         );
 
         const commitQuoteIx2 = await program.methods
-            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
+            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof), null)
             .accounts({
                 taker: taker2.publicKey,
                 config: configPda,
@@ -483,7 +483,7 @@ describe.skip("QUOTE", () => {
         console.log("Testing that same taker cannot commit twice...");
         failed = false;
         const commitQuoteIx3 = await program.methods
-            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
+            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof), null)
             .accounts({
                 taker: taker.publicKey,
                 config: configPda,
@@ -574,7 +574,7 @@ describe.skip("QUOTE", () => {
         });
 
         const commitQuoteIx1 = await program.methods
-            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
+            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof), null)
             .accounts({
                 taker: taker.publicKey,
                 config: configPda,
