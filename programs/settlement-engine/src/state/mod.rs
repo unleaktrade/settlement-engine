@@ -10,3 +10,5 @@ pub mod fees_tracker;
 pub use fees_tracker::*;
 pub mod slashed_bonds_tracker;
 pub use slashed_bonds_tracker::*;
+pub mod facilitator_reward_tracker;
+pub use facilitator_reward_tracker::*;

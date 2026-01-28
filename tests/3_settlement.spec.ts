@@ -57,6 +57,11 @@ const feesTrackerPda = (rfqPDA: PublicKey) => PublicKey.findProgramAddressSync(
     program.programId
 );
 
+const facilitatorRewardTrackerPda = (rfqPDA: PublicKey, facilitator: PublicKey) => PublicKey.findProgramAddressSync(
+    [Buffer.from("facilitator_reward"), rfqPDA.toBuffer(), facilitator.toBuffer()],
+    program.programId
+);
+
 const getAndLogBalance = async (label: string, owner: string, tokenAccount: PublicKey) => {
     const balance = await provider.connection.getTokenAccountBalance(tokenAccount).then(b => new anchor.BN(b.value.amount));
     console.log(`${label} - ${owner}:`, balance.toNumber().toLocaleString("en-US"));
@@ -208,6 +213,7 @@ describe("COMPLETE_SETTLEMENT", () => {
     it("should complete settlement", async () => {
         const maker = Keypair.generate();
         await fund(maker);
+        await fund(facilitator);
         console.log("Maker:", maker.publicKey.toBase58());
         const [taker, taker2] = [Keypair.generate(), Keypair.generate()];
         await Promise.all([fund(taker), fund(taker2)]);
@@ -219,6 +225,10 @@ describe("COMPLETE_SETTLEMENT", () => {
         const [settlementPDA, bumpSettlement] = settlementPda(rfqPDA);
         const [feesTrackerPDA, bumpFeesTracker] = feesTrackerPda(rfqPDA);
         const [slashedBondsTrackerPDA, bumpslashedBondsTracker] = slashedBondsTrackerPda(rfqPDA);
+        const [facilitatorRewardTrackerPDA, facilitatorRewardTrackerBump] = facilitatorRewardTrackerPda(
+            rfqPDA,
+            facilitator.publicKey
+        );
 
         // create token accounts & mint usdc, base and quote.
         const makerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
@@ -231,6 +241,7 @@ describe("COMPLETE_SETTLEMENT", () => {
         const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
         const baseVault = getAssociatedTokenAddressSync(baseMint, rfqPDA, true);
         const treasuryPaymentAccount = getAssociatedTokenAddressSync(usdcMint, treasury.publicKey);
+        const facilitatorPaymentAccount = getAssociatedTokenAddressSync(usdcMint, facilitator.publicKey);
 
         // mint USDC for bonds
         await Promise.all([
@@ -591,6 +602,69 @@ describe("COMPLETE_SETTLEMENT", () => {
             treasuryUsdcBalance.eq(treasuryFee.add(new anchor.BN(DEFAULT_BOND_AMOUNT))),
             "treasury should receive its fee share and bonds of invalid quote"
         );
+
+        await program.methods.withdrawReward()
+            .accounts({
+                facilitator: facilitator.publicKey,
+                config: configPda,
+                rfq: rfqPDA,
+                settlement: settlementPDA,
+                quote: quotePda,
+                usdcMint,
+                bondsFeesVault,
+            })
+            .signers([facilitator])
+            .rpc();
+
+        const [
+            bondsVaultAfterWithdraw,
+            facilitatorUsdcAfterWithdraw,
+            facilitatorRewardTracker,
+        ] = await Promise.all([
+            getAndLogBalance("After withdraw reward", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After withdraw reward", "Facilitator USDC", facilitatorPaymentAccount),
+            program.account.facilitatorRewardTracker.fetch(facilitatorRewardTrackerPDA),
+        ]);
+
+        assert.ok(bondsVaultAfterWithdraw.isZero(), "bonds vault should be empty after reward withdraw");
+        assert.ok(facilitatorUsdcAfterWithdraw.eq(facilitatorFee), "facilitator should receive its fee");
+        assert.strictEqual(
+            facilitatorRewardTracker.bump,
+            facilitatorRewardTrackerBump,
+            "facilitator reward tracker bump mismatch"
+        );
+        assert(facilitatorRewardTracker.rfq.equals(rfqPDA), "facilitator reward tracker rfq mismatch");
+        assert(
+            facilitatorRewardTracker.facilitator.equals(facilitator.publicKey),
+            "facilitator reward tracker facilitator mismatch"
+        );
+        assert(facilitatorRewardTracker.usdcMint.equals(usdcMint), "facilitator reward tracker mint mismatch");
+        assert(facilitatorRewardTracker.amount.eq(facilitatorFee), "facilitator reward tracker amount mismatch");
+        assert.ok(
+            facilitatorRewardTracker.claimedAt.toNumber() > 0,
+            "facilitator reward tracker claimedAt should be set"
+        );
+
+        let withdrawFailed = false;
+        try {
+            await program.methods.withdrawReward()
+                .accounts({
+                    facilitator: facilitator.publicKey,
+                    config: configPda,
+                    rfq: rfqPDA,
+                    settlement: settlementPDA,
+                    quote: quotePda,
+                    usdcMint,
+                    bondsFeesVault,
+                    facilitatorAta: facilitatorPaymentAccount,
+                    facilitatorRewardTracker: facilitatorRewardTrackerPDA,
+                })
+                .signers([facilitator])
+                .rpc();
+        } catch {
+            withdrawFailed = true;
+        }
+        assert(withdrawFailed, "facilitator should not be able to withdraw twice");
     });
 
 

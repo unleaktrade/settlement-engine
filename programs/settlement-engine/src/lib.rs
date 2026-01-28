@@ -172,4 +172,8 @@ pub mod settlement_engine {
     pub fn refund_quote_bonds(ctx: Context<RefundQuoteBonds>) -> Result<()> {
         refund_quote_bonds::refund_quote_bonds_handler(ctx)
     }
+
+    pub fn withdraw_reward(ctx: Context<WithdrawReward>) -> Result<()> {
+        withdraw_reward::withdraw_reward_handler(ctx)
+    }
 }
