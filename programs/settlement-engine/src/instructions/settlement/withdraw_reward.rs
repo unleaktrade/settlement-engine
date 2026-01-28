@@ -31,14 +31,17 @@ pub struct WithdrawReward<'info> {
         seeds = [Settlement::SEED_PREFIX, rfq.key().as_ref()],
         bump = settlement.bump,
         has_one = rfq,
-        has_one = quote,
+        has_one = quote @ RfqError::InvalidQuote,
+        constraint = settlement.is_complete() @ RfqError::InvalidRfqState,
     )]
     pub settlement: Box<Account<'info, Settlement>>,
 
     #[account(
         seeds = [Quote::SEED_PREFIX, rfq.key().as_ref(), settlement.taker.as_ref()],
         bump = quote.bump,
+        has_one = rfq @ RfqError::InvalidRfqAssociation,
         constraint = quote.selected @ RfqError::InvalidQuoteState,
+        constraint = quote.revealed_at.is_some() @ RfqError::InvalidQuoteState,
     )]
     pub quote: Box<Account<'info, Quote>>,
 
@@ -84,7 +87,6 @@ pub fn withdraw_reward_handler(ctx: Context<WithdrawReward>) -> Result<()> {
     let settlement = &ctx.accounts.settlement;
     let quote = &ctx.accounts.quote;
 
-    require!(settlement.is_complete(), RfqError::InvalidRfqState);
     let facilitator_key = ctx.accounts.facilitator.key();
     require!(
         rfq.facilitator == Some(facilitator_key) && quote.facilitator == Some(facilitator_key),
