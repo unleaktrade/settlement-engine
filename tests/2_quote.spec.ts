@@ -601,6 +601,54 @@ describe("QUOTE", () => {
         assert(failed, "commitQuote with invalid liquidity proof should fail");
     });
 
+    it("should set and clear quote facilitator", async () => {
+        const taker = validTaker;
+        const facilitator2 = Keypair.generate();
+        const [quotePda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("quote"), rfqPDA.toBuffer(), taker.publicKey.toBuffer()],
+            program.programId
+        );
+
+        await program.methods
+            .setQuoteFacilitator({ set: [facilitator2.publicKey] })
+            .accounts({
+                taker: taker.publicKey,
+                rfq: rfqPDA,
+                quote: quotePda,
+            })
+            .signers([taker])
+            .rpc();
+
+        let quote = await program.account.quote.fetch(quotePda);
+        assert(quote.facilitator.equals(facilitator2.publicKey), "quote facilitator mismatch");
+
+        await program.methods
+            .setQuoteFacilitator({ clear: {} })
+            .accounts({
+                taker: taker.publicKey,
+                rfq: rfqPDA,
+                quote: quotePda,
+            })
+            .signers([taker])
+            .rpc();
+
+        quote = await program.account.quote.fetch(quotePda);
+        assert(!quote.facilitator, "quote facilitator should be None");
+
+        await program.methods
+            .setQuoteFacilitator({ set: [facilitator.publicKey] })
+            .accounts({
+                taker: taker.publicKey,
+                rfq: rfqPDA,
+                quote: quotePda,
+            })
+            .signers([taker])
+            .rpc();
+
+        quote = await program.account.quote.fetch(quotePda);
+        assert(quote.facilitator.equals(facilitator.publicKey), "quote facilitator mismatch");
+    });
+
     it("should reveal a quote", async () => {
         const taker = validTaker;
         const [quotePda, bumpQuote] = PublicKey.findProgramAddressSync(

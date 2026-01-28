@@ -136,6 +136,13 @@ pub mod settlement_engine {
         commit_quote::commit_quote_handler(ctx, commit_hash, liquidity_proof, facilitator)
     }
 
+    pub fn set_quote_facilitator(
+        ctx: Context<SetQuoteFacilitator>,
+        update: state::rfq::FacilitatorUpdate,
+    ) -> Result<()> {
+        set_quote_facilitator::set_quote_facilitator_handler(ctx, update)
+    }
+
     pub fn reveal_quote(
         ctx: Context<RevealQuote>,
         salt: [u8; 64],
