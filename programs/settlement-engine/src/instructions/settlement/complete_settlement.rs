@@ -349,7 +349,7 @@ pub fn complete_settlement_handler<'info>(
     fees_tracker.taker = settlement.taker;
     fees_tracker.usdc_mint = ctx.accounts.config.usdc_mint;
     fees_tracker.treasury_usdc_owner = ctx.accounts.config.treasury_usdc_owner;
-    fees_tracker.amount = settlement.fee_amount;
+    fees_tracker.amount = treasury_share;
     fees_tracker.payed_at = now;
     fees_tracker.bump = ctx.bumps.fees_tracker;
 

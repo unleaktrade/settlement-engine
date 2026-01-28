@@ -541,7 +541,11 @@ describe("COMPLETE_SETTLEMENT", () => {
         assert(feesTracker.taker.equals(taker.publicKey), "Taker mismatch in feesTracker");
         assert(feesTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in feesTracker");
         assert(feesTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in feesTracker");
-        assert(feesTracker.amount.eq(settlement.feeAmount), "amount mismatch in feesTracker");
+        const facilitatorFee = new anchor.BN(DEFAULT_FEE_AMOUNT)
+            .muln(FACILITATOR_FEE_BPS)
+            .divn(10_000);
+        const treasuryFee = new anchor.BN(DEFAULT_FEE_AMOUNT).sub(facilitatorFee);
+        assert(feesTracker.amount.eq(treasuryFee), "amount mismatch in feesTracker");
         assert.ok(feesTracker.payedAt!.toNumber() > 0, "feesTracker payedAt should be set");
         assert(slashedBondsTracker.rfq.equals(rfqPDA), "RFQ mismatch in slashBoundsTracker");
         assert.strictEqual(slashedBondsTracker.bump, bumpslashedBondsTracker, "bump mismatch for slashedBondsTracker");
@@ -581,12 +585,8 @@ describe("COMPLETE_SETTLEMENT", () => {
         assert.ok(takerUsdcBalance.eq(new anchor.BN(DEFAULT_BOND_AMOUNT)), "taker should get bond back minus fee");
         assert.ok(takerBaseBalance.eq(new anchor.BN(DEFAULT_BASE_AMOUNT)), "taker should receive base amount");
         assert.ok(takerQuoteBalance.isZero(), "taker quote should be transferred out");
-        const facilitatorFee = new anchor.BN(DEFAULT_FEE_AMOUNT)
-            .muln(FACILITATOR_FEE_BPS)
-            .divn(10_000);
         assert.ok(bondsVaultBalance.eq(facilitatorFee), "bonds vault should contain facilitator fee");
         assert.ok(baseVaultBalance.isZero(), "base vault should be empty");
-        const treasuryFee = new anchor.BN(DEFAULT_FEE_AMOUNT).sub(facilitatorFee);
         assert.ok(
             treasuryUsdcBalance.eq(treasuryFee.add(new anchor.BN(DEFAULT_BOND_AMOUNT))),
             "treasury should receive its fee share and bonds of invalid quote"
