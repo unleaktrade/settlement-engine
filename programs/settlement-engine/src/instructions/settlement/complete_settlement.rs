@@ -209,18 +209,52 @@ pub fn complete_settlement_handler<'info>(
         settlement.bond_amount,
     )?;
 
-    // Collect taker fees to treasury
-    token::transfer(
-        CpiContext::new(
-            ctx.accounts.token_program.to_account_info(),
-            Transfer {
-                from: ctx.accounts.taker_payment_account.to_account_info(),
-                to: ctx.accounts.treasury_ata.to_account_info(),
-                authority: ctx.accounts.taker.to_account_info(),
-            },
-        ),
-        settlement.fee_amount,
-    )?;
+    // Collect taker fees to treasury and optionally retain facilitator share in bonds_fees_vault.
+    let facilitator_fee_bps = ctx.accounts.config.facilitator_fee_bps;
+    let facilitator_share: u64 = if rfq.facilitator.is_some()
+        && rfq.facilitator == quote.facilitator
+    {
+        let fee_amount_u128 = settlement.fee_amount as u128;
+        let bps_u128 = facilitator_fee_bps as u128;
+        fee_amount_u128
+            .checked_mul(bps_u128)
+            .and_then(|v| v.checked_div(10_000))
+            .and_then(|v| u64::try_from(v).ok())
+            .ok_or(RfqError::ArithmeticOverflow)?
+    } else {
+        0
+    };
+    let treasury_share = settlement
+        .fee_amount
+        .checked_sub(facilitator_share)
+        .ok_or(RfqError::ArithmeticOverflow)?;
+
+    if treasury_share > 0 {
+        token::transfer(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.taker_payment_account.to_account_info(),
+                    to: ctx.accounts.treasury_ata.to_account_info(),
+                    authority: ctx.accounts.taker.to_account_info(),
+                },
+            ),
+            treasury_share,
+        )?;
+    }
+    if facilitator_share > 0 {
+        token::transfer(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.taker_payment_account.to_account_info(),
+                    to: ctx.accounts.bonds_fees_vault.to_account_info(),
+                    authority: ctx.accounts.taker.to_account_info(),
+                },
+            ),
+            facilitator_share,
+        )?;
+    }
 
     // Deliver base asset from vault to taker
     token::transfer(

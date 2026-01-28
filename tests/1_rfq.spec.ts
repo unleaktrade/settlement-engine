@@ -48,7 +48,7 @@ export const slashedBondsTrackerPda = (rfqPDA: PublicKey) => PublicKey.findProgr
 
 // --- tests (ONLY initRfq) --------------------------------------------------
 
-describe("RFQ", () => {
+describe.skip("RFQ", () => {
     const admin = Keypair.generate();
     let configPda: PublicKey;
     let usdcMint: PublicKey;

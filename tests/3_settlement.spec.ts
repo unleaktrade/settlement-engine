@@ -146,7 +146,9 @@ describe("COMPLETE_SETTLEMENT", () => {
 
     const admin = Keypair.generate();
     const treasury = Keypair.generate();
+    const facilitator = Keypair.generate();
     const commitTTL = 10, revealTTL = 10, selectionTTL = 10, fundingTTL = 20;
+    const FACILITATOR_FEE_BPS = 2000;
 
 
     before(async () => {
@@ -176,7 +178,7 @@ describe("COMPLETE_SETTLEMENT", () => {
         let failed = false;
         try {
             await program.methods
-                .initConfig(usdcMint, treasury.publicKey, liquidityGuard, null)
+                .initConfig(usdcMint, treasury.publicKey, liquidityGuard, FACILITATOR_FEE_BPS)
                 .accounts({ admin: admin.publicKey })
                 .signers([admin])
                 .rpc();
@@ -317,14 +319,14 @@ describe("COMPLETE_SETTLEMENT", () => {
                     quoteMint,
                     new anchor.BN(DEFAULT_BOND_AMOUNT),
                     new anchor.BN(DEFAULT_BASE_AMOUNT),
-                    new anchor.BN(1_000_000_000),
-                    new anchor.BN(DEFAULT_FEE_AMOUNT),
-                    commitTTL,
-                    revealTTL,
-                    selectionTTL,
-                    fundingTTL,
-                    null
-                )
+                new anchor.BN(1_000_000_000),
+                new anchor.BN(DEFAULT_FEE_AMOUNT),
+                commitTTL,
+                revealTTL,
+                selectionTTL,
+                fundingTTL,
+                facilitator.publicKey
+            )
                 .accounts({
                     maker: maker.publicKey,
                     config: configPda,
@@ -378,7 +380,8 @@ describe("COMPLETE_SETTLEMENT", () => {
             rfqPDA,
             usdcMint,
             configPda,
-            takerPaymentAccount);
+            takerPaymentAccount,
+            facilitator.publicKey);
 
         // taker2 will commit an invalid quote (smaller quote amount)
         const [saltQ2, commit_hashQ2, liquidity_proofQ2] = await provideLiquidityGuardAttestation(taker2, rfqPDA, quoteMint, DEFAULT_QUOTE_AMOUNT / 10);
@@ -578,9 +581,16 @@ describe("COMPLETE_SETTLEMENT", () => {
         assert.ok(takerUsdcBalance.eq(new anchor.BN(DEFAULT_BOND_AMOUNT)), "taker should get bond back minus fee");
         assert.ok(takerBaseBalance.eq(new anchor.BN(DEFAULT_BASE_AMOUNT)), "taker should receive base amount");
         assert.ok(takerQuoteBalance.isZero(), "taker quote should be transferred out");
-        assert.ok(bondsVaultBalance.isZero(), "bonds vault should be empty");
+        const facilitatorFee = new anchor.BN(DEFAULT_FEE_AMOUNT)
+            .muln(FACILITATOR_FEE_BPS)
+            .divn(10_000);
+        assert.ok(bondsVaultBalance.eq(facilitatorFee), "bonds vault should contain facilitator fee");
         assert.ok(baseVaultBalance.isZero(), "base vault should be empty");
-        assert.ok(treasuryUsdcBalance.eq(new anchor.BN(DEFAULT_FEE_AMOUNT).add(new anchor.BN(DEFAULT_BOND_AMOUNT))), "treasury should receive fee and bonds of invalid quote");
+        const treasuryFee = new anchor.BN(DEFAULT_FEE_AMOUNT).sub(facilitatorFee);
+        assert.ok(
+            treasuryUsdcBalance.eq(treasuryFee.add(new anchor.BN(DEFAULT_BOND_AMOUNT))),
+            "treasury should receive its fee share and bonds of invalid quote"
+        );
     });
 
 

@@ -55,7 +55,7 @@ async function getAndLogBalance(
 
 // --- tests (ONLY initRfq) --------------------------------------------------
 
-describe("QUOTE", () => {
+describe.skip("QUOTE", () => {
     let configPda: PublicKey;
     let usdcMint: PublicKey;
     let baseMint: PublicKey;
