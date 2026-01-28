@@ -108,7 +108,8 @@ const commitQuote = async (
     rfqPDA: PublicKey,
     usdcMint: PublicKey,
     configPda: PublicKey,
-    takerPaymentAccount: PublicKey) => {
+    takerPaymentAccount: PublicKey,
+    facilitator: PublicKey | null = null) => {
     // Create Ed25519 verification instruction using the helper
     const ed25519Ix = Ed25519Program.createInstructionWithPublicKey({
         publicKey: liquidityGuard.toBytes(),
@@ -116,7 +117,7 @@ const commitQuote = async (
         signature: liquidity_proof,
     });
     const commitQuoteIx1 = await program.methods
-        .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
+        .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof), facilitator)
         .accounts({
             taker: taker.publicKey,
             rfq: rfqPDA,
@@ -184,7 +185,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
         let failed = false;
         try {
             await program.methods
-                .initConfig(usdcMint, treasury.publicKey, liquidityGuard)
+                .initConfig(usdcMint, treasury.publicKey, liquidityGuard, null)
                 .accounts({ admin: admin.publicKey })
                 .signers([admin])
                 .rpc();
@@ -344,7 +345,8 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                     commitTTL,
                     revealTTL,
                     selectionTTL,
-                    fundingTTL
+                    fundingTTL,
+                    null
                 )
                 .accounts({
                     maker: maker.publicKey,
@@ -546,7 +548,9 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
         assert(settlement.completedAt === null || settlement.completedAt === undefined, "settlement completeAt should be None");
         assert(slashedBondsTracker.seizedAt === null || slashedBondsTracker.seizedAt === undefined, "slashBondsTracker seizedAt should be None");
         assert(quote.bondsRefundedAt === null || quote.bondsRefundedAt === null, "quote bondsRefundedAt should be None");
+        assert(!quote.facilitator, "quote facilitator should be None");
         assert(quote2.bondsRefundedAt === null || quote2.bondsRefundedAt === null, "quote2 bondsRefundedAt should be None");
+        assert(!quote2.facilitator, "quote2 facilitator should be None");
 
         console.log("Waiting for funding deadline to pass on-chain...");
         await waitForChainTime(provider.connection, fundingDeadline, "funding deadline");

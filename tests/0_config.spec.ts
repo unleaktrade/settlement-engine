@@ -46,7 +46,7 @@ describe("CONFIG", () => {
 
     // init_config (admin is both payer and signer)
     await program.methods
-      .initConfig(usdcMint, treasury, liquidityGuard)
+      .initConfig(usdcMint, treasury, liquidityGuard, null)
       .accounts({
         admin: admin.publicKey,
       })
@@ -57,11 +57,13 @@ describe("CONFIG", () => {
     assert(cfg1.admin.equals(admin.publicKey));
     assert(cfg1.usdcMint.equals(usdcMint));
     assert(cfg1.treasuryUsdcOwner.equals(treasury));
+    assert(cfg1.liquidityGuard.equals(liquidityGuard));
+    assert(cfg1.facilitatorFeeBps === 1000); // default 10%
     console.log("stored admin pubkey:", cfg1.admin.toBase58());
 
     // update_config (must be signed by current admin)
     await program.methods
-      .updateConfig(newAdmin.publicKey, null, null, null)
+      .updateConfig(newAdmin.publicKey, null, null, null, null)
       .accounts({ admin: admin.publicKey, config: cfgPda })
       .signers([admin])
       .rpc();
@@ -75,7 +77,7 @@ describe("CONFIG", () => {
     const treasury2 = Keypair.generate().publicKey;
     const liquidityGuard2 = Keypair.generate().publicKey;
     await program.methods
-      .updateConfig(null, usdcMint2, treasury2, liquidityGuard2)
+      .updateConfig(null, usdcMint2, treasury2, liquidityGuard2, 2000)
       .accounts({ admin: newAdmin.publicKey, config: cfgPda })
       .signers([newAdmin])
       .rpc();
@@ -86,10 +88,21 @@ describe("CONFIG", () => {
     assert(cfg3.treasuryUsdcOwner.equals(treasury2));
     assert(cfg3.liquidityGuard.equals(liquidityGuard2));
     assert(!cfg3.liquidityGuard.equals(liquidityGuard));
+    assert(cfg3.facilitatorFeeBps === 2000); // 20%
     console.log("usdc mint:", cfg3.usdcMint.toBase58());
     console.log("treasury:", cfg3.treasuryUsdcOwner.toBase58());
     console.log("liquidity guard:", cfg3.liquidityGuard.toBase58());
 
+    let failed = false;
+    try {
+      await program.methods
+        .updateConfig(null, null, null, null, 20000) // invalid fee bps
+        .accounts({ admin: newAdmin.publicKey, config: cfgPda })
+        .signers([newAdmin])
+        .rpc();
+    } catch { failed = true; }
+    assert(failed, "update_config should fail with invalid fee bps");
+    
     // close_config (must be signed by current admin)
     await program.methods
       .closeConfig()

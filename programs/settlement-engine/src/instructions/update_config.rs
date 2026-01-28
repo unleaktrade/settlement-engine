@@ -21,6 +21,7 @@ pub fn update_config_handler(
     new_usdc_mint: Option<Pubkey>,
     new_treasury_usdc_owner: Option<Pubkey>,
     new_liquidity_guard: Option<Pubkey>,
+    new_facilitator_fee_bps: Option<u16>,
 ) -> Result<()> {
     let cfg = &mut ctx.accounts.config;
 
@@ -35,6 +36,10 @@ pub fn update_config_handler(
     }
     if let Some(v) = new_liquidity_guard {
         cfg.liquidity_guard = v;
+    }
+    if let Some(v) = new_facilitator_fee_bps {
+        require!(v <= 10_000, RfqError::InvalidFeeAmount);
+        cfg.facilitator_fee_bps = v;
     }
 
     Ok(())

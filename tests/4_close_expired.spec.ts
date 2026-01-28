@@ -99,7 +99,8 @@ const commitQuote = async (
     rfqPDA: PublicKey,
     usdcMint: PublicKey,
     configPda: PublicKey,
-    takerPaymentAccount: PublicKey) => {
+    takerPaymentAccount: PublicKey,
+    facilitator: PublicKey | null = null) => {
     // Create Ed25519 verification instruction using the helper
     const ed25519Ix = Ed25519Program.createInstructionWithPublicKey({
         publicKey: liquidityGuard.toBytes(),
@@ -107,7 +108,7 @@ const commitQuote = async (
         signature: liquidity_proof,
     });
     const commitQuoteIx1 = await program.methods
-        .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
+        .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof), facilitator)
         .accounts({
             taker: taker.publicKey,
             rfq: rfqPDA,
@@ -164,7 +165,7 @@ describe("CLOSE_EXPIRED_RFQ", () => {
         let failed = false;
         try {
             await program.methods
-                .initConfig(usdcMint, treasury.publicKey, liquidityGuard)
+                .initConfig(usdcMint, treasury.publicKey, liquidityGuard, null)
                 .accounts({ admin: admin.publicKey })
                 .signers([admin])
                 .rpc();
@@ -306,7 +307,8 @@ describe("CLOSE_EXPIRED_RFQ", () => {
                     commitTTL,
                     revealTTL,
                     selectionTTL,
-                    fundingTTL
+                    fundingTTL,
+                    null
                 )
                 .accounts({
                     maker: maker.publicKey,

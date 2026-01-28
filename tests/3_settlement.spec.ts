@@ -57,6 +57,11 @@ const feesTrackerPda = (rfqPDA: PublicKey) => PublicKey.findProgramAddressSync(
     program.programId
 );
 
+const facilitatorRewardTrackerPda = (rfqPDA: PublicKey, facilitator: PublicKey) => PublicKey.findProgramAddressSync(
+    [Buffer.from("facilitator_reward"), rfqPDA.toBuffer(), facilitator.toBuffer()],
+    program.programId
+);
+
 const getAndLogBalance = async (label: string, owner: string, tokenAccount: PublicKey) => {
     const balance = await provider.connection.getTokenAccountBalance(tokenAccount).then(b => new anchor.BN(b.value.amount));
     console.log(`${label} - ${owner}:`, balance.toNumber().toLocaleString("en-US"));
@@ -108,7 +113,8 @@ const commitQuote = async (
     rfqPDA: PublicKey,
     usdcMint: PublicKey,
     configPda: PublicKey,
-    takerPaymentAccount: PublicKey) => {
+    takerPaymentAccount: PublicKey,
+    facilitator: PublicKey | null = null) => {
     // Create Ed25519 verification instruction using the helper
     const ed25519Ix = Ed25519Program.createInstructionWithPublicKey({
         publicKey: liquidityGuard.toBytes(),
@@ -116,7 +122,7 @@ const commitQuote = async (
         signature: liquidity_proof,
     });
     const commitQuoteIx1 = await program.methods
-        .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
+        .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof), facilitator)
         .accounts({
             taker: taker.publicKey,
             rfq: rfqPDA,
@@ -145,7 +151,10 @@ describe("COMPLETE_SETTLEMENT", () => {
 
     const admin = Keypair.generate();
     const treasury = Keypair.generate();
+    const facilitator = Keypair.generate();
+    const otherFacilitator = Keypair.generate();
     const commitTTL = 10, revealTTL = 10, selectionTTL = 10, fundingTTL = 20;
+    const FACILITATOR_FEE_BPS = 2000;
 
 
     before(async () => {
@@ -175,7 +184,7 @@ describe("COMPLETE_SETTLEMENT", () => {
         let failed = false;
         try {
             await program.methods
-                .initConfig(usdcMint, treasury.publicKey, liquidityGuard)
+                .initConfig(usdcMint, treasury.publicKey, liquidityGuard, FACILITATOR_FEE_BPS)
                 .accounts({ admin: admin.publicKey })
                 .signers([admin])
                 .rpc();
@@ -205,6 +214,8 @@ describe("COMPLETE_SETTLEMENT", () => {
     it("should complete settlement", async () => {
         const maker = Keypair.generate();
         await fund(maker);
+        await fund(facilitator);
+        await fund(otherFacilitator);
         console.log("Maker:", maker.publicKey.toBase58());
         const [taker, taker2] = [Keypair.generate(), Keypair.generate()];
         await Promise.all([fund(taker), fund(taker2)]);
@@ -216,6 +227,14 @@ describe("COMPLETE_SETTLEMENT", () => {
         const [settlementPDA, bumpSettlement] = settlementPda(rfqPDA);
         const [feesTrackerPDA, bumpFeesTracker] = feesTrackerPda(rfqPDA);
         const [slashedBondsTrackerPDA, bumpslashedBondsTracker] = slashedBondsTrackerPda(rfqPDA);
+        const [facilitatorRewardTrackerPDA, facilitatorRewardTrackerBump] = facilitatorRewardTrackerPda(
+            rfqPDA,
+            facilitator.publicKey
+        );
+        const [otherFacilitatorRewardTrackerPDA] = facilitatorRewardTrackerPda(
+            rfqPDA,
+            otherFacilitator.publicKey
+        );
 
         // create token accounts & mint usdc, base and quote.
         const makerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
@@ -228,6 +247,8 @@ describe("COMPLETE_SETTLEMENT", () => {
         const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
         const baseVault = getAssociatedTokenAddressSync(baseMint, rfqPDA, true);
         const treasuryPaymentAccount = getAssociatedTokenAddressSync(usdcMint, treasury.publicKey);
+        const facilitatorPaymentAccount = getAssociatedTokenAddressSync(usdcMint, facilitator.publicKey);
+        const otherFacilitatorPaymentAccount = getAssociatedTokenAddressSync(usdcMint, otherFacilitator.publicKey);
 
         // mint USDC for bonds
         await Promise.all([
@@ -321,7 +342,8 @@ describe("COMPLETE_SETTLEMENT", () => {
                     commitTTL,
                     revealTTL,
                     selectionTTL,
-                    fundingTTL
+                    fundingTTL,
+                    facilitator.publicKey
                 )
                 .accounts({
                     maker: maker.publicKey,
@@ -376,7 +398,8 @@ describe("COMPLETE_SETTLEMENT", () => {
             rfqPDA,
             usdcMint,
             configPda,
-            takerPaymentAccount);
+            takerPaymentAccount,
+            facilitator.publicKey);
 
         // taker2 will commit an invalid quote (smaller quote amount)
         const [saltQ2, commit_hashQ2, liquidity_proofQ2] = await provideLiquidityGuardAttestation(taker2, rfqPDA, quoteMint, DEFAULT_QUOTE_AMOUNT / 10);
@@ -387,7 +410,8 @@ describe("COMPLETE_SETTLEMENT", () => {
             rfqPDA,
             usdcMint,
             configPda,
-            taker2PaymentAccount);
+            taker2PaymentAccount,
+            facilitator.publicKey);
 
         const [quotePda] = PublicKey.findProgramAddressSync(
             [Buffer.from("quote"), rfqPDA.toBuffer(), taker.publicKey.toBuffer()],
@@ -536,7 +560,11 @@ describe("COMPLETE_SETTLEMENT", () => {
         assert(feesTracker.taker.equals(taker.publicKey), "Taker mismatch in feesTracker");
         assert(feesTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in feesTracker");
         assert(feesTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in feesTracker");
-        assert(feesTracker.amount.eq(settlement.feeAmount), "amount mismatch in feesTracker");
+        const facilitatorFee = new anchor.BN(DEFAULT_FEE_AMOUNT)
+            .muln(FACILITATOR_FEE_BPS)
+            .divn(10_000);
+        const treasuryFee = new anchor.BN(DEFAULT_FEE_AMOUNT).sub(facilitatorFee);
+        assert(feesTracker.amount.eq(treasuryFee), "amount mismatch in feesTracker");
         assert.ok(feesTracker.payedAt!.toNumber() > 0, "feesTracker payedAt should be set");
         assert(slashedBondsTracker.rfq.equals(rfqPDA), "RFQ mismatch in slashBoundsTracker");
         assert.strictEqual(slashedBondsTracker.bump, bumpslashedBondsTracker, "bump mismatch for slashedBondsTracker");
@@ -576,9 +604,117 @@ describe("COMPLETE_SETTLEMENT", () => {
         assert.ok(takerUsdcBalance.eq(new anchor.BN(DEFAULT_BOND_AMOUNT)), "taker should get bond back minus fee");
         assert.ok(takerBaseBalance.eq(new anchor.BN(DEFAULT_BASE_AMOUNT)), "taker should receive base amount");
         assert.ok(takerQuoteBalance.isZero(), "taker quote should be transferred out");
-        assert.ok(bondsVaultBalance.isZero(), "bonds vault should be empty");
+        assert.ok(bondsVaultBalance.eq(facilitatorFee), "bonds vault should contain facilitator fee");
         assert.ok(baseVaultBalance.isZero(), "base vault should be empty");
-        assert.ok(treasuryUsdcBalance.eq(new anchor.BN(DEFAULT_FEE_AMOUNT).add(new anchor.BN(DEFAULT_BOND_AMOUNT))), "treasury should receive fee and bonds of invalid quote");
+        assert.ok(
+            treasuryUsdcBalance.eq(treasuryFee.add(new anchor.BN(DEFAULT_BOND_AMOUNT))),
+            "treasury should receive its fee share and bonds of invalid quote"
+        );
+
+        let withdrawUnselectedFailed = false;
+        try {
+            await program.methods.withdrawReward()
+                .accounts({
+                    facilitator: facilitator.publicKey,
+                    config: configPda,
+                    rfq: rfqPDA,
+                    settlement: settlementPDA,
+                    quote: quote2Pda,
+                    usdcMint,
+                    bondsFeesVault,
+                    facilitatorAta: facilitatorPaymentAccount,
+                    facilitatorRewardTracker: facilitatorRewardTrackerPDA,
+                })
+                .signers([facilitator])
+                .rpc();
+        } catch {
+            withdrawUnselectedFailed = true;
+        }
+        assert(withdrawUnselectedFailed, "facilitator should not withdraw on unselected/unrevealed quote");
+
+        let withdrawOtherFacilitatorFailed = false;
+        try {
+            await program.methods.withdrawReward()
+                .accounts({
+                    facilitator: otherFacilitator.publicKey,
+                    config: configPda,
+                    rfq: rfqPDA,
+                    settlement: settlementPDA,
+                    quote: quotePda,
+                    usdcMint,
+                    bondsFeesVault,
+                    facilitatorAta: otherFacilitatorPaymentAccount,
+                    facilitatorRewardTracker: otherFacilitatorRewardTrackerPDA,
+                })
+                .signers([otherFacilitator])
+                .rpc();
+        } catch {
+            withdrawOtherFacilitatorFailed = true;
+        }
+        assert(withdrawOtherFacilitatorFailed, "other facilitator should not withdraw");
+
+        await program.methods.withdrawReward()
+            .accounts({
+                facilitator: facilitator.publicKey,
+                config: configPda,
+                rfq: rfqPDA,
+                settlement: settlementPDA,
+                quote: quotePda,
+                usdcMint,
+                bondsFeesVault,
+            })
+            .signers([facilitator])
+            .rpc();
+
+        const [
+            bondsVaultAfterWithdraw,
+            facilitatorUsdcAfterWithdraw,
+            facilitatorRewardTracker,
+        ] = await Promise.all([
+            getAndLogBalance("After withdraw reward", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After withdraw reward", "Facilitator USDC", facilitatorPaymentAccount),
+            program.account.facilitatorRewardTracker.fetch(facilitatorRewardTrackerPDA),
+        ]);
+
+        assert.ok(bondsVaultAfterWithdraw.isZero(), "bonds vault should be empty after reward withdraw");
+        assert.ok(facilitatorUsdcAfterWithdraw.eq(facilitatorFee), "facilitator should receive its fee");
+        assert.strictEqual(
+            facilitatorRewardTracker.bump,
+            facilitatorRewardTrackerBump,
+            "facilitator reward tracker bump mismatch"
+        );
+        assert(facilitatorRewardTracker.rfq.equals(rfqPDA), "facilitator reward tracker rfq mismatch");
+        assert(
+            facilitatorRewardTracker.facilitator.equals(facilitator.publicKey),
+            "facilitator reward tracker facilitator mismatch"
+        );
+        assert(facilitatorRewardTracker.usdcMint.equals(usdcMint), "facilitator reward tracker mint mismatch");
+        assert(facilitatorRewardTracker.amount.eq(facilitatorFee), "facilitator reward tracker amount mismatch");
+        assert.ok(
+            facilitatorRewardTracker.claimedAt.toNumber() > 0,
+            "facilitator reward tracker claimedAt should be set"
+        );
+
+        let withdrawFailed = false;
+        try {
+            await program.methods.withdrawReward()
+                .accounts({
+                    facilitator: facilitator.publicKey,
+                    config: configPda,
+                    rfq: rfqPDA,
+                    settlement: settlementPDA,
+                    quote: quotePda,
+                    usdcMint,
+                    bondsFeesVault,
+                    facilitatorAta: facilitatorPaymentAccount,
+                    facilitatorRewardTracker: facilitatorRewardTrackerPDA,
+                })
+                .signers([facilitator])
+                .rpc();
+        } catch {
+            withdrawFailed = true;
+        }
+        assert(withdrawFailed, "facilitator should not be able to withdraw twice");
     });
 
 

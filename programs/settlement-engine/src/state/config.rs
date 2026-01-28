@@ -9,6 +9,7 @@ pub struct Config {
     pub usdc_mint: Pubkey,           // USDC mint for fees/bonds
     pub treasury_usdc_owner: Pubkey, // treasury USDC owner
     pub liquidity_guard: Pubkey, // liquidity guard public key (for ed25519 signatures verification)
+    pub facilitator_fee_bps: u16, // facilitator fee in BPS (1 BPS = 0.01%)
     pub bump: u8,                // PDA bump
 }
 

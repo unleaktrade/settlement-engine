@@ -71,6 +71,7 @@ describe("QUOTE", () => {
 
     const admin = Keypair.generate();
     const maker = Keypair.generate();
+    const facilitator = Keypair.generate();
 
     const commitTTL = 10, revealTTL = 10, selectionTTL = 10, fundingTTL = 10;
 
@@ -108,7 +109,7 @@ describe("QUOTE", () => {
         if (needInit) {
             const treasury = Keypair.generate().publicKey;
             await program.methods
-                .initConfig(usdcMint, treasury, liquidityGuard)
+                .initConfig(usdcMint, treasury, liquidityGuard, null)
                 .accounts({ admin: admin.publicKey })
                 .signers([admin])
                 .rpc();
@@ -157,7 +158,8 @@ describe("QUOTE", () => {
                     commitTTL,
                     revealTTL,
                     selectionTTL,
-                    fundingTTL
+                    fundingTTL,
+                    null
                 )
                 .accounts({
                     maker: maker.publicKey,
@@ -266,6 +268,7 @@ describe("QUOTE", () => {
         const taker = Keypair.generate();
         await fund(taker);
         console.log("Taker:", taker.publicKey.toBase58());
+        console.log("Facilitator:", facilitator.publicKey.toBase58());
 
         // sign RFQ id
         const rfqAddr = Buffer.from(rfqPDA.toBytes());
@@ -353,7 +356,7 @@ describe("QUOTE", () => {
         console.log('OFFSETS:', { sigOffset, pubkeyOffset, msgOffset, msgSize });
 
         const commitQuoteIx1 = await program.methods
-            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
+            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof), facilitator.publicKey)
             .accounts({
                 taker: taker.publicKey,
                 rfq: rfqPDA,
@@ -401,6 +404,7 @@ describe("QUOTE", () => {
         assert(quote.takerPaymentAccount.equals(takerPaymentAccount), "taker payment account mismatch");
         assert(!quote.bondsRefundedAt, "bondsRefundedAt should be None");
         assert(!quote.selected, "quote selected should be false");
+        assert(quote.facilitator.equals(facilitator.publicKey), "quote facilitator mismatch");
 
         rfq = await program.account.rfq.fetch(rfqPDA);
         assert.strictEqual(rfq.committedCount, 1, "rfq revealedCount should be 1");
@@ -458,7 +462,7 @@ describe("QUOTE", () => {
         );
 
         const commitQuoteIx2 = await program.methods
-            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
+            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof), null)
             .accounts({
                 taker: taker2.publicKey,
                 config: configPda,
@@ -482,7 +486,7 @@ describe("QUOTE", () => {
         console.log("Testing that same taker cannot commit twice...");
         failed = false;
         const commitQuoteIx3 = await program.methods
-            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
+            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof), null)
             .accounts({
                 taker: taker.publicKey,
                 config: configPda,
@@ -573,7 +577,7 @@ describe("QUOTE", () => {
         });
 
         const commitQuoteIx1 = await program.methods
-            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof))
+            .commitQuote(Array.from(commit_hash), Array.from(liquidity_proof), null)
             .accounts({
                 taker: taker.publicKey,
                 config: configPda,
@@ -595,6 +599,54 @@ describe("QUOTE", () => {
             failed = true;
         }
         assert(failed, "commitQuote with invalid liquidity proof should fail");
+    });
+
+    it("should set and clear quote facilitator", async () => {
+        const taker = validTaker;
+        const facilitator2 = Keypair.generate();
+        const [quotePda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("quote"), rfqPDA.toBuffer(), taker.publicKey.toBuffer()],
+            program.programId
+        );
+
+        await program.methods
+            .setQuoteFacilitator({ set: [facilitator2.publicKey] })
+            .accounts({
+                taker: taker.publicKey,
+                rfq: rfqPDA,
+                quote: quotePda,
+            })
+            .signers([taker])
+            .rpc();
+
+        let quote = await program.account.quote.fetch(quotePda);
+        assert(quote.facilitator.equals(facilitator2.publicKey), "quote facilitator mismatch");
+
+        await program.methods
+            .setQuoteFacilitator({ clear: {} })
+            .accounts({
+                taker: taker.publicKey,
+                rfq: rfqPDA,
+                quote: quotePda,
+            })
+            .signers([taker])
+            .rpc();
+
+        quote = await program.account.quote.fetch(quotePda);
+        assert(!quote.facilitator, "quote facilitator should be None");
+
+        await program.methods
+            .setQuoteFacilitator({ set: [facilitator.publicKey] })
+            .accounts({
+                taker: taker.publicKey,
+                rfq: rfqPDA,
+                quote: quotePda,
+            })
+            .signers([taker])
+            .rpc();
+
+        quote = await program.account.quote.fetch(quotePda);
+        assert(quote.facilitator.equals(facilitator.publicKey), "quote facilitator mismatch");
     });
 
     it("should reveal a quote", async () => {
@@ -665,6 +717,7 @@ describe("QUOTE", () => {
         assert.strictEqual(quote.bump, bumpQuote, "quote bump mismatch");
         assert.ok(quote.revealedAt.toNumber() > 0, "revealedAt should be set after reveal");
         assert.ok(quote.quoteAmount.eq(new anchor.BN(1_000_000_001)), "quoteAmount mismatch");
+        assert(quote.facilitator.equals(facilitator.publicKey), "quote facilitator mismatch");
         assert.ok(rfq.state.revealed);
         assert.strictEqual(rfq.revealedCount, 1, "rfq revealedCount should be 1");
 
@@ -782,6 +835,7 @@ describe("QUOTE", () => {
         assert(!quote.bondsRefundedAt, "quote bondsRefundedAt should be None");
         assert.ok(rfq.selectedQuote!.equals(quotePda), "rfq selectedQuote mismatch");
         assert.ok(rfq.settlement!.equals(settlementPda), "rfq settlement mismatch");
+        assert(quote.facilitator.equals(facilitator.publicKey), "quote facilitator mismatch");
 
         assert(settlement.rfq.equals(rfqPDA), "settlement rfq mismatch");
         assert.strictEqual(settlement.bump, bumpSettlement, "settlement bump mismatch");

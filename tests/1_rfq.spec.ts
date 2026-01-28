@@ -80,7 +80,7 @@ describe("RFQ", () => {
             treasury = Keypair.generate().publicKey;
             const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
             await program.methods
-                .initConfig(usdcMint, treasury, liquidityGuard)
+                .initConfig(usdcMint, treasury, liquidityGuard, null)
                 .accounts({ admin: admin.publicKey })
                 .signers([admin])
                 .rpc();
@@ -98,6 +98,8 @@ describe("RFQ", () => {
     it("creates RFQ PDA with uuid and stores fields", async () => {
         const maker = Keypair.generate();
         await fund(maker);
+        const facilitator = Keypair.generate();
+        //await fund(facilitator);
 
         const u = uuidBytes();
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
@@ -142,7 +144,8 @@ describe("RFQ", () => {
                 commitTTL,
                 revealTTL,
                 selectionTTL,
-                fundingTTL
+                fundingTTL,
+                facilitator.publicKey
             )
             .accounts({
                 maker: maker.publicKey,
@@ -159,6 +162,7 @@ describe("RFQ", () => {
 
         const rfq = await program.account.rfq.fetch(rfqAddr);
         assert(rfq.maker.equals(maker.publicKey), "maker mismatch");
+        assert(rfq.facilitator.equals(facilitator.publicKey), "facilitator mismatch");
         assert.strictEqual(rfq.bump, bump, "bump mismatch");
         assert.deepStrictEqual(rfq.uuid, Array.from(u), "uuid mismatch");
         assert(rfq.baseMint.equals(baseMint), "base mint mismatch");
@@ -223,7 +227,7 @@ describe("RFQ", () => {
             .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
                 new anchor.BN(1_000_000_000),
                 new anchor.BN(1_000_000_000),
-                new anchor.BN(1_000), 1, 1, 1, 1)
+                new anchor.BN(1_000), 1, 1, 1, 1, null)
             .accounts({ maker: maker.publicKey, config: configPda, usdcMint, bondsFeesVault, makerPaymentAccount, })
             .signers([maker])
             .rpc();
@@ -235,7 +239,7 @@ describe("RFQ", () => {
                 .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
                     new anchor.BN(1_000_000_000),
                     new anchor.BN(1_000_000_000),
-                    new anchor.BN(1_000), 1, 1, 1, 1)
+                    new anchor.BN(1_000), 1, 1, 1, 1, null)
                 .accounts({ maker: maker.publicKey, config: configPda, usdcMint })
                 .signers([maker])
                 .rpc();
@@ -282,7 +286,7 @@ describe("RFQ", () => {
                 .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(0),
                     new anchor.BN(1_000_000_000),
                     new anchor.BN(1_000_000_000),
-                    new anchor.BN(1_000), 1, 1, 1, 1)
+                    new anchor.BN(1_000), 1, 1, 1, 1, null)
                 .accounts({ maker: maker.publicKey, config: configPda, usdcMint, bondsFeesVault, makerPaymentAccount })
                 .signers([maker])
                 .rpc();
@@ -297,7 +301,7 @@ describe("RFQ", () => {
                 .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
                     new anchor.BN(0),
                     new anchor.BN(1_000_000_000),
-                    new anchor.BN(1_000), 1, 1, 1, 1)
+                    new anchor.BN(1_000), 1, 1, 1, 1, null)
                 .accounts({ maker: maker.publicKey, config: configPda, usdcMint })
                 .signers([maker])
                 .rpc();
@@ -312,7 +316,7 @@ describe("RFQ", () => {
                 .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
                     new anchor.BN(1_000_000_000),
                     new anchor.BN(0),
-                    new anchor.BN(1_000), 1, 1, 1, 1)
+                    new anchor.BN(1_000), 1, 1, 1, 1, null)
                 .accounts({ maker: maker.publicKey, config: configPda, usdcMint })
                 .signers([maker])
                 .rpc();
@@ -327,7 +331,7 @@ describe("RFQ", () => {
                 .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
                     new anchor.BN(1_000_000_000),
                     new anchor.BN(1_000_000_000),
-                    new anchor.BN(0), 1, 1, 1, 1)
+                    new anchor.BN(0), 1, 1, 1, 1, null)
                 .accounts({ maker: maker.publicKey, config: configPda, usdcMint })
                 .signers([maker])
                 .rpc();
@@ -396,7 +400,7 @@ describe("RFQ", () => {
             .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
                 new anchor.BN(1_000_000_000),
                 new anchor.BN(1_000_000_000),
-                new anchor.BN(1_000), 1, 1, 1, 1)
+                new anchor.BN(1_000), 1, 1, 1, 1, null)
             .accounts({ maker: makerA.publicKey, config: configPda, usdcMint, bondsFeesVault: bondsFeesVaultRfq1, makerPaymentAccount: makerAPaymentAccount })
             .signers([makerA])
             .rpc();
@@ -405,7 +409,7 @@ describe("RFQ", () => {
             .initRfq(Array.from(u) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
                 new anchor.BN(1_000_000_000),
                 new anchor.BN(1_000_000_000),
-                new anchor.BN(1_000), 1, 1, 1, 1)
+                new anchor.BN(1_000), 1, 1, 1, 1, null)
             .accounts({ maker: makerB.publicKey, config: configPda, usdcMint, bondsFeesVault: bondsFeesVaultRfq2, makerPaymentAccount: makerBPaymentAccount })
             .signers([makerB])
             .rpc();
@@ -415,8 +419,10 @@ describe("RFQ", () => {
             program.account.rfq.fetch(pdaB),
         ]);
         assert(a.maker.equals(makerA.publicKey));
+        assert(!a.facilitator, "a's facilitator should be None");
         assert.deepStrictEqual(a.uuid, Array.from(u), "uuid mismatch for rfq a");
         assert(b.maker.equals(makerB.publicKey));
+        assert(!b.facilitator, "b's facilitator should be None");
         assert.deepStrictEqual(b.uuid, Array.from(u), "uuid mismatch for rfq b");
     });
 
@@ -457,7 +463,7 @@ describe("RFQ", () => {
             .initRfq(Array.from(u1) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
                 new anchor.BN(1_000_000_000),
                 new anchor.BN(1_000_000_000),
-                new anchor.BN(1_000), 1, 1, 1, 1)
+                new anchor.BN(1_000), 1, 1, 1, 1, null)
             .accounts({ maker: maker.publicKey, config: configPda, usdcMint, bondsFeesVault: bondsFeesVaultRfq1, makerPaymentAccount })
             .signers([maker])
             .rpc();
@@ -473,7 +479,7 @@ describe("RFQ", () => {
             .initRfq(Array.from(u2) as any, baseMint, quoteMint, new anchor.BN(1_000_000),
                 new anchor.BN(1_000_000_000),
                 new anchor.BN(1_000_000_000),
-                new anchor.BN(1_000), 1, 1, 1, 1)
+                new anchor.BN(1_000), 1, 1, 1, 1, null)
             .accounts({ maker: maker.publicKey, config: configPda, usdcMint, bondsFeesVault: bondsFeesVaultRfq2, makerPaymentAccount })
             .signers([maker])
             .rpc();
@@ -498,6 +504,8 @@ describe("RFQ", () => {
     it("updates RFQ", async () => {
         const maker = Keypair.generate();
         await fund(maker);
+        const facilitator = Keypair.generate();
+        //await fund(facilitator);
 
         const u = uuidBytes();
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
@@ -534,7 +542,6 @@ describe("RFQ", () => {
         console.log("quoteMint:", quoteMint.toBase58());
 
         const commitTTL = 60, revealTTL = 60, selectionTTL = 60, fundingTTL = 60;
-
         await program.methods
             .initRfq(
                 Array.from(u),
@@ -547,7 +554,8 @@ describe("RFQ", () => {
                 commitTTL,
                 revealTTL,
                 selectionTTL,
-                fundingTTL
+                fundingTTL,
+                facilitator.publicKey
             )
             .accounts({
                 maker: maker.publicKey,
@@ -572,7 +580,8 @@ describe("RFQ", () => {
                 commitTTL + 1,
                 revealTTL + 1,
                 selectionTTL + 1,
-                null //skip funding TTL update
+                null, //skip funding TTL update
+                null,
             )
             .accounts({
                 maker: maker.publicKey,
@@ -581,8 +590,9 @@ describe("RFQ", () => {
             .signers([maker])
             .rpc();
 
-        const rfq = await program.account.rfq.fetch(rfqAddr);
+        let rfq = await program.account.rfq.fetch(rfqAddr);
         assert(rfq.maker.equals(maker.publicKey), "maker mismatch");
+        assert(rfq.facilitator.equals(facilitator.publicKey), "facilitator mismatch");
         assert.strictEqual(rfq.bump, bump, "bump mismatch");
         assert.deepStrictEqual(rfq.uuid, Array.from(u), "uuid mismatch");
         assert(rfq.baseMint.equals(quoteMint), "base mint mismatch");
@@ -600,11 +610,69 @@ describe("RFQ", () => {
         expect(rfq.state).to.have.property('draft');
         assert.ok(rfq.state.draft);
         expect(rfq.state.open, "state should be draft, not open").to.be.undefined;
+
+        console.log("facilitator", facilitator.publicKey.toBase58());
+        const facilitator2 = Keypair.generate();
+        console.log("facilitator2", facilitator2.publicKey.toBase58());
+
+        // update facilitator 
+        await program.methods
+            .updateRfq(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null, //skip funding TTL update
+                { set: [facilitator2.publicKey] },
+            )
+            .accounts({
+                maker: maker.publicKey,
+                rfq: rfqAddr,
+            })
+            .signers([maker])
+            .rpc();
+
+        rfq = await program.account.rfq.fetch(rfqAddr);
+        assert(rfq.facilitator.equals(facilitator2.publicKey), "facilitator mismatch");
+
+        // clear facilitator 
+        await program.methods
+            .updateRfq(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null, //skip funding TTL update
+                { clear: {} },
+            )
+            .accounts({
+                maker: maker.publicKey,
+                rfq: rfqAddr,
+            })
+            .signers([maker])
+            .rpc();
+
+        rfq = await program.account.rfq.fetch(rfqAddr);
+        assert(!rfq.facilitator, "facilitator should be None after clearing");
+
     });
 
     it("opens RFQ", async () => {
         const maker = Keypair.generate();
         await fund(maker);
+        const facilitator = Keypair.generate();
+        const facilitator2 = Keypair.generate();
+        //await fund(facilitator);
 
         const u = uuidBytes();
         const [rfqAddr, bump] = rfqPda(maker.publicKey, u);
@@ -657,7 +725,8 @@ describe("RFQ", () => {
                 commitTTL,
                 revealTTL,
                 selectionTTL,
-                fundingTTL
+                fundingTTL,
+                facilitator.publicKey
             )
             .accounts({
                 maker: maker.publicKey,
@@ -686,8 +755,9 @@ describe("RFQ", () => {
             .signers([maker])
             .rpc();
 
-        const rfq = await program.account.rfq.fetch(rfqAddr);
+        let rfq = await program.account.rfq.fetch(rfqAddr);
         assert(rfq.maker.equals(maker.publicKey), "maker mismatch");
+        assert(rfq.facilitator.equals(facilitator.publicKey), "facilitator mismatch");
         assert.strictEqual(rfq.bump, bump, "bump mismatch");
         assert.deepStrictEqual(rfq.uuid, Array.from(u), "uuid mismatch");
         assert(rfq.baseMint.equals(baseMint), "base mint mismatch");
@@ -718,6 +788,30 @@ describe("RFQ", () => {
         assert(slashedBondsTracker.seizedAt == null || slashedBondsTracker.seizedAt == undefined, "seizedAt should be null or undefined in slashedBondsTracker");
         assert(slashedBondsTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in slashedBondsTracker");
         assert(slashedBondsTracker.treasuryUsdcOwner.equals(treasury), "treasury mismatch in slashedBondsTracker");
+
+        // Clear facilitator
+        await program.methods
+            .setRfqFacilitator({ clear: {} })
+            .accounts({
+                maker: maker.publicKey,
+                rfq: rfqAddr,
+            })
+            .signers([maker])
+            .rpc();
+        rfq = await program.account.rfq.fetch(rfqAddr);
+        assert(!rfq.facilitator, "facilitator should be None after clearing");
+
+        await program.methods
+            .setRfqFacilitator({ set: [facilitator2.publicKey] })
+            .accounts({
+                maker: maker.publicKey,
+                rfq: rfqAddr,
+            })
+            .signers([maker])
+            .rpc();
+        rfq = await program.account.rfq.fetch(rfqAddr);
+        assert(rfq.facilitator.equals(facilitator2.publicKey), "facilitator mismatch");
+
         // Should fail to re-open
         let failed = false;
         try {
@@ -754,7 +848,8 @@ describe("RFQ", () => {
                     commitTTL + 1,
                     revealTTL + 1,
                     selectionTTL + 1,
-                    null //skip funding TTL update
+                    null, //skip funding TTL update
+                    null
                 )
                 .accounts({
                     maker: maker.publicKey,
@@ -836,7 +931,8 @@ describe("RFQ", () => {
                 commitTTL,
                 revealTTL,
                 selectionTTL,
-                fundingTTL
+                fundingTTL,
+                null
             )
             .accounts({
                 maker: maker.publicKey,

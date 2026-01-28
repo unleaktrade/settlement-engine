@@ -18,8 +18,15 @@ pub mod settlement_engine {
         usdc_mint: Pubkey,
         treasury_usdc_owner: Pubkey,
         liquidity_guard: Pubkey,
+        facilitator_fee_bps: Option<u16>,
     ) -> Result<()> {
-        init_config::init_config_handler(ctx, usdc_mint, treasury_usdc_owner, liquidity_guard)
+        init_config::init_config_handler(
+            ctx,
+            usdc_mint,
+            treasury_usdc_owner,
+            liquidity_guard,
+            facilitator_fee_bps,
+        )
     }
 
     pub fn update_config(
@@ -28,6 +35,7 @@ pub mod settlement_engine {
         new_usdc_mint: Option<Pubkey>,
         new_treasury_usdc_owner: Option<Pubkey>,
         new_liquidity_guard: Option<Pubkey>,
+        new_facilitator_fee_bps: Option<u16>,
     ) -> Result<()> {
         update_config::update_config_handler(
             ctx,
@@ -35,6 +43,7 @@ pub mod settlement_engine {
             new_usdc_mint,
             new_treasury_usdc_owner,
             new_liquidity_guard,
+            new_facilitator_fee_bps,
         )
     }
 
@@ -56,6 +65,7 @@ pub mod settlement_engine {
         reveal_ttl_secs: u32,
         selection_ttl_secs: u32,
         fund_ttl_secs: u32,
+        facilitator: Option<Pubkey>,
     ) -> Result<()> {
         init_rfq::init_rfq_handler(
             ctx,
@@ -70,6 +80,7 @@ pub mod settlement_engine {
             reveal_ttl_secs,
             selection_ttl_secs,
             fund_ttl_secs,
+            facilitator,
         )
     }
 
@@ -85,6 +96,7 @@ pub mod settlement_engine {
         new_reveal_ttl_secs: Option<u32>,
         new_selection_ttl_secs: Option<u32>,
         new_fund_ttl_secs: Option<u32>,
+        new_facilitator_update: Option<state::rfq::FacilitatorUpdate>,
     ) -> Result<()> {
         update_rfq::update_rfq_handler(
             ctx,
@@ -98,11 +110,18 @@ pub mod settlement_engine {
             new_reveal_ttl_secs,
             new_selection_ttl_secs,
             new_fund_ttl_secs,
+            new_facilitator_update,
         )
     }
 
     pub fn open_rfq(ctx: Context<OpenRfq>) -> Result<()> {
         open_rfq::open_rfq_handler(ctx)
+    }
+    pub fn set_rfq_facilitator(
+        ctx: Context<SetRfqFacilitator>,
+        update: state::rfq::FacilitatorUpdate,
+    ) -> Result<()> {
+        set_rfq_facilitator::set_rfq_facilitator_handler(ctx, update)
     }
     pub fn cancel_rfq(ctx: Context<CancelRfq>) -> Result<()> {
         cancel_rfq::cancel_rfq_handler(ctx)
@@ -112,8 +131,16 @@ pub mod settlement_engine {
         ctx: Context<CommitQuote>,
         commit_hash: [u8; 32],
         liquidity_proof: [u8; 64],
+        facilitator: Option<Pubkey>,
     ) -> Result<()> {
-        commit_quote::commit_quote_handler(ctx, commit_hash, liquidity_proof)
+        commit_quote::commit_quote_handler(ctx, commit_hash, liquidity_proof, facilitator)
+    }
+
+    pub fn set_quote_facilitator(
+        ctx: Context<SetQuoteFacilitator>,
+        update: state::rfq::FacilitatorUpdate,
+    ) -> Result<()> {
+        set_quote_facilitator::set_quote_facilitator_handler(ctx, update)
     }
 
     pub fn reveal_quote(
@@ -144,5 +171,9 @@ pub mod settlement_engine {
 
     pub fn refund_quote_bonds(ctx: Context<RefundQuoteBonds>) -> Result<()> {
         refund_quote_bonds::refund_quote_bonds_handler(ctx)
+    }
+
+    pub fn withdraw_reward(ctx: Context<WithdrawReward>) -> Result<()> {
+        withdraw_reward::withdraw_reward_handler(ctx)
     }
 }
