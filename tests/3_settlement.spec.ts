@@ -197,13 +197,17 @@ describe("COMPLETE_SETTLEMENT", () => {
     });
 
     after(async () => {
-        // console.log("All CONFIG:", JSON.stringify((await program.account.config.all()), null, 2));
-        // console.log("All RFQ:", JSON.stringify((await program.account.rfq.all()), null, 2));
-        // console.log("All QUOTE:", JSON.stringify((await program.account.quote.all()), null, 2));
-        // console.log("All COMMIT GUARDS:", JSON.stringify((await program.account.commitGuard.all()), null, 2));
-        // console.log("All SETTLEMENT:", JSON.stringify((await program.account.settlement.all()), null, 2));
-        // console.log("All FEES_TRAKER:", JSON.stringify((await program.account.feesTracker.all()), null, 2));
-        // console.log("All SLASHED_BONDS_TRAKER:", JSON.stringify((await program.account.slashedBondsTracker.all()), null, 2));
+        let data = {};
+        data['config'] = await program.account.config.all()
+        data['rfq'] = await program.account.rfq.all()
+        data['quote'] = await program.account.quote.all()
+        data['commitGuard'] = await program.account.commitGuard.all()
+        data['settlement'] = await program.account.settlement.all()
+        data['feesTracker'] = await program.account.feesTracker.all()
+        data['slashedBondsTracker'] = await program.account.slashedBondsTracker.all()
+        data['facilitatorRewardTracker'] = await program.account.facilitatorRewardTracker.all()
+        // console.log("Final on-chain accounts data:", JSON.stringify(data, null, 2));
+        console.log("Closing config...");
         await program.methods
             .closeConfig()
             .accounts({ admin: admin.publicKey, config: configPda })
