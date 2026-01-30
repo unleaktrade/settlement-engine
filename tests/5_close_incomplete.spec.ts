@@ -522,6 +522,23 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
             .signers([maker])
             .rpc();
 
+        // Should fail to update facilitator after selection
+        let facilitatorUpdateFailed = false;
+        try {
+            const newFacilitator = Keypair.generate();
+            await program.methods
+                .setRfqFacilitator({ set: [newFacilitator.publicKey] })
+                .accounts({
+                    maker: maker.publicKey,
+                    rfq: rfqPDA,
+                })
+                .signers([maker])
+                .rpc();
+        } catch {
+            facilitatorUpdateFailed = true;
+        }
+        assert(facilitatorUpdateFailed, "setRfqFacilitator after selection should fail");
+
         await Promise.all([
             getAndLogBalance("After selecting quote", "Maker USDC", makerPaymentAccount),
             getAndLogBalance("After selecting quote", "Taker USDC", takerPaymentAccount),
