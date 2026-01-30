@@ -556,6 +556,52 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
         await waitForChainTime(provider.connection, fundingDeadline, "funding deadline");
         console.log("Funding deadline past...");
 
+        // Mismatched base mint/vault should fail
+        const wrongBaseMint = await createMint(
+            provider.connection,
+            admin,
+            admin.publicKey,
+            null,
+            9
+        );
+        const wrongBaseVault = await getOrCreateAssociatedTokenAccount(
+            provider.connection,
+            admin,
+            wrongBaseMint,
+            rfqPDA,
+            true
+        );
+        const wrongMakerBaseAccount = await getOrCreateAssociatedTokenAccount(
+            provider.connection,
+            admin,
+            wrongBaseMint,
+            maker.publicKey
+        );
+        let closeFailed = false;
+        try {
+            await program.methods.closeIncomplete()
+                .accounts({
+                    maker: maker.publicKey,
+                    config: configPda,
+                    rfq: rfqPDA,
+                    settlement: settlementPDA,
+                    baseMint: wrongBaseMint,
+                    vaultBaseAta: wrongBaseVault.address,
+                    makerBaseAccount: wrongMakerBaseAccount.address,
+                    usdcMint,
+                    bondsFeesVault,
+                    makerPaymentAccount,
+                    treasuryUsdcOwner: treasury.publicKey,
+                    slashBoundsTracker: slashedBondsTrackerPDA,
+                })
+                .signers([maker])
+                .rpc();
+        } catch (e) {
+            closeFailed = true;
+            console.log("closeIncomplete failed with mismatched base mint (expected):", e);
+        }
+        assert.equal(closeFailed, true, "closeIncomplete should fail with mismatched base mint");
+
         await program.methods.closeIncomplete()
             .accounts({
                 maker: maker.publicKey,

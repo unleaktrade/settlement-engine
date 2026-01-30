@@ -35,13 +35,14 @@ pub struct CloseIncomplete<'info> {
     )]
     pub settlement: Box<Account<'info, Settlement>>,
 
-    #[account()]
+    #[account(address = settlement.base_mint)]
     pub base_mint: Box<Account<'info, Mint>>,
 
     #[account(
         mut,
         associated_token::mint = base_mint,
         associated_token::authority = rfq,
+        address = settlement.vault_base_ata,
     )]
     pub vault_base_ata: Box<Account<'info, TokenAccount>>,
 
@@ -49,6 +50,7 @@ pub struct CloseIncomplete<'info> {
         mut,
         token::mint = base_mint,
         token::authority = maker,
+        address = settlement.maker_base_account,
     )]
     pub maker_base_account: Box<Account<'info, TokenAccount>>,
 
