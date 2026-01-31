@@ -187,11 +187,7 @@ pub fn complete_settlement_handler<'info>(
     let slashed_ai = slashed_ai.ok_or(RfqError::MissingSlashedBondsTrackerAccount)?;
 
     require_keys_eq!(*quote_ai.owner, crate::ID, RfqError::InvalidOwner);
-    require_keys_eq!(
-        *slashed_ai.owner,
-        crate::ID,
-        RfqError::InvalidOwner
-    );
+    require_keys_eq!(*slashed_ai.owner, crate::ID, RfqError::InvalidOwner);
 
     let mut quote: Account<'info, Quote> = Account::try_from(quote_ai)?;
     require_eq!(quote_bump, quote.bump, RfqError::BumpMismatch);

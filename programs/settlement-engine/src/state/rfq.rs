@@ -17,10 +17,10 @@ pub struct Rfq {
     pub liquidity_guard: Pubkey,     // snapshot of config.liquidity_guard at init
 
     // economics (u64 in smallest units)
-    pub bond_amount: u64,      // maker bond in USDC
-    pub base_amount: u64,      // exact base tokens maker will deliver
-    pub min_quote_amount: u64, // minimum quote taker must deliver
-    pub fee_amount: u64,       // fixed fee taker pays (USDC)
+    pub bond_amount: u64,         // maker bond in USDC
+    pub base_amount: u64,         // exact base tokens maker will deliver
+    pub min_quote_amount: u64,    // minimum quote taker must deliver
+    pub fee_amount: u64,          // fixed fee taker pays (USDC)
     pub facilitator_fee_bps: u16, // snapshot of config.facilitator_fee_bps at init
 
     // TTLs (seconds) – ALL relative to opened_at (not created_at)
