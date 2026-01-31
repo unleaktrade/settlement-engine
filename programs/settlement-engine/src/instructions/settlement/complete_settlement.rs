@@ -155,23 +155,46 @@ pub fn complete_settlement_handler<'info>(
         RfqError::InvalidTakerPaymentAccount
     );
 
-    // inject quote from remaining_accounts
-    let quote_ai: &AccountInfo<'info> = ctx
-        .remaining_accounts
-        .get(1)
-        .ok_or(RfqError::MissingQuoteAccount)?;
-    require_keys_eq!(*quote_ai.owner, crate::ID, RfqError::InvalidOwner);
+    // resolve quote and slashed_bonds_tracker from remaining_accounts (order-agnostic)
+    require!(
+        ctx.remaining_accounts.len() >= 2,
+        RfqError::MissingQuoteAccount
+    );
+
     let quote_seeds: &[&[u8]] = &[
         Quote::SEED_PREFIX,
         settlement.rfq.as_ref(),
         settlement.taker.as_ref(),
     ];
     let (quote_expected_pda, quote_bump) = Pubkey::find_program_address(quote_seeds, &crate::ID);
-    require_keys_eq!(*quote_ai.key, quote_expected_pda, RfqError::PdaMismatch);
+
+    let slashed_bonds_tracker_seeds: &[&[u8]] =
+        &[SlashedBondsTracker::SEED_PREFIX, settlement.rfq.as_ref()];
+    let (slashed_bonds_tracker_expected_pda, slashed_bonds_tracker_bump) =
+        Pubkey::find_program_address(slashed_bonds_tracker_seeds, &crate::ID);
+
+    let mut quote_ai: Option<&AccountInfo<'info>> = None;
+    let mut slashed_ai: Option<&AccountInfo<'info>> = None;
+    for ai in ctx.remaining_accounts.iter() {
+        if ai.key() == quote_expected_pda {
+            quote_ai = Some(ai);
+        } else if ai.key() == slashed_bonds_tracker_expected_pda {
+            slashed_ai = Some(ai);
+        }
+    }
+
+    let quote_ai = quote_ai.ok_or(RfqError::MissingQuoteAccount)?;
+    let slashed_ai = slashed_ai.ok_or(RfqError::MissingSlashedBondsTrackerAccount)?;
+
+    require_keys_eq!(*quote_ai.owner, crate::ID, RfqError::InvalidOwner);
+    require_keys_eq!(
+        *slashed_ai.owner,
+        crate::ID,
+        RfqError::InvalidOwner
+    );
 
     let mut quote: Account<'info, Quote> = Account::try_from(quote_ai)?;
     require_eq!(quote_bump, quote.bump, RfqError::BumpMismatch);
-
     require_eq!(quote.key(), settlement.quote, RfqError::InvalidQuote);
     require!(quote.selected, RfqError::InvalidQuoteState);
 
@@ -281,23 +304,6 @@ pub fn complete_settlement_handler<'info>(
         ),
         settlement.quote_amount,
     )?;
-
-    // inject slashed_bonds_tracker from remaining_accounts
-    let slashed_ai: &AccountInfo<'info> = ctx
-        .remaining_accounts
-        .get(0)
-        .ok_or(RfqError::MissingSlashedBondsTrackerAccount)?;
-    require_keys_eq!(*slashed_ai.owner, crate::ID, RfqError::InvalidOwner);
-
-    let slashed_bonds_tracker_seeds: &[&[u8]] =
-        &[SlashedBondsTracker::SEED_PREFIX, settlement.rfq.as_ref()];
-    let (slashed_bonds_tracker_expected_pda, slashed_bonds_tracker_bump) =
-        Pubkey::find_program_address(slashed_bonds_tracker_seeds, &crate::ID);
-    require_keys_eq!(
-        *slashed_ai.key,
-        slashed_bonds_tracker_expected_pda,
-        RfqError::PdaMismatch
-    );
 
     let mut slashed_bonds_tracker: Account<'info, SlashedBondsTracker> =
         Account::try_from(slashed_ai)?;

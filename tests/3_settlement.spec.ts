@@ -510,6 +510,7 @@ describe("COMPLETE_SETTLEMENT", () => {
             getAndLogBalance("After selecting quote", "RFQ Vault Base", baseVault),
         ]);
 
+        // remaining_accounts order should be irrelevant
         await program.methods.completeSettlement()
             .accounts({
                 taker: taker.publicKey,
@@ -529,11 +530,11 @@ describe("COMPLETE_SETTLEMENT", () => {
                 feesTracker: feesTrackerPDA,
             })
             .remainingAccounts([{
-                pubkey: slashedBondsTrackerPDA,
+                pubkey: quotePda,
                 isSigner: false,
                 isWritable: true,
             }, {
-                pubkey: quotePda,
+                pubkey: slashedBondsTrackerPDA,
                 isSigner: false,
                 isWritable: true,
             }])
