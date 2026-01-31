@@ -96,6 +96,7 @@ pub fn commit_quote_handler(
         .ok_or_else(|| RfqError::NoEd25519Instruction)?;
     let ed25519_ix =
         load_instruction_at_checked(prev_index as usize, &ctx.accounts.instruction_sysvar)?;
+    #[cfg(feature = "debug-logs")]
     msg!("Prev ix program_id: {}", ed25519_ix.program_id);
 
     // Must be native Ed25519
@@ -119,12 +120,19 @@ pub fn commit_quote_handler(
     let msg_size = u16::from_le_bytes([data[12], data[13]]) as usize;
     let msg_ix_index = u16::from_le_bytes([data[14], data[15]]);
 
+    #[cfg(feature = "debug-logs")]
     msg!("sig_ix_index={}", sig_ix_index);
+    #[cfg(feature = "debug-logs")]
     msg!("pubkey_ix_index={}", pubkey_ix_index);
+    #[cfg(feature = "debug-logs")]
     msg!("msg_ix_index={}", msg_ix_index);
+    #[cfg(feature = "debug-logs")]
     msg!("sig_offset={}", sig_offset);
+    #[cfg(feature = "debug-logs")]
     msg!("pubkey_offset={}", pubkey_offset);
+    #[cfg(feature = "debug-logs")]
     msg!("msg_offset={}", msg_offset);
+    #[cfg(feature = "debug-logs")]
     msg!("msg_size={}", msg_size);
 
     // Enforce same-instruction sourcing (prevents cross-instruction substitution)

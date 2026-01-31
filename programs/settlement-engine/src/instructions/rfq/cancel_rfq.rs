@@ -19,6 +19,7 @@ pub struct CancelRfq<'info> {
 
 pub fn cancel_rfq_handler(ctx: Context<CancelRfq>) -> Result<()> {
     let rfq = &ctx.accounts.rfq;
+    #[cfg(feature = "debug-logs")]
     msg!(
         "RFQ {} cancelled by maker {}",
         rfq.key().to_string(),

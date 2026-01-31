@@ -80,7 +80,9 @@ pub fn reveal_quote_handler(
     buf.extend_from_slice(&rfq.fee_amount.to_le_bytes());
 
     let computed = hash(&buf).to_bytes();
+    #[cfg(feature = "debug-logs")]
     msg!("Computed commit hash: {:?}", computed);
+    #[cfg(feature = "debug-logs")]
     msg!("Stored commit hash:   {:?}", quote.commit_hash);
     require!(computed == quote.commit_hash, RfqError::Unauthorized);
 
