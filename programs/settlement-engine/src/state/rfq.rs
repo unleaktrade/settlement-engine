@@ -12,12 +12,16 @@ pub struct Rfq {
     // assets
     pub base_mint: Pubkey,
     pub quote_mint: Pubkey,
+    pub usdc_mint: Pubkey,           // snapshot of config.usdc_mint at init
+    pub treasury_usdc_owner: Pubkey, // snapshot of config.treasury_usdc_owner at init
+    pub liquidity_guard: Pubkey,     // snapshot of config.liquidity_guard at init
 
     // economics (u64 in smallest units)
     pub bond_amount: u64,      // maker bond in USDC
     pub base_amount: u64,      // exact base tokens maker will deliver
     pub min_quote_amount: u64, // minimum quote taker must deliver
     pub fee_amount: u64,       // fixed fee taker pays (USDC)
+    pub facilitator_fee_bps: u16, // snapshot of config.facilitator_fee_bps at init
 
     // TTLs (seconds) – ALL relative to opened_at (not created_at)
     pub commit_ttl_secs: u32,
@@ -40,7 +44,7 @@ pub struct Rfq {
     pub settlement: Option<Pubkey>,
 
     // escrow & maker references
-    pub bonds_fees_vault: Pubkey, // ATA(owner = rfq PDA, mint = Config.usdc_mint)
+    pub bonds_fees_vault: Pubkey, // ATA(owner = rfq PDA, mint = rfq.usdc_mint)
     pub maker_payment_account: Pubkey,
 
     //facilitator

@@ -24,7 +24,7 @@ pub struct OpenRfq<'info> {
     pub config: Account<'info, Config>,
 
     // Must be an account field (not just a Pubkey) for `associated_token::mint`
-    #[account(address = config.usdc_mint)]
+    #[account(address = rfq.usdc_mint)]
     pub usdc_mint: Account<'info, Mint>,
 
     #[account(
@@ -86,8 +86,8 @@ pub fn open_rfq_handler(ctx: Context<OpenRfq>) -> Result<()> {
     rfq.state = RfqState::Open;
     //init slashed bonds tracker
     slashed_bonds_tracker.rfq = rfq.key();
-    slashed_bonds_tracker.usdc_mint = ctx.accounts.config.usdc_mint;
-    slashed_bonds_tracker.treasury_usdc_owner = ctx.accounts.config.treasury_usdc_owner;
+    slashed_bonds_tracker.usdc_mint = rfq.usdc_mint;
+    slashed_bonds_tracker.treasury_usdc_owner = rfq.treasury_usdc_owner;
     slashed_bonds_tracker.amount = None;
     slashed_bonds_tracker.seized_at = None;
     slashed_bonds_tracker.bump = ctx.bumps.slashed_bonds_tracker;

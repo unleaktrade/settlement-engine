@@ -20,7 +20,7 @@ pub struct RefundQuoteBonds<'info> {
 
     #[account(
         mut,
-        address = config.treasury_usdc_owner,
+        address = rfq.treasury_usdc_owner,
     )]
     pub treasury_usdc_owner: SystemAccount<'info>,
 
@@ -39,7 +39,7 @@ pub struct RefundQuoteBonds<'info> {
     )]
     pub quote: Box<Account<'info, Quote>>,
 
-    #[account(address = config.usdc_mint)]
+    #[account(address = rfq.usdc_mint)]
     pub usdc_mint: Box<Account<'info, Mint>>,
 
     #[account(

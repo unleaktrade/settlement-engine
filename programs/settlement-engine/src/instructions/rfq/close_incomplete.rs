@@ -54,7 +54,7 @@ pub struct CloseIncomplete<'info> {
     )]
     pub maker_base_account: Box<Account<'info, TokenAccount>>,
 
-    #[account(address = config.usdc_mint)]
+    #[account(address = rfq.usdc_mint)]
     pub usdc_mint: Box<Account<'info, Mint>>,
 
     #[account(
@@ -74,7 +74,7 @@ pub struct CloseIncomplete<'info> {
 
     #[account(
         mut,
-        address = config.treasury_usdc_owner,
+        address = rfq.treasury_usdc_owner,
     )]
     pub treasury_usdc_owner: SystemAccount<'info>,
 

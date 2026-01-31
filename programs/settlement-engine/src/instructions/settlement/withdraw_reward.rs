@@ -45,7 +45,7 @@ pub struct WithdrawReward<'info> {
     )]
     pub quote: Box<Account<'info, Quote>>,
 
-    #[account(address = config.usdc_mint)]
+    #[account(address = rfq.usdc_mint)]
     pub usdc_mint: Box<Account<'info, Mint>>,
 
     #[account(
@@ -94,7 +94,7 @@ pub fn withdraw_reward_handler(ctx: Context<WithdrawReward>) -> Result<()> {
     );
 
     let fee_amount_u128 = settlement.fee_amount as u128;
-    let bps_u128 = ctx.accounts.config.facilitator_fee_bps as u128;
+    let bps_u128 = rfq.facilitator_fee_bps as u128;
     let facilitator_share: u64 = fee_amount_u128
         .checked_mul(bps_u128)
         .and_then(|v| v.checked_div(10_000))

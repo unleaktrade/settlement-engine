@@ -35,7 +35,7 @@ pub struct CommitQuote<'info> {
     pub rfq: Box<Account<'info, Rfq>>,
 
     /// USDC mint from config
-    #[account(address = config.usdc_mint)]
+    #[account(address = rfq.usdc_mint)]
     pub usdc_mint: Account<'info, Mint>,
 
     /// One Quote account per (rfq, taker)
@@ -150,7 +150,7 @@ pub fn commit_quote_handler(
     // Authorized Liquidity Guard signer check
     let pubkey_bytes = &data[pubkey_offset..pubkey_offset + 32];
     require!(
-        pubkey_bytes == ctx.accounts.config.liquidity_guard.as_ref(),
+        pubkey_bytes == ctx.accounts.rfq.liquidity_guard.as_ref(),
         RfqError::UnauthorizedSigner
     );
 

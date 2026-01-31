@@ -24,7 +24,7 @@ pub struct CloseExpired<'info> {
     )]
     pub config: Account<'info, Config>,
 
-    #[account(address = config.usdc_mint)]
+    #[account(address = rfq.usdc_mint)]
     pub usdc_mint: Account<'info, Mint>,
 
     #[account(
@@ -36,7 +36,7 @@ pub struct CloseExpired<'info> {
 
     #[account(
         mut,
-        address = config.treasury_usdc_owner,
+        address = rfq.treasury_usdc_owner,
     )]
     pub treasury_usdc_owner: SystemAccount<'info>,
 

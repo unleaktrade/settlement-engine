@@ -20,7 +20,7 @@ pub struct CompleteSettlement<'info> {
 
     #[account(
         mut,
-        address = config.treasury_usdc_owner,
+        address = rfq.treasury_usdc_owner,
     )]
     pub treasury_usdc_owner: SystemAccount<'info>,
 
@@ -39,7 +39,7 @@ pub struct CompleteSettlement<'info> {
     )]
     pub settlement: Box<Account<'info, Settlement>>,
 
-    #[account(address = config.usdc_mint)]
+    #[account(address = rfq.usdc_mint)]
     pub usdc_mint: Box<Account<'info, Mint>>,
 
     #[account(address = settlement.base_mint)]
@@ -210,7 +210,7 @@ pub fn complete_settlement_handler<'info>(
     )?;
 
     // Collect taker fees to treasury and optionally retain facilitator share in bonds_fees_vault.
-    let facilitator_fee_bps = ctx.accounts.config.facilitator_fee_bps;
+    let facilitator_fee_bps = rfq.facilitator_fee_bps;
     let facilitator_share: u64 =
         if rfq.facilitator.is_some() && rfq.facilitator == quote.facilitator {
             let fee_amount_u128 = settlement.fee_amount as u128;
@@ -346,8 +346,8 @@ pub fn complete_settlement_handler<'info>(
     // fill fees tracker
     fees_tracker.rfq = settlement.rfq;
     fees_tracker.taker = settlement.taker;
-    fees_tracker.usdc_mint = ctx.accounts.config.usdc_mint;
-    fees_tracker.treasury_usdc_owner = ctx.accounts.config.treasury_usdc_owner;
+    fees_tracker.usdc_mint = rfq.usdc_mint;
+    fees_tracker.treasury_usdc_owner = rfq.treasury_usdc_owner;
     fees_tracker.amount = treasury_share;
     fees_tracker.payed_at = now;
     fees_tracker.bump = ctx.bumps.fees_tracker;
