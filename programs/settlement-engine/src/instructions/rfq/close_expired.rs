@@ -1,5 +1,5 @@
 use crate::state::rfq::{Rfq, RfqState};
-use crate::{state::Config, state::SlashedBondsTracker, RfqError};
+use crate::{slashing::compute_slashed_amount, state::Config, state::SlashedBondsTracker, RfqError};
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
@@ -24,7 +24,7 @@ pub struct CloseExpired<'info> {
     )]
     pub config: Account<'info, Config>,
 
-    #[account(address = config.usdc_mint)]
+    #[account(address = rfq.usdc_mint)]
     pub usdc_mint: Account<'info, Mint>,
 
     #[account(
@@ -36,7 +36,7 @@ pub struct CloseExpired<'info> {
 
     #[account(
         mut,
-        address = config.treasury_usdc_owner,
+        address = rfq.treasury_usdc_owner,
     )]
     pub treasury_usdc_owner: SystemAccount<'info>,
 
@@ -100,11 +100,8 @@ pub fn close_expired_handler(ctx: Context<CloseExpired>) -> Result<()> {
     )?;
 
     if !slashed_bonds_tracker.is_resolved() {
-        // Seize other bonds
-        let seized_amount: u64 = rfq
-            .bond_amount
-            .checked_mul(rfq.committed_count.into()) // there are only invalid commits (unrevealed)
-            .ok_or(RfqError::ArithmeticOverflow)?;
+        // Seize only unrevealed bonds (no selected/maker extra bond)
+        let seized_amount = compute_slashed_amount(rfq, false)?;
 
         if seized_amount > 0 {
             token::transfer(

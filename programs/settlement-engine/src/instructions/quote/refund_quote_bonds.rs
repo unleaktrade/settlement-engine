@@ -1,4 +1,5 @@
 use crate::state::rfq::{Rfq, RfqState};
+use crate::slashing::compute_slashed_amount;
 use crate::state::{Config, Quote, SlashedBondsTracker};
 use crate::RfqError;
 use anchor_lang::prelude::*;
@@ -20,7 +21,7 @@ pub struct RefundQuoteBonds<'info> {
 
     #[account(
         mut,
-        address = config.treasury_usdc_owner,
+        address = rfq.treasury_usdc_owner,
     )]
     pub treasury_usdc_owner: SystemAccount<'info>,
 
@@ -39,7 +40,7 @@ pub struct RefundQuoteBonds<'info> {
     )]
     pub quote: Box<Account<'info, Quote>>,
 
-    #[account(address = config.usdc_mint)]
+    #[account(address = rfq.usdc_mint)]
     pub usdc_mint: Box<Account<'info, Mint>>,
 
     #[account(
@@ -130,12 +131,8 @@ pub fn refund_quote_bonds_handler(ctx: Context<RefundQuoteBonds>) -> Result<()> 
             // maker didn't select a valid quote
             // or taker didn't complete settlement
             RfqState::Revealed | RfqState::Selected => {
-                let seized_amount: u64 = rfq
-                    .committed_count
-                    .checked_sub(rfq.revealed_count) // violations = commits - reveals
-                    .and_then(|v| v.checked_add(1)) // bonds of maker or selected taker
-                    .and_then(|v| rfq.bond_amount.checked_mul(v.into()))
-                    .ok_or(RfqError::ArithmeticOverflow)?;
+                // Seize unrevealed bonds plus the maker/selected taker bond
+                let seized_amount = compute_slashed_amount(rfq, true)?;
 
                 if seized_amount > 0 {
                     token::transfer(

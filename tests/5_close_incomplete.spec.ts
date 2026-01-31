@@ -15,6 +15,7 @@ import assert from "assert";
 import { CheckResult, fetchJson, sleep, waitForLiquidityGuardReady } from "./2_quote.spec";
 import { waitForChainTime } from "./utils/time";
 import { slashedBondsTrackerPda, uuidBytes } from "./1_rfq.spec";
+import { expectedSlashedAmount } from "./utils/slashing";
 
 anchor.setProvider(anchor.AnchorProvider.env());
 const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -522,6 +523,23 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
             .signers([maker])
             .rpc();
 
+        // Should fail to update facilitator after selection
+        let facilitatorUpdateFailed = false;
+        try {
+            const newFacilitator = Keypair.generate();
+            await program.methods
+                .setRfqFacilitator({ set: [newFacilitator.publicKey] })
+                .accounts({
+                    maker: maker.publicKey,
+                    rfq: rfqPDA,
+                })
+                .signers([maker])
+                .rpc();
+        } catch {
+            facilitatorUpdateFailed = true;
+        }
+        assert(facilitatorUpdateFailed, "setRfqFacilitator after selection should fail");
+
         await Promise.all([
             getAndLogBalance("After selecting quote", "Maker USDC", makerPaymentAccount),
             getAndLogBalance("After selecting quote", "Taker USDC", takerPaymentAccount),
@@ -555,6 +573,52 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
         console.log("Waiting for funding deadline to pass on-chain...");
         await waitForChainTime(provider.connection, fundingDeadline, "funding deadline");
         console.log("Funding deadline past...");
+
+        // Mismatched base mint/vault should fail
+        const wrongBaseMint = await createMint(
+            provider.connection,
+            admin,
+            admin.publicKey,
+            null,
+            9
+        );
+        const wrongBaseVault = await getOrCreateAssociatedTokenAccount(
+            provider.connection,
+            admin,
+            wrongBaseMint,
+            rfqPDA,
+            true
+        );
+        const wrongMakerBaseAccount = await getOrCreateAssociatedTokenAccount(
+            provider.connection,
+            admin,
+            wrongBaseMint,
+            maker.publicKey
+        );
+        let closeFailed = false;
+        try {
+            await program.methods.closeIncomplete()
+                .accounts({
+                    maker: maker.publicKey,
+                    config: configPda,
+                    rfq: rfqPDA,
+                    settlement: settlementPDA,
+                    baseMint: wrongBaseMint,
+                    vaultBaseAta: wrongBaseVault.address,
+                    makerBaseAccount: wrongMakerBaseAccount.address,
+                    usdcMint,
+                    bondsFeesVault,
+                    makerPaymentAccount,
+                    treasuryUsdcOwner: treasury.publicKey,
+                    slashBoundsTracker: slashedBondsTrackerPDA,
+                })
+                .signers([maker])
+                .rpc();
+        } catch (e) {
+            closeFailed = true;
+            console.log("closeIncomplete failed with mismatched base mint (expected):", e);
+        }
+        assert.equal(closeFailed, true, "closeIncomplete should fail with mismatched base mint");
 
         await program.methods.closeIncomplete()
             .accounts({
@@ -621,7 +685,8 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
         assert(slashedBondsTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in slashedBondsTracker");
 
         //no-show for valid taker + 2 invalid quotes (taker3 and taker4)
-        assert(slashedBondsTracker.amount.eq(rfq.bondAmount.muln(3)), "amount should be equal to 3x Rfq bondAmount");
+        const expectedSlashed = expectedSlashedAmount(rfq, true);
+        assert(slashedBondsTracker.amount.eq(expectedSlashed), "amount should be equal to expected slashed amount");
         assert(new anchor.BN(DEFAULT_BOND_AMOUNT).eq(makerPaymentAccountBalance), "maker balance mismatch");
         assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(takerPaymentAccountBalance), "taker balance mismatch");
         assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(taker2PaymentAccountBalance), "taker2 balance mismatch");
@@ -781,6 +846,8 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
         assert.ok(rfq.state.incomplete, "rfq state should be incomplete");
         assert(!!rfq.completedAt, "rfq completedAt should be set");
         assert(slashedBondsTracker.seizedAt.eq(rfq.completedAt), "slashBondsTracker seizedAt and rfq completeAt shoud be equal");
+        const expectedSlashed2 = expectedSlashedAmount(rfq, true);
+        assert(slashedBondsTracker.amount.eq(expectedSlashed2), "amount should be equal to expected slashed amount");
         assert(!quote.bondsRefundedAt, "quote bondsRefundedAt should be None"); // no-show
         assert(!!quote2.bondsRefundedAt, "quote2 bondsRefundedAt should be set");
         assert(!quote3.bondsRefundedAt, "quote3 bondsRefundedAt should be None");// invalid quote

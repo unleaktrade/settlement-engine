@@ -4,6 +4,7 @@ use rfq_errors::*;
 
 pub mod instructions;
 pub mod rfq_errors;
+pub mod slashing;
 pub mod state;
 
 // Program ID

@@ -15,6 +15,7 @@ import assert from "assert";
 import { CheckResult, fetchJson, sleep, waitForLiquidityGuardReady } from "./2_quote.spec";
 import { waitForChainTime } from "./utils/time";
 import { slashedBondsTrackerPda, uuidBytes } from "./1_rfq.spec";
+import { expectedSlashedAmount } from "./utils/slashing";
 
 anchor.setProvider(anchor.AnchorProvider.env());
 const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -463,7 +464,8 @@ describe("CLOSE_EXPIRED_RFQ", () => {
         assert(slashedBondsTracker.rfq.equals(rfqPDA), "RFQ mismatch in slashBoundsTracker");
         assert.strictEqual(slashedBondsTracker.bump, bumpslashedBondsTracker, "bump mismatch for slashedBondsTracker");
         assert(slashedBondsTracker.seizedAt.eq(rfq.completedAt), "seizedAt in slashedBondsTracker and completedAt in Rfq should be equal");
-        assert(slashedBondsTracker.amount.eq(rfq.bondAmount.muln(4)), "amount should be equal to 4x Rfq bondAmount");
+        const expectedSlashed = expectedSlashedAmount(rfq, false);
+        assert(slashedBondsTracker.amount.eq(expectedSlashed), "amount should be equal to expected slashed amount");
         assert(slashedBondsTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in slashedBondsTracker");
         assert(slashedBondsTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in slashedBondsTracker");
         assert(new anchor.BN(DEFAULT_BOND_AMOUNT).eq(makerPaymentAccountBalance), "maker balance mismatch");

@@ -1,4 +1,5 @@
 use crate::state::rfq::{Rfq, RfqState};
+use crate::slashing::compute_slashed_amount;
 use crate::state::{Config, Settlement, SlashedBondsTracker};
 use crate::RfqError;
 use anchor_lang::prelude::*;
@@ -35,13 +36,14 @@ pub struct CloseIncomplete<'info> {
     )]
     pub settlement: Box<Account<'info, Settlement>>,
 
-    #[account()]
+    #[account(address = settlement.base_mint)]
     pub base_mint: Box<Account<'info, Mint>>,
 
     #[account(
         mut,
         associated_token::mint = base_mint,
         associated_token::authority = rfq,
+        address = settlement.vault_base_ata,
     )]
     pub vault_base_ata: Box<Account<'info, TokenAccount>>,
 
@@ -49,10 +51,11 @@ pub struct CloseIncomplete<'info> {
         mut,
         token::mint = base_mint,
         token::authority = maker,
+        address = settlement.maker_base_account,
     )]
     pub maker_base_account: Box<Account<'info, TokenAccount>>,
 
-    #[account(address = config.usdc_mint)]
+    #[account(address = rfq.usdc_mint)]
     pub usdc_mint: Box<Account<'info, Mint>>,
 
     #[account(
@@ -72,7 +75,7 @@ pub struct CloseIncomplete<'info> {
 
     #[account(
         mut,
-        address = config.treasury_usdc_owner,
+        address = rfq.treasury_usdc_owner,
     )]
     pub treasury_usdc_owner: SystemAccount<'info>,
 
@@ -140,13 +143,8 @@ pub fn close_incomplete_handler(ctx: Context<CloseIncomplete>) -> Result<()> {
     )?;
 
     if !slashed_bonds_tracker.is_resolved() {
-        // Seize other bonds
-        let seized_amount: u64 = rfq
-            .committed_count
-            .checked_sub(rfq.revealed_count) // violations = commits - reveals
-            .and_then(|v| v.checked_add(1)) // taker's quote was valid and must be added
-            .and_then(|v| rfq.bond_amount.checked_mul(v.into()))
-            .ok_or(RfqError::ArithmeticOverflow)?;
+        // Seize unrevealed bonds plus the selected taker bond
+        let seized_amount = compute_slashed_amount(rfq, true)?;
 
         if seized_amount > 0 {
             token::transfer(

@@ -72,6 +72,7 @@ pub fn init_rfq_handler(
     facilitator: Option<Pubkey>,
 ) -> Result<()> {
     let bump = ctx.bumps.rfq;
+    let config = &ctx.accounts.config;
 
     require!(bond_amount > 0, RfqError::InvalidBondAmount);
     require!(taker_fee_usdc > 0, RfqError::InvalidFeeAmount);
@@ -86,7 +87,7 @@ pub fn init_rfq_handler(
 
     // --- Initialize RFQ -----------------------------------------------------
     let rfq = &mut ctx.accounts.rfq;
-    rfq.config = ctx.accounts.config.key();
+    rfq.config = config.key();
     rfq.maker = ctx.accounts.maker.key();
     rfq.uuid = uuid;
     rfq.state = RfqState::Draft;
@@ -94,10 +95,14 @@ pub fn init_rfq_handler(
     // assets & economics
     rfq.base_mint = base_mint;
     rfq.quote_mint = quote_mint;
+    rfq.usdc_mint = config.usdc_mint;
+    rfq.treasury_usdc_owner = config.treasury_usdc_owner;
+    rfq.liquidity_guard = config.liquidity_guard;
     rfq.bond_amount = bond_amount;
     rfq.base_amount = base_amount;
     rfq.min_quote_amount = min_quote_amount;
     rfq.fee_amount = taker_fee_usdc;
+    rfq.facilitator_fee_bps = config.facilitator_fee_bps;
 
     // ttls
     rfq.commit_ttl_secs = commit_ttl_secs;

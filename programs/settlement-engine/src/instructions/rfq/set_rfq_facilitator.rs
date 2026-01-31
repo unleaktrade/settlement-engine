@@ -18,7 +18,6 @@ pub struct SetRfqFacilitator<'info> {
                 | RfqState::Open
                 | RfqState::Committed
                 | RfqState::Revealed
-                | RfqState::Selected
         ) @ RfqError::InvalidRfqState,
     )]
     pub rfq: Account<'info, Rfq>,

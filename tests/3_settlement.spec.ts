@@ -15,6 +15,7 @@ import assert from "assert";
 import { CheckResult, fetchJson, sleep, waitForLiquidityGuardReady } from "./2_quote.spec";
 import { waitForChainTime } from "./utils/time";
 import { slashedBondsTrackerPda, uuidBytes } from "./1_rfq.spec";
+import { expectedSlashedAmount } from "./utils/slashing";
 
 anchor.setProvider(anchor.AnchorProvider.env());
 const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -510,6 +511,7 @@ describe("COMPLETE_SETTLEMENT", () => {
             getAndLogBalance("After selecting quote", "RFQ Vault Base", baseVault),
         ]);
 
+        // remaining_accounts order should be irrelevant
         await program.methods.completeSettlement()
             .accounts({
                 taker: taker.publicKey,
@@ -529,11 +531,11 @@ describe("COMPLETE_SETTLEMENT", () => {
                 feesTracker: feesTrackerPDA,
             })
             .remainingAccounts([{
-                pubkey: slashedBondsTrackerPDA,
+                pubkey: quotePda,
                 isSigner: false,
                 isWritable: true,
             }, {
-                pubkey: quotePda,
+                pubkey: slashedBondsTrackerPDA,
                 isSigner: false,
                 isWritable: true,
             }])
@@ -573,7 +575,8 @@ describe("COMPLETE_SETTLEMENT", () => {
         assert(slashedBondsTracker.rfq.equals(rfqPDA), "RFQ mismatch in slashBoundsTracker");
         assert.strictEqual(slashedBondsTracker.bump, bumpslashedBondsTracker, "bump mismatch for slashedBondsTracker");
         //bonds of invalid quote should be seized
-        assert(slashedBondsTracker.amount.eq(rfq.bondAmount), "amount should be equal to Rfq bondAmount");
+        const expectedSlashed = expectedSlashedAmount(rfq, false);
+        assert(slashedBondsTracker.amount.eq(expectedSlashed), "amount should be equal to expected slashed amount");
         assert(slashedBondsTracker.seizedAt.toNumber() > 0, "seizedAt should be set in slashedBondsTracker");
         assert(slashedBondsTracker.seizedAt.eq(rfq.completedAt), "seizedAt in slashedBondsTracker and completedAt in Rfq should be equal");
         assert(slashedBondsTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in slashedBondsTracker");
