@@ -17,12 +17,12 @@ pub struct CancelRfq<'info> {
     pub rfq: Account<'info, Rfq>,
 }
 
-pub fn cancel_rfq_handler(ctx: Context<CancelRfq>) -> Result<()> {
+pub fn cancel_rfq_handler(_ctx: Context<CancelRfq>) -> Result<()> {
     #[cfg(feature = "debug-logs")]
     msg!(
         "RFQ {} cancelled by maker {}",
-        ctx.accounts.rfq.key().to_string(),
-        ctx.accounts.maker.key()
+        _ctx.accounts.rfq.key().to_string(),
+        _ctx.accounts.maker.key()
     );
 
     // Account will be closed automatically, transferring lamports to maker
