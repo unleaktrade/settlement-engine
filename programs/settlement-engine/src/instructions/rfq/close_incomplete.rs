@@ -1,4 +1,5 @@
 use crate::state::rfq::{Rfq, RfqState};
+use crate::slashing::compute_slashed_amount;
 use crate::state::{Config, Settlement, SlashedBondsTracker};
 use crate::RfqError;
 use anchor_lang::prelude::*;
@@ -142,13 +143,8 @@ pub fn close_incomplete_handler(ctx: Context<CloseIncomplete>) -> Result<()> {
     )?;
 
     if !slashed_bonds_tracker.is_resolved() {
-        // Seize other bonds
-        let seized_amount: u64 = rfq
-            .committed_count
-            .checked_sub(rfq.revealed_count) // violations = commits - reveals
-            .and_then(|v| v.checked_add(1)) // taker's quote was valid and must be added
-            .and_then(|v| rfq.bond_amount.checked_mul(v.into()))
-            .ok_or(RfqError::ArithmeticOverflow)?;
+        // Seize unrevealed bonds plus the selected taker bond
+        let seized_amount = compute_slashed_amount(rfq, true)?;
 
         if seized_amount > 0 {
             token::transfer(

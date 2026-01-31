@@ -1,5 +1,6 @@
 use crate::rfq_errors::RfqError;
 use crate::state::rfq::{Rfq, RfqState};
+use crate::slashing::compute_slashed_amount;
 use crate::state::{Config, FeesTracker, Quote, Settlement, SlashedBondsTracker};
 use anchor_lang::prelude::*;
 use anchor_spl::{
@@ -310,12 +311,8 @@ pub fn complete_settlement_handler<'info>(
     );
 
     if !slashed_bonds_tracker.is_resolved() {
-        // Seize bond collateral from violators and send it to the treasury
-        let seized_amount: u64 = rfq
-            .committed_count
-            .checked_sub(rfq.revealed_count) // violations = commits - reveals
-            .and_then(|v| rfq.bond_amount.checked_mul(v.into()))
-            .ok_or(RfqError::ArithmeticOverflow)?;
+        // Seize only unrevealed bonds and send them to the treasury
+        let seized_amount = compute_slashed_amount(rfq, false)?;
 
         if seized_amount > 0 {
             token::transfer(

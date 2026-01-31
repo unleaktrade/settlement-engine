@@ -15,6 +15,7 @@ import assert from "assert";
 import { CheckResult, fetchJson, sleep, waitForLiquidityGuardReady } from "./2_quote.spec";
 import { waitForChainTime } from "./utils/time";
 import { slashedBondsTrackerPda, uuidBytes } from "./1_rfq.spec";
+import { expectedSlashedAmount } from "./utils/slashing";
 
 anchor.setProvider(anchor.AnchorProvider.env());
 const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -684,7 +685,8 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
         assert(slashedBondsTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in slashedBondsTracker");
 
         //no-show for valid taker + 2 invalid quotes (taker3 and taker4)
-        assert(slashedBondsTracker.amount.eq(rfq.bondAmount.muln(3)), "amount should be equal to 3x Rfq bondAmount");
+        const expectedSlashed = expectedSlashedAmount(rfq, true);
+        assert(slashedBondsTracker.amount.eq(expectedSlashed), "amount should be equal to expected slashed amount");
         assert(new anchor.BN(DEFAULT_BOND_AMOUNT).eq(makerPaymentAccountBalance), "maker balance mismatch");
         assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(takerPaymentAccountBalance), "taker balance mismatch");
         assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(taker2PaymentAccountBalance), "taker2 balance mismatch");
@@ -844,6 +846,8 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
         assert.ok(rfq.state.incomplete, "rfq state should be incomplete");
         assert(!!rfq.completedAt, "rfq completedAt should be set");
         assert(slashedBondsTracker.seizedAt.eq(rfq.completedAt), "slashBondsTracker seizedAt and rfq completeAt shoud be equal");
+        const expectedSlashed2 = expectedSlashedAmount(rfq, true);
+        assert(slashedBondsTracker.amount.eq(expectedSlashed2), "amount should be equal to expected slashed amount");
         assert(!quote.bondsRefundedAt, "quote bondsRefundedAt should be None"); // no-show
         assert(!!quote2.bondsRefundedAt, "quote2 bondsRefundedAt should be set");
         assert(!quote3.bondsRefundedAt, "quote3 bondsRefundedAt should be None");// invalid quote
