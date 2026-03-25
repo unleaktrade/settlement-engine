@@ -24,7 +24,7 @@ pub fn update_rfq_handler(
     new_bond_amount: Option<u64>,
     new_base_amount: Option<u64>,
     new_min_quote_amount: Option<u64>,
-    new_taker_fee_usdc: Option<u64>,
+    new_taker_fee_bps: Option<u16>,
     new_commit_ttl_secs: Option<u32>,
     new_reveal_ttl_secs: Option<u32>,
     new_selection_ttl_secs: Option<u32>,
@@ -52,10 +52,9 @@ pub fn update_rfq_handler(
         require!(v > 0, RfqError::InvalidMinQuoteAmount);
         rfq.min_quote_amount = v;
     }
-    if let Some(v) = new_taker_fee_usdc {
-        // fee_amount can be zero
-        // require!(v > 0, RfqError::InvalidFeeAmount);
-        rfq.fee_amount = v;
+    if let Some(v) = new_taker_fee_bps {
+        require!(v <= 10_000, RfqError::InvalidFeeAmount);
+        rfq.taker_fee_bps = v;
     }
 
     if let Some(v) = new_commit_ttl_secs {

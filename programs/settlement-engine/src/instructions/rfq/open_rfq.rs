@@ -32,7 +32,7 @@ pub struct OpenRfq<'info> {
         associated_token::mint = usdc_mint,
         associated_token::authority = rfq,
     )]
-    pub bonds_fees_vault: Account<'info, TokenAccount>,
+    pub bonds_escrow: Account<'info, TokenAccount>,
 
     #[account(
         mut,
@@ -64,8 +64,7 @@ pub fn open_rfq_handler(ctx: Context<OpenRfq>) -> Result<()> {
     require!(rfq.bond_amount > 0, RfqError::InvalidParams);
     require!(rfq.base_amount > 0, RfqError::InvalidParams);
     require!(rfq.min_quote_amount > 0, RfqError::InvalidParams);
-    // fee_amount can be zero
-    // require!(rfq.fee_amount > 0, RfqError::InvalidParams);
+    require!(rfq.taker_fee_bps <= 10_000, RfqError::InvalidParams);
     require!(rfq.commit_ttl_secs > 0, RfqError::InvalidParams);
     require!(rfq.reveal_ttl_secs > 0, RfqError::InvalidParams);
     require!(rfq.selection_ttl_secs > 0, RfqError::InvalidParams);
@@ -74,7 +73,7 @@ pub fn open_rfq_handler(ctx: Context<OpenRfq>) -> Result<()> {
     // Transfer maker bond USDC into RFQ's vault
     let cpi_accounts = Transfer {
         from: ctx.accounts.maker_payment_account.to_account_info(),
-        to: ctx.accounts.bonds_fees_vault.to_account_info(),
+        to: ctx.accounts.bonds_escrow.to_account_info(),
         authority: ctx.accounts.maker.to_account_info(),
     };
     let cpi_program = ctx.accounts.token_program.to_account_info();
