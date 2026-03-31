@@ -72,7 +72,7 @@ const provideLiquidityGuardAttestation = async (taker: anchor.web3.Keypair,
         quote_mint: quoteMint.toBase58(),
         quote_amount: new anchor.BN(quoteAmount).toString(),
         bond_amount_usdc: new anchor.BN(bondAmount).toString(),
-        fee_amount_usdc: new anchor.BN(feeAmount).toString(),
+        taker_fee_bps: new anchor.BN(feeAmount).toString(),
     };
 
     const response = await fetchJson<CheckResult>(`${liquidityGuardURL}/check`, {
@@ -212,7 +212,7 @@ describe("CLOSE_EXPIRED_RFQ", () => {
         const taker2PaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker2.publicKey);
         const taker3PaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker3.publicKey);
         const taker4PaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker4.publicKey);
-        const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
+        const bondsEscrow = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
         const treasuryPaymentAccount = getAssociatedTokenAddressSync(usdcMint, treasury.publicKey);
 
         // mint USDC for bonds
@@ -241,7 +241,7 @@ describe("CLOSE_EXPIRED_RFQ", () => {
                 usdcMint,
                 account.address,
                 admin,
-                DEFAULT_BOND_AMOUNT + DEFAULT_FEE_AMOUNT //sufficient for bonds + fees
+                DEFAULT_BOND_AMOUNT //sufficient for bonds
             )),
             await getOrCreateAssociatedTokenAccount(
                 provider.connection,
@@ -254,7 +254,7 @@ describe("CLOSE_EXPIRED_RFQ", () => {
                 usdcMint,
                 account.address,
                 admin,
-                DEFAULT_BOND_AMOUNT + DEFAULT_FEE_AMOUNT //sufficient for bonds + fees
+                DEFAULT_BOND_AMOUNT //sufficient for bonds
             ))
             ,
             await getOrCreateAssociatedTokenAccount(
@@ -268,7 +268,7 @@ describe("CLOSE_EXPIRED_RFQ", () => {
                 usdcMint,
                 account.address,
                 admin,
-                DEFAULT_BOND_AMOUNT + DEFAULT_FEE_AMOUNT //sufficient for bonds + fees
+                DEFAULT_BOND_AMOUNT //sufficient for bonds
             )),
             await getOrCreateAssociatedTokenAccount(
                 provider.connection,
@@ -281,7 +281,7 @@ describe("CLOSE_EXPIRED_RFQ", () => {
                 usdcMint,
                 account.address,
                 admin,
-                DEFAULT_BOND_AMOUNT + DEFAULT_FEE_AMOUNT //sufficient for bonds + fees
+                DEFAULT_BOND_AMOUNT //sufficient for bonds
             ))
         ]);
 
@@ -304,7 +304,7 @@ describe("CLOSE_EXPIRED_RFQ", () => {
                     new anchor.BN(DEFAULT_BOND_AMOUNT),
                     new anchor.BN(DEFAULT_BASE_AMOUNT),
                     new anchor.BN(1_000_000_000),
-                    new anchor.BN(DEFAULT_FEE_AMOUNT),
+                    DEFAULT_FEE_AMOUNT,
                     commitTTL,
                     revealTTL,
                     selectionTTL,
@@ -315,7 +315,7 @@ describe("CLOSE_EXPIRED_RFQ", () => {
                     maker: maker.publicKey,
                     config: configPda,
                     usdcMint,
-                    bondsFeesVault,
+                    bondsEscrow,
                     makerPaymentAccount,
                     systemProgram: SystemProgram.programId,
                     tokenProgram: TOKEN_PROGRAM_ID,
@@ -328,7 +328,7 @@ describe("CLOSE_EXPIRED_RFQ", () => {
             console.log("initRfq failed:", e);
         }
 
-        await getAndLogBalance("Before opening RFQ", "RFQ Bonds Vault", bondsFeesVault);
+        await getAndLogBalance("Before opening RFQ", "RFQ Bonds Vault", bondsEscrow);
 
         console.log("Rfq PDA:", rfqPDA.toBase58());
         console.log("Slashed Bonds Tracker PDA", slashedBondsTrackerPDA.toBase58());
@@ -340,7 +340,7 @@ describe("CLOSE_EXPIRED_RFQ", () => {
                     maker: maker.publicKey,
                     rfq: rfqPDA,
                     config: configPda,
-                    bondsFeesVault,
+                    bondsEscrow,
                     makerPaymentAccount,
                     usdcMint,
                 })
@@ -356,7 +356,7 @@ describe("CLOSE_EXPIRED_RFQ", () => {
             getAndLogBalance("After opening RFQ", "Taker2 USDC", taker2PaymentAccount),
             getAndLogBalance("After opening RFQ", "Taker3 USDC", taker3PaymentAccount),
             getAndLogBalance("After opening RFQ", "Taker4 USDC", taker4PaymentAccount),
-            getAndLogBalance("After opening RFQ", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After opening RFQ", "RFQ Bonds Vault", bondsEscrow),
         ]);
 
         // taker will commit a valid quote but won't reveal
@@ -409,7 +409,7 @@ describe("CLOSE_EXPIRED_RFQ", () => {
             getAndLogBalance("After commiting quote", "Taker2 USDC", taker2PaymentAccount),
             getAndLogBalance("After commiting quote", "Taker3 USDC", taker3PaymentAccount),
             getAndLogBalance("After commiting quote", "Taker4 USDC", taker4PaymentAccount),
-            getAndLogBalance("After commiting quote", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After commiting quote", "RFQ Bonds Vault", bondsEscrow),
         ]);
 
         const rfqAfterCommit = await program.account.rfq.fetch(rfqPDA);
@@ -428,7 +428,7 @@ describe("CLOSE_EXPIRED_RFQ", () => {
                 rfq: rfqPDA,
                 config: configPda,
                 usdcMint,
-                bondsFeesVault,
+                bondsEscrow,
                 treasuryUsdcOwner: treasury.publicKey,
                 makerPaymentAccount,
             })
@@ -441,7 +441,7 @@ describe("CLOSE_EXPIRED_RFQ", () => {
             taker2PaymentAccountBalance,
             taker3PaymentAccountBalance,
             taker4PaymentAccountBalance,
-            bondsFeesVaultBalance,
+            bondsEscrowBalance,
             treasuryPaymentAccountBalance
         ]
             = await Promise.all([
@@ -450,7 +450,7 @@ describe("CLOSE_EXPIRED_RFQ", () => {
                 getAndLogBalance("After Rfq Expiration", "Taker2 USDC", taker2PaymentAccount),
                 getAndLogBalance("After Rfq Expiration", "Taker3 USDC", taker3PaymentAccount),
                 getAndLogBalance("After Rfq Expiration", "Taker4 USDC", taker4PaymentAccount),
-                getAndLogBalance("After Rfq Expiration", "RFQ Bonds Vault", bondsFeesVault),
+                getAndLogBalance("After Rfq Expiration", "RFQ Bonds Vault", bondsEscrow),
                 getAndLogBalance("After Rfq Expiration", "Treasury USCD", treasuryPaymentAccount),
             ]);
 
@@ -469,11 +469,11 @@ describe("CLOSE_EXPIRED_RFQ", () => {
         assert(slashedBondsTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in slashedBondsTracker");
         assert(slashedBondsTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in slashedBondsTracker");
         assert(new anchor.BN(DEFAULT_BOND_AMOUNT).eq(makerPaymentAccountBalance), "maker balance mismatch");
-        assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(takerPaymentAccountBalance), "taker balance mismatch");
-        assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(taker2PaymentAccountBalance), "taker2 balance mismatch");
-        assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(taker3PaymentAccountBalance), "taker3 balance mismatch");
-        assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(taker4PaymentAccountBalance), "taker4 balance mismatch");
-        assert(bondsFeesVaultBalance.isZero(), "bonds and fees vault should be empty");
+        assert(takerPaymentAccountBalance.isZero(), "taker balance mismatch");
+        assert(taker2PaymentAccountBalance.isZero(), "taker2 balance mismatch");
+        assert(taker3PaymentAccountBalance.isZero(), "taker3 balance mismatch");
+        assert(taker4PaymentAccountBalance.isZero(), "taker4 balance mismatch");
+        assert(bondsEscrowBalance.isZero(), "bonds escrow should be empty");
         assert(treasuryPaymentAccountBalance.eq(slashedBondsTracker.amount), "treasury payment balance should be equalt to slashed bonds tracker amount");
     });
 
