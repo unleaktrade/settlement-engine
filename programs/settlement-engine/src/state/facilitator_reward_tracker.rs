@@ -5,8 +5,8 @@ use anchor_lang::prelude::*;
 pub struct FacilitatorRewardTracker {
     pub rfq: Pubkey,
     pub facilitator: Pubkey,
-    pub usdc_mint: Pubkey,
-    pub amount: u64,
+    pub quote_mint: Pubkey,
+    pub amount: u64, // in quote_mint tokens
     pub claimed_at: i64,
     pub bump: u8,
 }

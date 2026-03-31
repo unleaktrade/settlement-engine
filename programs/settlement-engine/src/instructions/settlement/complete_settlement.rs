@@ -49,6 +49,7 @@ pub struct CompleteSettlement<'info> {
     #[account(address = settlement.quote_mint)]
     pub quote_mint: Box<Account<'info, Mint>>,
 
+    /// USDC treasury ATA – receives slashed bonds only
     #[account(
         init_if_needed,
         payer = taker,
@@ -57,13 +58,30 @@ pub struct CompleteSettlement<'info> {
     )]
     pub treasury_ata: Box<Account<'info, TokenAccount>>,
 
+    /// Quote-mint treasury ATA – receives the treasury's share of the taker fee
+    #[account(
+        init_if_needed,
+        payer = taker,
+        associated_token::mint = quote_mint,
+        associated_token::authority = treasury_usdc_owner,
+    )]
+    pub treasury_quote_ata: Box<Account<'info, TokenAccount>>,
+
+    /// USDC bonds escrow (bonds only, no fees)
     #[account(
         mut,
-        associated_token::mint = usdc_mint,
-        associated_token::authority = rfq,
-        address = settlement.bonds_fees_vault,
+        address = settlement.bonds_escrow,
     )]
-    pub bonds_fees_vault: Box<Account<'info, TokenAccount>>,
+    pub bonds_escrow: Box<Account<'info, TokenAccount>>,
+
+    /// Quote-mint fee escrow – holds facilitator share until withdraw_reward
+    #[account(
+        init_if_needed,
+        payer = taker,
+        associated_token::mint = quote_mint,
+        associated_token::authority = rfq,
+    )]
+    pub fee_escrow: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -74,16 +92,12 @@ pub struct CompleteSettlement<'info> {
 
     #[account(
         mut,
-        token::mint = usdc_mint,
-        token::authority = settlement.maker,
         address = settlement.maker_payment_account,
     )]
     pub maker_payment_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
-        associated_token::mint = base_mint,
-        associated_token::authority = rfq,
         address = settlement.vault_base_ata,
     )]
     pub vault_base_ata: Box<Account<'info, TokenAccount>>,
@@ -98,8 +112,6 @@ pub struct CompleteSettlement<'info> {
 
     #[account(
         mut,
-        associated_token::mint = quote_mint,
-        associated_token::authority = settlement.maker,
         address = settlement.maker_quote_account,
     )]
     pub maker_quote_account: Box<Account<'info, TokenAccount>>,
@@ -195,7 +207,7 @@ pub fn complete_settlement_handler<'info>(
     require_eq!(quote.key(), settlement.quote, RfqError::InvalidQuote);
     require!(quote.selected, RfqError::InvalidQuoteState);
 
-    // Refund maker's bond
+    // Refund maker's bond (USDC)
     let seeds_rfq: &[&[u8]] = &[
         Rfq::SEED_PREFIX,
         rfq.maker.as_ref(),
@@ -206,7 +218,7 @@ pub fn complete_settlement_handler<'info>(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             Transfer {
-                from: ctx.accounts.bonds_fees_vault.to_account_info(),
+                from: ctx.accounts.bonds_escrow.to_account_info(),
                 to: ctx.accounts.maker_payment_account.to_account_info(),
                 authority: rfq.to_account_info(),
             },
@@ -215,12 +227,12 @@ pub fn complete_settlement_handler<'info>(
         settlement.bond_amount,
     )?;
 
-    // Refund taker's bond
+    // Refund taker's bond (USDC)
     token::transfer(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             Transfer {
-                from: ctx.accounts.bonds_fees_vault.to_account_info(),
+                from: ctx.accounts.bonds_escrow.to_account_info(),
                 to: ctx.accounts.taker_payment_account.to_account_info(),
                 authority: rfq.to_account_info(),
             },
@@ -229,13 +241,22 @@ pub fn complete_settlement_handler<'info>(
         settlement.bond_amount,
     )?;
 
-    // Collect taker fees to treasury and optionally retain facilitator share in bonds_fees_vault.
+    // --- Fee collection (paid in quote_mint tokens) ---
+    // total_fee = quote_amount * taker_fee_bps / 10_000
+    let quote_amount_u128 = settlement.quote_amount as u128;
+    let taker_fee_bps_u128 = settlement.taker_fee_bps as u128;
+    let total_fee: u64 = quote_amount_u128
+        .checked_mul(taker_fee_bps_u128)
+        .and_then(|v| v.checked_div(10_000))
+        .and_then(|v| u64::try_from(v).ok())
+        .ok_or(RfqError::ArithmeticOverflow)?;
+
     let facilitator_fee_bps = rfq.facilitator_fee_bps;
     let facilitator_share: u64 =
         if rfq.facilitator.is_some() && rfq.facilitator == quote.facilitator {
-            let fee_amount_u128 = settlement.fee_amount as u128;
+            let total_fee_u128 = total_fee as u128;
             let bps_u128 = facilitator_fee_bps as u128;
-            fee_amount_u128
+            total_fee_u128
                 .checked_mul(bps_u128)
                 .and_then(|v| v.checked_div(10_000))
                 .and_then(|v| u64::try_from(v).ok())
@@ -243,31 +264,32 @@ pub fn complete_settlement_handler<'info>(
         } else {
             0
         };
-    let treasury_share = settlement
-        .fee_amount
+    let treasury_share = total_fee
         .checked_sub(facilitator_share)
         .ok_or(RfqError::ArithmeticOverflow)?;
 
+    // Treasury share → treasury_quote_ata (in quote_mint tokens)
     if treasury_share > 0 {
         token::transfer(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
                 Transfer {
-                    from: ctx.accounts.taker_payment_account.to_account_info(),
-                    to: ctx.accounts.treasury_ata.to_account_info(),
+                    from: ctx.accounts.taker_quote_account.to_account_info(),
+                    to: ctx.accounts.treasury_quote_ata.to_account_info(),
                     authority: ctx.accounts.taker.to_account_info(),
                 },
             ),
             treasury_share,
         )?;
     }
+    // Facilitator share → fee_escrow (in quote_mint tokens, claimed via withdraw_reward)
     if facilitator_share > 0 {
         token::transfer(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
                 Transfer {
-                    from: ctx.accounts.taker_payment_account.to_account_info(),
-                    to: ctx.accounts.bonds_fees_vault.to_account_info(),
+                    from: ctx.accounts.taker_quote_account.to_account_info(),
+                    to: ctx.accounts.fee_escrow.to_account_info(),
                     authority: ctx.accounts.taker.to_account_info(),
                 },
             ),
@@ -311,7 +333,7 @@ pub fn complete_settlement_handler<'info>(
     );
 
     if !slashed_bonds_tracker.is_resolved() {
-        // Seize only unrevealed bonds and send them to the treasury
+        // Seize only unrevealed bonds (USDC) and send them to the treasury
         let seized_amount = compute_slashed_amount(rfq, false)?;
 
         if seized_amount > 0 {
@@ -319,7 +341,7 @@ pub fn complete_settlement_handler<'info>(
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
                     Transfer {
-                        from: ctx.accounts.bonds_fees_vault.to_account_info(),
+                        from: ctx.accounts.bonds_escrow.to_account_info(),
                         to: ctx.accounts.treasury_ata.to_account_info(),
                         authority: rfq.to_account_info(),
                     },
@@ -345,7 +367,7 @@ pub fn complete_settlement_handler<'info>(
     // fill fees tracker
     fees_tracker.rfq = settlement.rfq;
     fees_tracker.taker = settlement.taker;
-    fees_tracker.usdc_mint = rfq.usdc_mint;
+    fees_tracker.quote_mint = rfq.quote_mint;
     fees_tracker.treasury_usdc_owner = rfq.treasury_usdc_owner;
     fees_tracker.amount = treasury_share;
     fees_tracker.payed_at = now;

@@ -152,7 +152,7 @@ pub fn select_quote_handler(ctx: Context<SelectQuote>) -> Result<()> {
         .quote_amount
         .ok_or_else(|| RfqError::InvalidQuoteState)?;
     settlement.bond_amount = rfq.bond_amount;
-    settlement.fee_amount = rfq.fee_amount;
+    settlement.taker_fee_bps = rfq.taker_fee_bps;
     settlement.created_at = now;
     settlement.completed_at = None;
     settlement.maker_funded_at = Some(now);
@@ -160,7 +160,7 @@ pub fn select_quote_handler(ctx: Context<SelectQuote>) -> Result<()> {
     settlement.bump = ctx.bumps.settlement;
     settlement.maker_payment_account = rfq.maker_payment_account;
     settlement.taker_payment_account = quote.taker_payment_account;
-    settlement.bonds_fees_vault = rfq.bonds_fees_vault;
+    settlement.bonds_escrow = rfq.bonds_escrow;
     settlement.maker_base_account = maker_base_account.key();
     settlement.taker_base_account = None;
     settlement.vault_base_ata = ctx.accounts.vault_base_ata.key();

@@ -55,9 +55,9 @@ pub struct RefundQuoteBonds<'info> {
         mut,
         associated_token::mint = usdc_mint,
         associated_token::authority = rfq,
-        address = rfq.bonds_fees_vault,
+        address = rfq.bonds_escrow,
     )]
-    pub bonds_fees_vault: Box<Account<'info, TokenAccount>>,
+    pub bonds_escrow: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -114,7 +114,7 @@ pub fn refund_quote_bonds_handler(ctx: Context<RefundQuoteBonds>) -> Result<()> 
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             Transfer {
-                from: ctx.accounts.bonds_fees_vault.to_account_info(),
+                from: ctx.accounts.bonds_escrow.to_account_info(),
                 to: ctx.accounts.taker_payment_account.to_account_info(),
                 authority: rfq.to_account_info(),
             },
@@ -139,7 +139,7 @@ pub fn refund_quote_bonds_handler(ctx: Context<RefundQuoteBonds>) -> Result<()> 
                         CpiContext::new_with_signer(
                             ctx.accounts.token_program.to_account_info(),
                             Transfer {
-                                from: ctx.accounts.bonds_fees_vault.to_account_info(),
+                                from: ctx.accounts.bonds_escrow.to_account_info(),
                                 to: ctx.accounts.treasury_ata.to_account_info(),
                                 authority: rfq.to_account_info(),
                             },

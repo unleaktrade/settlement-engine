@@ -45,21 +45,21 @@ pub struct WithdrawReward<'info> {
     )]
     pub quote: Box<Account<'info, Quote>>,
 
-    #[account(address = rfq.usdc_mint)]
-    pub usdc_mint: Box<Account<'info, Mint>>,
+    #[account(address = settlement.quote_mint)]
+    pub quote_mint: Box<Account<'info, Mint>>,
 
+    /// Fee escrow holds the facilitator's share in quote_mint tokens
     #[account(
         mut,
-        associated_token::mint = usdc_mint,
+        associated_token::mint = quote_mint,
         associated_token::authority = rfq,
-        address = settlement.bonds_fees_vault,
     )]
-    pub bonds_fees_vault: Box<Account<'info, TokenAccount>>,
+    pub fee_escrow: Box<Account<'info, TokenAccount>>,
 
     #[account(
         init_if_needed,
         payer = facilitator,
-        associated_token::mint = usdc_mint,
+        associated_token::mint = quote_mint,
         associated_token::authority = facilitator,
     )]
     pub facilitator_ata: Box<Account<'info, TokenAccount>>,
@@ -93,9 +93,17 @@ pub fn withdraw_reward_handler(ctx: Context<WithdrawReward>) -> Result<()> {
         RfqError::Unauthorized
     );
 
-    let fee_amount_u128 = settlement.fee_amount as u128;
+    // total_fee = quote_amount * taker_fee_bps / 10_000
+    let quote_amount_u128 = settlement.quote_amount as u128;
+    let taker_fee_bps_u128 = settlement.taker_fee_bps as u128;
+    let total_fee: u64 = quote_amount_u128
+        .checked_mul(taker_fee_bps_u128)
+        .and_then(|v| v.checked_div(10_000))
+        .and_then(|v| u64::try_from(v).ok())
+        .ok_or(RfqError::ArithmeticOverflow)?;
+
     let bps_u128 = rfq.facilitator_fee_bps as u128;
-    let facilitator_share: u64 = fee_amount_u128
+    let facilitator_share: u64 = (total_fee as u128)
         .checked_mul(bps_u128)
         .and_then(|v| v.checked_div(10_000))
         .and_then(|v| u64::try_from(v).ok())
@@ -112,7 +120,7 @@ pub fn withdraw_reward_handler(ctx: Context<WithdrawReward>) -> Result<()> {
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             Transfer {
-                from: ctx.accounts.bonds_fees_vault.to_account_info(),
+                from: ctx.accounts.fee_escrow.to_account_info(),
                 to: ctx.accounts.facilitator_ata.to_account_info(),
                 authority: rfq.to_account_info(),
             },
@@ -124,7 +132,7 @@ pub fn withdraw_reward_handler(ctx: Context<WithdrawReward>) -> Result<()> {
     let reward_tracker = &mut ctx.accounts.facilitator_reward_tracker;
     reward_tracker.rfq = rfq.key();
     reward_tracker.facilitator = facilitator_key;
-    reward_tracker.usdc_mint = ctx.accounts.usdc_mint.key();
+    reward_tracker.quote_mint = ctx.accounts.quote_mint.key();
     reward_tracker.amount = facilitator_share;
     reward_tracker.claimed_at = Clock::get()?.unix_timestamp;
     reward_tracker.bump = ctx.bumps.facilitator_reward_tracker;

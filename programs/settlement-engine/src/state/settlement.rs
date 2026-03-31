@@ -17,13 +17,13 @@ pub struct Settlement {
     pub base_amount: u64,
     pub quote_amount: u64,
     pub bond_amount: u64,
-    pub fee_amount: u64,
+    pub taker_fee_bps: u16,
 
     /// Token Accounts
     // USDC
     pub maker_payment_account: Pubkey,
     pub taker_payment_account: Pubkey,
-    pub bonds_fees_vault: Pubkey,
+    pub bonds_escrow: Pubkey,
     // base mint
     pub maker_base_account: Pubkey,
     pub taker_base_account: Option<Pubkey>,

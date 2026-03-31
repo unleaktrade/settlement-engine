@@ -63,7 +63,7 @@ pub struct CommitQuote<'info> {
         associated_token::mint = usdc_mint,
         associated_token::authority = rfq,
     )]
-    pub bonds_fees_vault: Account<'info, TokenAccount>,
+    pub bonds_escrow: Account<'info, TokenAccount>,
 
     #[account(
         mut,
@@ -192,7 +192,7 @@ pub fn commit_quote_handler(
     // Transfer taker bond USDC into RFQ's vault
     let cpi_accounts = Transfer {
         from: ctx.accounts.taker_payment_account.to_account_info(),
-        to: ctx.accounts.bonds_fees_vault.to_account_info(),
+        to: ctx.accounts.bonds_escrow.to_account_info(),
         authority: ctx.accounts.taker.to_account_info(),
     };
     let cpi_program = ctx.accounts.token_program.to_account_info();

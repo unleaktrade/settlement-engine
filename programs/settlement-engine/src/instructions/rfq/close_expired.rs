@@ -32,7 +32,7 @@ pub struct CloseExpired<'info> {
         associated_token::mint = usdc_mint,
         associated_token::authority = rfq,
     )]
-    pub bonds_fees_vault: Account<'info, TokenAccount>,
+    pub bonds_escrow: Account<'info, TokenAccount>,
 
     #[account(
         mut,
@@ -90,7 +90,7 @@ pub fn close_expired_handler(ctx: Context<CloseExpired>) -> Result<()> {
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             Transfer {
-                from: ctx.accounts.bonds_fees_vault.to_account_info(),
+                from: ctx.accounts.bonds_escrow.to_account_info(),
                 to: ctx.accounts.maker_payment_account.to_account_info(),
                 authority: rfq.to_account_info(),
             },
@@ -108,7 +108,7 @@ pub fn close_expired_handler(ctx: Context<CloseExpired>) -> Result<()> {
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
                     Transfer {
-                        from: ctx.accounts.bonds_fees_vault.to_account_info(),
+                        from: ctx.accounts.bonds_escrow.to_account_info(),
                         to: ctx.accounts.treasury_ata.to_account_info(),
                         authority: rfq.to_account_info(),
                     },
