@@ -2,7 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import nacl from "tweetnacl";
 import { Program } from "@coral-xyz/anchor";
 import { SettlementEngine } from "../target/types/settlement_engine";
-import { Ed25519Program, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
+import { ComputeBudgetProgram, Ed25519Program, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import {
     createMint,
     getAssociatedTokenAddressSync,
@@ -86,7 +86,7 @@ const provideLiquidityGuardAttestation = async (taker: anchor.web3.Keypair,
         quote_mint: quoteMint.toBase58(),
         quote_amount: new anchor.BN(quoteAmount).toString(),
         bond_amount_usdc: new anchor.BN(bondAmount).toString(),
-        fee_amount_usdc: new anchor.BN(feeAmount).toString(),
+        taker_fee_bps: new anchor.BN(feeAmount).toString(),
     };
 
     const response = await fetchJson<CheckResult>(`${liquidityGuardURL}/check`, {
@@ -249,11 +249,15 @@ describe("COMPLETE_SETTLEMENT", () => {
         const taker2PaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker2.publicKey);
         const takerBaseAccount = getAssociatedTokenAddressSync(baseMint, taker.publicKey);
         const takerQuoteAccount = getAssociatedTokenAddressSync(quoteMint, taker.publicKey);
-        const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
+        const bondsEscrow = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
         const baseVault = getAssociatedTokenAddressSync(baseMint, rfqPDA, true);
+        const feeEscrow = getAssociatedTokenAddressSync(quoteMint, rfqPDA, true);
         const treasuryPaymentAccount = getAssociatedTokenAddressSync(usdcMint, treasury.publicKey);
+        const treasuryQuoteAta = getAssociatedTokenAddressSync(quoteMint, treasury.publicKey);
         const facilitatorPaymentAccount = getAssociatedTokenAddressSync(usdcMint, facilitator.publicKey);
+        const facilitatorQuoteAta = getAssociatedTokenAddressSync(quoteMint, facilitator.publicKey);
         const otherFacilitatorPaymentAccount = getAssociatedTokenAddressSync(usdcMint, otherFacilitator.publicKey);
+        const otherFacilitatorQuoteAta = getAssociatedTokenAddressSync(quoteMint, otherFacilitator.publicKey);
 
         // mint USDC for bonds
         await Promise.all([
@@ -294,7 +298,7 @@ describe("COMPLETE_SETTLEMENT", () => {
                 usdcMint,
                 account.address,
                 admin,
-                DEFAULT_BOND_AMOUNT + DEFAULT_FEE_AMOUNT //sufficient for bonds + fees
+                DEFAULT_BOND_AMOUNT //sufficient for bonds
             )),
             await getOrCreateAssociatedTokenAccount(
                 provider.connection,
@@ -307,7 +311,7 @@ describe("COMPLETE_SETTLEMENT", () => {
                 usdcMint,
                 account.address,
                 admin,
-                DEFAULT_BOND_AMOUNT + DEFAULT_FEE_AMOUNT //sufficient for bonds + fees
+                DEFAULT_BOND_AMOUNT //sufficient for bonds
             )),
             await getOrCreateAssociatedTokenAccount(
                 provider.connection,
@@ -320,7 +324,7 @@ describe("COMPLETE_SETTLEMENT", () => {
                 quoteMint,
                 account.address,
                 admin,
-                DEFAULT_QUOTE_AMOUNT
+                DEFAULT_QUOTE_AMOUNT + Math.floor(DEFAULT_QUOTE_AMOUNT * DEFAULT_FEE_AMOUNT / 10_000) // quote_amount + taker fees (in quote mint)
             )),
         ]);
 
@@ -343,7 +347,7 @@ describe("COMPLETE_SETTLEMENT", () => {
                     new anchor.BN(DEFAULT_BOND_AMOUNT),
                     new anchor.BN(DEFAULT_BASE_AMOUNT),
                     new anchor.BN(1_000_000_000),
-                    new anchor.BN(DEFAULT_FEE_AMOUNT),
+                    DEFAULT_FEE_AMOUNT,
                     commitTTL,
                     revealTTL,
                     selectionTTL,
@@ -354,7 +358,7 @@ describe("COMPLETE_SETTLEMENT", () => {
                     maker: maker.publicKey,
                     config: configPda,
                     usdcMint,
-                    bondsFeesVault,
+                    bondsEscrow,
                     makerPaymentAccount,
                     systemProgram: SystemProgram.programId,
                     tokenProgram: TOKEN_PROGRAM_ID,
@@ -367,7 +371,7 @@ describe("COMPLETE_SETTLEMENT", () => {
             console.log("initRfq failed:", e);
         }
 
-        await getAndLogBalance("Before opening RFQ", "RFQ Bonds Vault", bondsFeesVault);
+        await getAndLogBalance("Before opening RFQ", "RFQ Bonds Escrow", bondsEscrow);
 
         console.log("Rfq PDA:", rfqPDA.toBase58());
         console.log("Slashed Bonds Tracker PDA", slashedBondsTrackerPDA.toBase58());
@@ -379,7 +383,7 @@ describe("COMPLETE_SETTLEMENT", () => {
                     maker: maker.publicKey,
                     rfq: rfqPDA,
                     config: configPda,
-                    bondsFeesVault,
+                    bondsEscrow,
                     makerPaymentAccount,
                     usdcMint,
                 })
@@ -392,7 +396,7 @@ describe("COMPLETE_SETTLEMENT", () => {
         await Promise.all([
             getAndLogBalance("After opening RFQ", "Maker USDC", makerPaymentAccount),
             getAndLogBalance("After opening RFQ", "Taker USDC", takerPaymentAccount),
-            getAndLogBalance("After opening RFQ", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After opening RFQ", "RFQ Bonds Escrow", bondsEscrow),
         ]);
 
         const [saltQ1, commit_hashQ1, liquidity_proofQ1] = await provideLiquidityGuardAttestation(taker, rfqPDA, quoteMint);
@@ -446,7 +450,7 @@ describe("COMPLETE_SETTLEMENT", () => {
             getAndLogBalance("After commiting quote", "Maker USDC", makerPaymentAccount),
             getAndLogBalance("After commiting quote", "Taker USDC", takerPaymentAccount),
             getAndLogBalance("After commiting quote", "Taker2 USDC", taker2PaymentAccount),
-            getAndLogBalance("After commiting quote", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After commiting quote", "RFQ Bonds Escrow", bondsEscrow),
         ]);
 
         const rfqAfterCommit = await program.account.rfq.fetch(rfqPDA);
@@ -475,8 +479,8 @@ describe("COMPLETE_SETTLEMENT", () => {
         } catch { failed = true; }
         assert(failed, "Taker2 can't reveal invalid quote");
 
-        const bondsFeesVaultBeforeSelection = await getAndLogBalance("After revealing ALL quotes", "RFQ Bonds Vault", bondsFeesVault);
-        assert(bondsFeesVaultBeforeSelection.eq(new anchor.BN(DEFAULT_BOND_AMOUNT).muln(3)), `RFQ Bonds Vault should contain ${DEFAULT_BOND_AMOUNT * 3} USDC`);
+        const bondsEscrowBeforeSelection = await getAndLogBalance("After revealing ALL quotes", "RFQ Bonds Escrow", bondsEscrow);
+        assert(bondsEscrowBeforeSelection.eq(new anchor.BN(DEFAULT_BOND_AMOUNT).muln(3)), `RFQ Bonds Escrow should contain ${DEFAULT_BOND_AMOUNT * 3} USDC`);
 
         await Promise.all([
             getAndLogBalance("After revealing quote", "Maker USDC", makerPaymentAccount),
@@ -507,12 +511,12 @@ describe("COMPLETE_SETTLEMENT", () => {
             getAndLogBalance("After selecting quote", "Maker USDC", makerPaymentAccount),
             getAndLogBalance("After selecting quote", "Maker Base", makerBaseAccount),
             getAndLogBalance("After selecting quote", "Taker USDC", takerPaymentAccount),
-            getAndLogBalance("After selecting quote", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After selecting quote", "RFQ Bonds Escrow", bondsEscrow),
             getAndLogBalance("After selecting quote", "RFQ Vault Base", baseVault),
         ]);
 
         // remaining_accounts order should be irrelevant
-        await program.methods.completeSettlement()
+        const completeSettlementIx = await program.methods.completeSettlement()
             .accounts({
                 taker: taker.publicKey,
                 config: configPda,
@@ -529,6 +533,10 @@ describe("COMPLETE_SETTLEMENT", () => {
                 makerQuoteAccount,
                 takerQuoteAccount,
                 feesTracker: feesTrackerPDA,
+                treasuryAta: treasuryPaymentAccount,
+                treasuryQuoteAta,
+                feeEscrow,
+                bondsEscrow,
             })
             .remainingAccounts([{
                 pubkey: quotePda,
@@ -539,8 +547,12 @@ describe("COMPLETE_SETTLEMENT", () => {
                 isSigner: false,
                 isWritable: true,
             }])
-            .signers([taker])
-            .rpc();
+            .instruction();
+
+        const completeTx = new anchor.web3.Transaction();
+        completeTx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }));
+        completeTx.add(completeSettlementIx);
+        await provider.sendAndConfirm(completeTx, [taker]);
 
         const [rfq, settlement, feesTracker, slashedBondsTracker, quote, quote2] = await Promise.all([
             program.account.rfq.fetch(rfqPDA),
@@ -564,12 +576,11 @@ describe("COMPLETE_SETTLEMENT", () => {
         assert.strictEqual(feesTracker.bump, bumpFeesTracker, "feesTracker bump mismatch");
         assert(feesTracker.rfq.equals(rfqPDA), "RFQ mismatch in feesTracker");
         assert(feesTracker.taker.equals(taker.publicKey), "Taker mismatch in feesTracker");
-        assert(feesTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in feesTracker");
+        assert(feesTracker.quoteMint.equals(quoteMint), "quoteMint mismatch in feesTracker");
         assert(feesTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in feesTracker");
-        const facilitatorFee = new anchor.BN(DEFAULT_FEE_AMOUNT)
-            .muln(FACILITATOR_FEE_BPS)
-            .divn(10_000);
-        const treasuryFee = new anchor.BN(DEFAULT_FEE_AMOUNT).sub(facilitatorFee);
+        const totalFee = Math.floor(DEFAULT_QUOTE_AMOUNT * DEFAULT_FEE_AMOUNT / 10_000);
+        const facilitatorFee = new anchor.BN(Math.floor(totalFee * FACILITATOR_FEE_BPS / 10_000));
+        const treasuryFee = new anchor.BN(totalFee).sub(facilitatorFee);
         assert(feesTracker.amount.eq(treasuryFee), "amount mismatch in feesTracker");
         assert.ok(feesTracker.payedAt!.toNumber() > 0, "feesTracker payedAt should be set");
         assert(slashedBondsTracker.rfq.equals(rfqPDA), "RFQ mismatch in slashBoundsTracker");
@@ -590,9 +601,11 @@ describe("COMPLETE_SETTLEMENT", () => {
             takerUsdcBalance,
             takerBaseBalance,
             takerQuoteBalance,
-            bondsVaultBalance,
+            bondsEscrowBalance,
             baseVaultBalance,
             treasuryUsdcBalance,
+            treasuryQuoteBalance,
+            feeEscrowBalance,
         ] = await Promise.all([
             getAndLogBalance("After complete settlement", "Maker USDC", makerPaymentAccount),
             getAndLogBalance("After complete settlement", "Maker Base", makerBaseAccount),
@@ -600,22 +613,32 @@ describe("COMPLETE_SETTLEMENT", () => {
             getAndLogBalance("After complete settlement", "Taker USDC", takerPaymentAccount),
             getAndLogBalance("After complete settlement", "Taker Base", takerBaseAccount),
             getAndLogBalance("After complete settlement", "Taker Quote", takerQuoteAccount),
-            getAndLogBalance("After complete settlement", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After complete settlement", "RFQ Bonds Escrow", bondsEscrow),
             getAndLogBalance("After complete settlement", "RFQ Vault Base", baseVault),
-            getAndLogBalance("After complete settlement", "Treasury USCD", treasuryPaymentAccount),
+            getAndLogBalance("After complete settlement", "Treasury USDC", treasuryPaymentAccount),
+            getAndLogBalance("After complete settlement", "Treasury Quote", treasuryQuoteAta),
+            getAndLogBalance("After complete settlement", "Fee Escrow", feeEscrow),
         ]);
 
         assert.ok(makerUsdcBalance.eq(new anchor.BN(DEFAULT_BOND_AMOUNT)), "maker should get bond back");
         assert.ok(makerBaseBalance.isZero(), "maker base should be transferred out");
         assert.ok(makerQuoteBalance.eq(new anchor.BN(DEFAULT_QUOTE_AMOUNT)), "maker should receive quote amount");
-        assert.ok(takerUsdcBalance.eq(new anchor.BN(DEFAULT_BOND_AMOUNT)), "taker should get bond back minus fee");
+        assert.ok(takerUsdcBalance.eq(new anchor.BN(DEFAULT_BOND_AMOUNT)), "taker should get bond back");
         assert.ok(takerBaseBalance.eq(new anchor.BN(DEFAULT_BASE_AMOUNT)), "taker should receive base amount");
         assert.ok(takerQuoteBalance.isZero(), "taker quote should be transferred out");
-        assert.ok(bondsVaultBalance.eq(facilitatorFee), "bonds vault should contain facilitator fee");
+        assert.ok(bondsEscrowBalance.isZero(), "bonds escrow should be empty");
         assert.ok(baseVaultBalance.isZero(), "base vault should be empty");
         assert.ok(
-            treasuryUsdcBalance.eq(treasuryFee.add(new anchor.BN(DEFAULT_BOND_AMOUNT))),
-            "treasury should receive its fee share and bonds of invalid quote"
+            treasuryUsdcBalance.eq(new anchor.BN(DEFAULT_BOND_AMOUNT)),
+            "treasury USDC should contain slashed bonds only"
+        );
+        assert.ok(
+            treasuryQuoteBalance.eq(treasuryFee),
+            "treasury quote should receive its fee share"
+        );
+        assert.ok(
+            feeEscrowBalance.eq(facilitatorFee),
+            "fee escrow should contain facilitator fee in quote tokens"
         );
 
         let withdrawUnselectedFailed = false;
@@ -627,9 +650,9 @@ describe("COMPLETE_SETTLEMENT", () => {
                     rfq: rfqPDA,
                     settlement: settlementPDA,
                     quote: quote2Pda,
-                    usdcMint,
-                    bondsFeesVault,
-                    facilitatorAta: facilitatorPaymentAccount,
+                    quoteMint,
+                    feeEscrow,
+                    facilitatorAta: facilitatorQuoteAta,
                     facilitatorRewardTracker: facilitatorRewardTrackerPDA,
                 })
                 .signers([facilitator])
@@ -648,9 +671,9 @@ describe("COMPLETE_SETTLEMENT", () => {
                     rfq: rfqPDA,
                     settlement: settlementPDA,
                     quote: quotePda,
-                    usdcMint,
-                    bondsFeesVault,
-                    facilitatorAta: otherFacilitatorPaymentAccount,
+                    quoteMint,
+                    feeEscrow,
+                    facilitatorAta: otherFacilitatorQuoteAta,
                     facilitatorRewardTracker: otherFacilitatorRewardTrackerPDA,
                 })
                 .signers([otherFacilitator])
@@ -667,24 +690,24 @@ describe("COMPLETE_SETTLEMENT", () => {
                 rfq: rfqPDA,
                 settlement: settlementPDA,
                 quote: quotePda,
-                usdcMint,
-                bondsFeesVault,
+                quoteMint,
+                feeEscrow,
             })
             .signers([facilitator])
             .rpc();
 
         const [
-            bondsVaultAfterWithdraw,
-            facilitatorUsdcAfterWithdraw,
+            feeEscrowAfterWithdraw,
+            facilitatorQuoteAfterWithdraw,
             facilitatorRewardTracker,
         ] = await Promise.all([
-            getAndLogBalance("After withdraw reward", "RFQ Bonds Vault", bondsFeesVault),
-            getAndLogBalance("After withdraw reward", "Facilitator USDC", facilitatorPaymentAccount),
+            getAndLogBalance("After withdraw reward", "Fee Escrow", feeEscrow),
+            getAndLogBalance("After withdraw reward", "Facilitator Quote", facilitatorQuoteAta),
             program.account.facilitatorRewardTracker.fetch(facilitatorRewardTrackerPDA),
         ]);
 
-        assert.ok(bondsVaultAfterWithdraw.isZero(), "bonds vault should be empty after reward withdraw");
-        assert.ok(facilitatorUsdcAfterWithdraw.eq(facilitatorFee), "facilitator should receive its fee");
+        assert.ok(feeEscrowAfterWithdraw.isZero(), "fee escrow should be empty after reward withdraw");
+        assert.ok(facilitatorQuoteAfterWithdraw.eq(facilitatorFee), "facilitator should receive its fee in quote tokens");
         assert.strictEqual(
             facilitatorRewardTracker.bump,
             facilitatorRewardTrackerBump,
@@ -695,7 +718,7 @@ describe("COMPLETE_SETTLEMENT", () => {
             facilitatorRewardTracker.facilitator.equals(facilitator.publicKey),
             "facilitator reward tracker facilitator mismatch"
         );
-        assert(facilitatorRewardTracker.usdcMint.equals(usdcMint), "facilitator reward tracker mint mismatch");
+        assert(facilitatorRewardTracker.quoteMint.equals(quoteMint), "facilitator reward tracker mint mismatch");
         assert(facilitatorRewardTracker.amount.eq(facilitatorFee), "facilitator reward tracker amount mismatch");
         assert.ok(
             facilitatorRewardTracker.claimedAt.toNumber() > 0,
@@ -711,9 +734,9 @@ describe("COMPLETE_SETTLEMENT", () => {
                     rfq: rfqPDA,
                     settlement: settlementPDA,
                     quote: quotePda,
-                    usdcMint,
-                    bondsFeesVault,
-                    facilitatorAta: facilitatorPaymentAccount,
+                    quoteMint,
+                    feeEscrow,
+                    facilitatorAta: facilitatorQuoteAta,
                     facilitatorRewardTracker: facilitatorRewardTrackerPDA,
                 })
                 .signers([facilitator])
