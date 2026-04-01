@@ -75,15 +75,15 @@ pub struct CloseIncomplete<'info> {
 
     #[account(
         mut,
-        address = rfq.treasury_usdc_owner,
+        address = rfq.treasury_wallet,
     )]
-    pub treasury_usdc_owner: SystemAccount<'info>,
+    pub treasury_wallet: SystemAccount<'info>,
 
     #[account(
         init_if_needed,
         payer = maker,
         associated_token::mint = usdc_mint,
-        associated_token::authority = treasury_usdc_owner,
+        associated_token::authority = treasury_wallet,
     )]
     pub treasury_ata: Box<Account<'info, TokenAccount>>,
 
@@ -92,7 +92,7 @@ pub struct CloseIncomplete<'info> {
         seeds = [SlashedBondsTracker::SEED_PREFIX, rfq.key().as_ref()],
         bump = slashed_bonds_tracker.bump,
         has_one = usdc_mint,
-        has_one = treasury_usdc_owner,
+        has_one = treasury_wallet,
     )]
     pub slashed_bonds_tracker: Box<Account<'info, SlashedBondsTracker>>,
 

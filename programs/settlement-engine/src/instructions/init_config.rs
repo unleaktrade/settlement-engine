@@ -24,7 +24,7 @@ pub struct InitConfig<'info> {
 pub fn init_config_handler(
     ctx: Context<InitConfig>,
     usdc_mint: Pubkey,
-    treasury_usdc_owner: Pubkey,
+    treasury_wallet: Pubkey,
     liquidity_guard: Pubkey,
     facilitator_fee_bps: Option<u16>,
 ) -> Result<()> {
@@ -36,7 +36,7 @@ pub fn init_config_handler(
 
     cfg.admin = ctx.accounts.admin.key();
     cfg.usdc_mint = usdc_mint;
-    cfg.treasury_usdc_owner = treasury_usdc_owner;
+    cfg.treasury_wallet = treasury_wallet;
     cfg.liquidity_guard = liquidity_guard;
     cfg.facilitator_fee_bps = fee_bps;
     cfg.bump = bump;

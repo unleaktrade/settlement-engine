@@ -13,7 +13,7 @@ pub struct Rfq {
     pub base_mint: Pubkey,
     pub quote_mint: Pubkey,
     pub usdc_mint: Pubkey,           // snapshot of config.usdc_mint at init
-    pub treasury_usdc_owner: Pubkey, // snapshot of config.treasury_usdc_owner at init
+    pub treasury_wallet: Pubkey, // snapshot of config.treasury_wallet at init
     pub liquidity_guard: Pubkey,     // snapshot of config.liquidity_guard at init
 
     // economics (u64 in smallest units)

@@ -429,7 +429,7 @@ describe("CLOSE_EXPIRED_RFQ", () => {
                 config: configPda,
                 usdcMint,
                 bondsEscrow,
-                treasuryUsdcOwner: treasury.publicKey,
+                treasuryWallet: treasury.publicKey,
                 makerPaymentAccount,
             })
             .signers([maker])
@@ -467,7 +467,7 @@ describe("CLOSE_EXPIRED_RFQ", () => {
         const expectedSlashed = expectedSlashedAmount(rfq, false);
         assert(slashedBondsTracker.amount.eq(expectedSlashed), "amount should be equal to expected slashed amount");
         assert(slashedBondsTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in slashedBondsTracker");
-        assert(slashedBondsTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in slashedBondsTracker");
+        assert(slashedBondsTracker.treasuryWallet.equals(treasury.publicKey), "treasury mismatch in slashedBondsTracker");
         assert(new anchor.BN(DEFAULT_BOND_AMOUNT).eq(makerPaymentAccountBalance), "maker balance mismatch");
         assert(takerPaymentAccountBalance.isZero(), "taker balance mismatch");
         assert(taker2PaymentAccountBalance.isZero(), "taker2 balance mismatch");

@@ -74,7 +74,7 @@ describe("RFQ", () => {
         let needInit = false;
         try {
             let fetchedConfig = await program.account.config.fetch(configPda);
-            treasury = fetchedConfig.treasuryUsdcOwner;
+            treasury = fetchedConfig.treasuryWallet;
         } catch { needInit = true; }
         if (needInit) {
             treasury = Keypair.generate().publicKey;
@@ -787,7 +787,7 @@ describe("RFQ", () => {
         assert(slashedBondsTracker.amount == null || slashedBondsTracker.amount == undefined, "amount should be null or undefined in slashedBondsTracker");
         assert(slashedBondsTracker.seizedAt == null || slashedBondsTracker.seizedAt == undefined, "seizedAt should be null or undefined in slashedBondsTracker");
         assert(slashedBondsTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in slashedBondsTracker");
-        assert(slashedBondsTracker.treasuryUsdcOwner.equals(treasury), "treasury mismatch in slashedBondsTracker");
+        assert(slashedBondsTracker.treasuryWallet.equals(treasury), "treasury mismatch in slashedBondsTracker");
 
         // Clear facilitator
         await program.methods

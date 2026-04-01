@@ -96,7 +96,7 @@ pub fn init_rfq_handler(
     rfq.base_mint = base_mint;
     rfq.quote_mint = quote_mint;
     rfq.usdc_mint = config.usdc_mint;
-    rfq.treasury_usdc_owner = config.treasury_usdc_owner;
+    rfq.treasury_wallet = config.treasury_wallet;
     rfq.liquidity_guard = config.liquidity_guard;
     rfq.bond_amount = bond_amount;
     rfq.base_amount = base_amount;

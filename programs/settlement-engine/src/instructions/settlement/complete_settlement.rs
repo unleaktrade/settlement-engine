@@ -21,9 +21,9 @@ pub struct CompleteSettlement<'info> {
 
     #[account(
         mut,
-        address = rfq.treasury_usdc_owner,
+        address = rfq.treasury_wallet,
     )]
-    pub treasury_usdc_owner: SystemAccount<'info>,
+    pub treasury_wallet: SystemAccount<'info>,
 
     #[account(
         mut,
@@ -54,7 +54,7 @@ pub struct CompleteSettlement<'info> {
         init_if_needed,
         payer = taker,
         associated_token::mint = usdc_mint,
-        associated_token::authority = treasury_usdc_owner,
+        associated_token::authority = treasury_wallet,
     )]
     pub treasury_ata: Box<Account<'info, TokenAccount>>,
 
@@ -63,7 +63,7 @@ pub struct CompleteSettlement<'info> {
         init_if_needed,
         payer = taker,
         associated_token::mint = quote_mint,
-        associated_token::authority = treasury_usdc_owner,
+        associated_token::authority = treasury_wallet,
     )]
     pub treasury_quote_ata: Box<Account<'info, TokenAccount>>,
 
@@ -353,7 +353,7 @@ pub fn complete_settlement_handler<'info>(
     fees_tracker.rfq = settlement.rfq;
     fees_tracker.taker = settlement.taker;
     fees_tracker.quote_mint = rfq.quote_mint;
-    fees_tracker.treasury_usdc_owner = rfq.treasury_usdc_owner;
+    fees_tracker.treasury_wallet = rfq.treasury_wallet;
     fees_tracker.amount = treasury_share;
     fees_tracker.payed_at = now;
     fees_tracker.bump = ctx.bumps.fees_tracker;

@@ -527,7 +527,7 @@ describe("COMPLETE_SETTLEMENT", () => {
             .accounts({
                 taker: taker.publicKey,
                 config: configPda,
-                treasuryUsdcOwner: treasury.publicKey,
+                treasuryWallet: treasury.publicKey,
                 rfq: rfqPDA,
                 settlement: settlementPDA,
                 usdcMint,
@@ -584,7 +584,7 @@ describe("COMPLETE_SETTLEMENT", () => {
         assert(feesTracker.rfq.equals(rfqPDA), "RFQ mismatch in feesTracker");
         assert(feesTracker.taker.equals(taker.publicKey), "Taker mismatch in feesTracker");
         assert(feesTracker.quoteMint.equals(quoteMint), "quoteMint mismatch in feesTracker");
-        assert(feesTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in feesTracker");
+        assert(feesTracker.treasuryWallet.equals(treasury.publicKey), "treasury mismatch in feesTracker");
         const totalFee = computeFee(DEFAULT_QUOTE_AMOUNT, DEFAULT_FEE_AMOUNT);
         const facilitatorFee = new anchor.BN(Math.floor(totalFee * FACILITATOR_FEE_BPS / 10_000));
         const treasuryFee = new anchor.BN(totalFee).sub(facilitatorFee);
@@ -598,7 +598,7 @@ describe("COMPLETE_SETTLEMENT", () => {
         assert(slashedBondsTracker.seizedAt.toNumber() > 0, "seizedAt should be set in slashedBondsTracker");
         assert(slashedBondsTracker.seizedAt.eq(rfq.completedAt), "seizedAt in slashedBondsTracker and completedAt in Rfq should be equal");
         assert(slashedBondsTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in slashedBondsTracker");
-        assert(slashedBondsTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in slashedBondsTracker");
+        assert(slashedBondsTracker.treasuryWallet.equals(treasury.publicKey), "treasury mismatch in slashedBondsTracker");
         assert(quote.bondsRefundedAt.eq(settlement.completedAt), "quote bondsRefundedAt and settlement completedAt should be equal");
         assert(quote2.bondsRefundedAt === null || quote2.bondsRefundedAt === undefined, "quote2 bondsRefundedAt should be None");
         const [
@@ -866,7 +866,7 @@ describe("COMPLETE_SETTLEMENT", () => {
         const completeIx = await program.methods.completeSettlement()
             .accounts({
                 taker: taker.publicKey, config: configPda,
-                treasuryUsdcOwner: treasury.publicKey,
+                treasuryWallet: treasury.publicKey,
                 rfq: rfqPDA, settlement: settlementPDA,
                 usdcMint, baseMint, quoteMint,
                 takerPaymentAccount, makerPaymentAccount,

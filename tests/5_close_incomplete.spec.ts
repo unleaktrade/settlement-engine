@@ -609,7 +609,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                     usdcMint,
                     bondsEscrow,
                     makerPaymentAccount,
-                    treasuryUsdcOwner: treasury.publicKey,
+                    treasuryWallet: treasury.publicKey,
                     slashBoundsTracker: slashedBondsTrackerPDA,
                 })
                 .signers([maker])
@@ -632,7 +632,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                 usdcMint,
                 bondsEscrow,
                 makerPaymentAccount,
-                treasuryUsdcOwner: treasury.publicKey,
+                treasuryWallet: treasury.publicKey,
                 slashBoundsTracker: slashedBondsTrackerPDA,
             })
             .signers([maker])
@@ -682,7 +682,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
         assert(slashedBondsTracker.seizedAt.eq(rfq.completedAt), "slashBondsTracker seizedAt and rfq completeAt shoud be equal");
         assert.strictEqual(slashedBondsTracker.bump, bumpslashedBondsTracker, "bump mismatch for slashedBondsTracker");
         assert(slashedBondsTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in slashedBondsTracker");
-        assert(slashedBondsTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in slashedBondsTracker");
+        assert(slashedBondsTracker.treasuryWallet.equals(treasury.publicKey), "treasury mismatch in slashedBondsTracker");
 
         //no-show for valid taker + 2 invalid quotes (taker3 and taker4)
         const expectedSlashed = expectedSlashedAmount(rfq, true);
@@ -754,7 +754,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                     usdcMint,
                     bondsEscrow,
                     takerPaymentAccount,
-                    treasuryUsdcOwner: treasury.publicKey,
+                    treasuryWallet: treasury.publicKey,
                     slashBoundsTracker: slashedBondsTrackerPDA,
                 })
                 .signers([taker])
@@ -772,7 +772,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                 usdcMint,
                 bondsEscrow,
                 takerPaymentAccount: taker2PaymentAccount,
-                treasuryUsdcOwner: treasury.publicKey,
+                treasuryWallet: treasury.publicKey,
                 slashBoundsTracker: slashedBondsTrackerPDA,
             })
             .signers([taker2])
@@ -788,7 +788,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                     usdcMint,
                     bondsEscrow,
                     takerPaymentAccount: taker3PaymentAccount,
-                    treasuryUsdcOwner: treasury.publicKey,
+                    treasuryWallet: treasury.publicKey,
                     slashBoundsTracker: slashedBondsTrackerPDA,
                 })
                 .signers([taker3])
@@ -808,7 +808,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                     usdcMint,
                     bondsEscrow,
                     takerPaymentAccount: taker4PaymentAccount,
-                    treasuryUsdcOwner: treasury.publicKey,
+                    treasuryWallet: treasury.publicKey,
                     slashBoundsTracker: slashedBondsTrackerPDA,
                 })
                 .signers([taker4])

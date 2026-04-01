@@ -86,7 +86,7 @@ pub fn open_rfq_handler(ctx: Context<OpenRfq>) -> Result<()> {
     //init slashed bonds tracker
     slashed_bonds_tracker.rfq = rfq.key();
     slashed_bonds_tracker.usdc_mint = rfq.usdc_mint;
-    slashed_bonds_tracker.treasury_usdc_owner = rfq.treasury_usdc_owner;
+    slashed_bonds_tracker.treasury_wallet = rfq.treasury_wallet;
     slashed_bonds_tracker.amount = None;
     slashed_bonds_tracker.seized_at = None;
     slashed_bonds_tracker.bump = ctx.bumps.slashed_bonds_tracker;

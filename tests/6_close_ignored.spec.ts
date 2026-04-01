@@ -533,7 +533,7 @@ describe("CLOSE_IGNORED & REFUND_QUOTE_BONDS", () => {
         assert.strictEqual(slashedBondsTracker.bump, bumpslashedBondsTracker, "bump mismatch for slashedBondsTracker");
         assert(!slashedBondsTracker.seizedAt, "slashBondsTracker seizedAt should be None");
         assert(slashedBondsTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in slashedBondsTracker");
-        assert(slashedBondsTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in slashedBondsTracker");
+        assert(slashedBondsTracker.treasuryWallet.equals(treasury.publicKey), "treasury mismatch in slashedBondsTracker");
         // assert(slashedBondsTracker.amount.eq(rfq.bondAmount.muln(3)), "amount should be equal to 3x Rfq bondAmount");
 
         const [
@@ -629,7 +629,7 @@ describe("CLOSE_IGNORED & REFUND_QUOTE_BONDS", () => {
                     usdcMint,
                     bondsEscrow,
                     takerPaymentAccount,
-                    treasuryUsdcOwner: treasury.publicKey,
+                    treasuryWallet: treasury.publicKey,
                     slashBoundsTracker: slashedBondsTrackerPDA,
                 })
                 .signers([taker])
@@ -642,7 +642,7 @@ describe("CLOSE_IGNORED & REFUND_QUOTE_BONDS", () => {
                     usdcMint,
                     bondsEscrow,
                     takerPaymentAccount: taker2PaymentAccount,
-                    treasuryUsdcOwner: treasury.publicKey,
+                    treasuryWallet: treasury.publicKey,
                     slashBoundsTracker: slashedBondsTrackerPDA,
                 })
                 .signers([taker2])
@@ -659,7 +659,7 @@ describe("CLOSE_IGNORED & REFUND_QUOTE_BONDS", () => {
                     usdcMint,
                     bondsEscrow,
                     takerPaymentAccount: taker3PaymentAccount,
-                    treasuryUsdcOwner: treasury.publicKey,
+                    treasuryWallet: treasury.publicKey,
                     slashBoundsTracker: slashedBondsTrackerPDA,
                 })
                 .signers([taker3])
@@ -679,7 +679,7 @@ describe("CLOSE_IGNORED & REFUND_QUOTE_BONDS", () => {
                     usdcMint,
                     bondsEscrow,
                     takerPaymentAccount: taker4PaymentAccount,
-                    treasuryUsdcOwner: treasury.publicKey,
+                    treasuryWallet: treasury.publicKey,
                     slashBoundsTracker: slashedBondsTrackerPDA,
                 })
                 .signers([taker4])

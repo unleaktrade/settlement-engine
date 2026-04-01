@@ -19,7 +19,7 @@ pub fn update_config_handler(
     ctx: Context<UpdateConfig>,
     new_admin: Option<Pubkey>,
     new_usdc_mint: Option<Pubkey>,
-    new_treasury_usdc_owner: Option<Pubkey>,
+    new_treasury_wallet: Option<Pubkey>,
     new_liquidity_guard: Option<Pubkey>,
     new_facilitator_fee_bps: Option<u16>,
 ) -> Result<()> {
@@ -31,8 +31,8 @@ pub fn update_config_handler(
     if let Some(v) = new_usdc_mint {
         cfg.usdc_mint = v;
     }
-    if let Some(v) = new_treasury_usdc_owner {
-        cfg.treasury_usdc_owner = v;
+    if let Some(v) = new_treasury_wallet {
+        cfg.treasury_wallet = v;
     }
     if let Some(v) = new_liquidity_guard {
         cfg.liquidity_guard = v;
