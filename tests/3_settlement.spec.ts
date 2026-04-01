@@ -28,9 +28,12 @@ const DEFAULT_BASE_AMOUNT = 1_000_000_000;
 const DEFAULT_BOND_AMOUNT = 1_000_000;
 const DEFAULT_FEE_AMOUNT = 1_000;
 
-/** Ceiling division matching liquidity-guard: ceil(quote_amount * fee_bps / 10_000) */
-const ceilFee = (quoteAmount: number, feeBps: number): number =>
-    feeBps > 0 ? Math.ceil(quoteAmount * feeBps / 10_000) : 0;
+/** Ceiling division matching liquidity-guard: ceil(quote_amount * fee_bps / 10_000) using BigInt for precision */
+const ceilFee = (quoteAmount: number, feeBps: number): number => {
+    if (feeBps === 0) return 0;
+    const numerator = BigInt(quoteAmount) * BigInt(feeBps);
+    return Number((numerator + 9_999n) / 10_000n);
+};
 
 const confirm = async (signature: string) => {
     const bh = await provider.connection.getLatestBlockhash();
@@ -751,67 +754,190 @@ describe("COMPLETE_SETTLEMENT", () => {
         assert(withdrawFailed, "facilitator should not be able to withdraw twice");
     });
 
-    describe("fee uplift ceiling division", () => {
-        it("ceilFee matches liquidity-guard formula", () => {
-            // taker_fee_bps = 0 → fee = 0
-            assert.strictEqual(ceilFee(1_000_000, 0), 0, "zero bps should yield zero fee");
+    /**
+     * Run a full RFQ→settlement lifecycle with the given quoteAmount and takerFeeBps,
+     * then return the on-chain feesTracker and treasury quote balance.
+     */
+    const runSettlementWithFeeParams = async (
+        quoteAmount: number,
+        takerFeeBps: number,
+    ) => {
+        const maker = Keypair.generate();
+        const taker = Keypair.generate();
+        await Promise.all([fund(maker), fund(taker)]);
 
-            // exact multiple: 10_000 * 100 / 10_000 = 100 (no rounding)
-            assert.strictEqual(ceilFee(10_000, 100), 100, "exact multiple should not round");
+        const expectedTotalFee = ceilFee(quoteAmount, takerFeeBps);
+        const u = uuidBytes();
+        const [rfqPDA] = rfqPda(maker.publicKey, u);
+        const [settlementPDA] = settlementPda(rfqPDA);
+        const [feesTrackerPDA] = feesTrackerPda(rfqPDA);
+        const [slashedBondsTrackerPDA] = slashedBondsTrackerPda(rfqPDA);
 
-            // small trade that would floor to 0: ceil(5 * 10 / 10_000) = 1
-            assert.strictEqual(ceilFee(5, 10), 1, "tiny trade must produce fee >= 1");
+        const makerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
+        const makerBaseAccount = getAssociatedTokenAddressSync(baseMint, maker.publicKey);
+        const makerQuoteAccount = getAssociatedTokenAddressSync(quoteMint, maker.publicKey);
+        const takerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker.publicKey);
+        const takerBaseAccount = getAssociatedTokenAddressSync(baseMint, taker.publicKey);
+        const takerQuoteAccount = getAssociatedTokenAddressSync(quoteMint, taker.publicKey);
+        const bondsEscrow = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
+        const baseVault = getAssociatedTokenAddressSync(baseMint, rfqPDA, true);
+        const feeEscrow = getAssociatedTokenAddressSync(quoteMint, rfqPDA, true);
+        const treasuryPaymentAccount = getAssociatedTokenAddressSync(usdcMint, treasury.publicKey);
+        const treasuryQuoteAta = getAssociatedTokenAddressSync(quoteMint, treasury.publicKey);
 
-            // smallest possible: ceil(1 * 1 / 10_000) = 1
-            assert.strictEqual(ceilFee(1, 1), 1, "minimum inputs must produce fee = 1");
+        // Mint USDC for bonds + base for maker + quote for taker (quote_amount + fees)
+        await getOrCreateAssociatedTokenAccount(provider.connection, admin, usdcMint, maker.publicKey)
+            .then(a => mintTo(provider.connection, admin, usdcMint, a.address, admin, DEFAULT_BOND_AMOUNT));
+        await getOrCreateAssociatedTokenAccount(provider.connection, admin, baseMint, maker.publicKey)
+            .then(a => mintTo(provider.connection, admin, baseMint, a.address, admin, DEFAULT_BASE_AMOUNT));
+        await getOrCreateAssociatedTokenAccount(provider.connection, admin, usdcMint, taker.publicKey)
+            .then(a => mintTo(provider.connection, admin, usdcMint, a.address, admin, DEFAULT_BOND_AMOUNT));
+        await getOrCreateAssociatedTokenAccount(provider.connection, admin, quoteMint, taker.publicKey)
+            .then(a => mintTo(provider.connection, admin, quoteMint, a.address, admin, quoteAmount + expectedTotalFee));
 
-            // ceil(1 * 10_000 / 10_000) = 1 (exact)
-            assert.strictEqual(ceilFee(1, 10_000), 1, "max bps on 1 unit = 1");
+        // INIT RFQ
+        await program.methods
+            .initRfq(
+                Array.from(u), baseMint, quoteMint,
+                new anchor.BN(DEFAULT_BOND_AMOUNT),
+                new anchor.BN(DEFAULT_BASE_AMOUNT),
+                new anchor.BN(1),
+                takerFeeBps,
+                commitTTL, revealTTL, selectionTTL, fundingTTL,
+                null, // no facilitator — all fees go to treasury
+            )
+            .accounts({
+                maker: maker.publicKey, config: configPda, usdcMint, bondsEscrow,
+                makerPaymentAccount,
+                systemProgram: SystemProgram.programId,
+                tokenProgram: TOKEN_PROGRAM_ID,
+                associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+            })
+            .signers([maker])
+            .rpc();
 
-            // ceil(9_999 * 1 / 10_000) = 1 (just under exact boundary)
-            assert.strictEqual(ceilFee(9_999, 1), 1, "9999 * 1 bps should ceil to 1");
+        // OPEN RFQ
+        await program.methods.openRfq()
+            .accounts({
+                maker: maker.publicKey, rfq: rfqPDA, config: configPda,
+                bondsEscrow, makerPaymentAccount, usdcMint,
+            })
+            .signers([maker])
+            .rpc();
 
-            // ceil(10_000 * 1 / 10_000) = 1 (exact boundary)
-            assert.strictEqual(ceilFee(10_000, 1), 1, "10000 * 1 bps should be exactly 1");
+        // COMMIT QUOTE
+        const [salt, commitHash, liquidityProof] = await provideLiquidityGuardAttestation(
+            taker, rfqPDA, quoteMint, quoteAmount, DEFAULT_BOND_AMOUNT, takerFeeBps,
+        );
+        await commitQuote(commitHash, liquidityProof, taker, rfqPDA, usdcMint, configPda, takerPaymentAccount);
 
-            // ceil(10_001 * 1 / 10_000) = 2
-            assert.strictEqual(ceilFee(10_001, 1), 2, "10001 * 1 bps should ceil to 2");
+        const [quotePda] = PublicKey.findProgramAddressSync(
+            [Buffer.from("quote"), rfqPDA.toBuffer(), taker.publicKey.toBuffer()],
+            program.programId,
+        );
 
-            // DEFAULT values used in settlement test
-            const defaultFee = ceilFee(DEFAULT_QUOTE_AMOUNT, DEFAULT_FEE_AMOUNT);
-            const floorFee = Math.floor(DEFAULT_QUOTE_AMOUNT * DEFAULT_FEE_AMOUNT / 10_000);
-            assert.ok(defaultFee >= floorFee, "ceil fee should be >= floor fee");
-            assert.ok(defaultFee - floorFee <= 1, "ceil and floor should differ by at most 1");
+        // Wait for commit deadline
+        const rfqAfterCommit = await program.account.rfq.fetch(rfqPDA);
+        const openedAt = rfqAfterCommit.openedAt!.toNumber();
+        const commitDeadline = openedAt + rfqAfterCommit.commitTtlSecs;
+        const revealDeadline = commitDeadline + rfqAfterCommit.revealTtlSecs;
+        await waitForChainTime(provider.connection, commitDeadline, "commit deadline");
+
+        // REVEAL QUOTE
+        await program.methods
+            .revealQuote(Array.from(salt), new anchor.BN(quoteAmount))
+            .accounts({ rfq: rfqPDA, quote: quotePda, taker: taker.publicKey, config: configPda })
+            .signers([taker])
+            .rpc();
+
+        // Wait for reveal deadline
+        await waitForChainTime(provider.connection, revealDeadline, "reveal deadline");
+
+        // SELECT QUOTE
+        await program.methods.selectQuote()
+            .accounts({
+                maker: maker.publicKey, rfq: rfqPDA, quote: quotePda,
+                baseMint, quoteMint, vaultBaseAta: baseVault, makerBaseAccount, config: configPda,
+            })
+            .signers([maker])
+            .rpc();
+
+        // COMPLETE SETTLEMENT
+        const completeIx = await program.methods.completeSettlement()
+            .accounts({
+                taker: taker.publicKey, config: configPda,
+                treasuryUsdcOwner: treasury.publicKey,
+                rfq: rfqPDA, settlement: settlementPDA,
+                usdcMint, baseMint, quoteMint,
+                takerPaymentAccount, makerPaymentAccount,
+                vaultBaseAta: baseVault, takerBaseAccount,
+                makerQuoteAccount, takerQuoteAccount,
+                feesTracker: feesTrackerPDA,
+                treasuryAta: treasuryPaymentAccount,
+                treasuryQuoteAta, feeEscrow, bondsEscrow,
+            })
+            .remainingAccounts([
+                { pubkey: quotePda, isSigner: false, isWritable: true },
+                { pubkey: slashedBondsTrackerPDA, isSigner: false, isWritable: true },
+            ])
+            .instruction();
+
+        const tx = new anchor.web3.Transaction();
+        tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }));
+        tx.add(completeIx);
+        await provider.sendAndConfirm(tx, [taker]);
+
+        const feesTracker = await program.account.feesTracker.fetch(feesTrackerPDA);
+
+        return { feesTracker, expectedTotalFee };
+    };
+
+    describe("on-chain fee uplift (ceiling division)", () => {
+        it("ceil fee on non-exact division (quoteAmount=1_000_000_001, feeBps=1000)", async () => {
+            // floor would give 100_000_000, ceil gives 100_000_001
+            const { feesTracker, expectedTotalFee } =
+                await runSettlementWithFeeParams(1_000_000_001, 1_000);
+
+            assert.strictEqual(expectedTotalFee, 100_000_001, "expected ceil fee = 100_000_001");
+            assert.ok(
+                feesTracker.amount.eq(new anchor.BN(expectedTotalFee)),
+                `on-chain treasury fee should be ${expectedTotalFee}, got ${feesTracker.amount.toString()}`
+            );
         });
 
-        it("facilitator/treasury split preserves invariants", () => {
-            const cases = [
-                { quote: 5, feeBps: 10, facBps: 2_500 },
-                { quote: 1, feeBps: 1, facBps: 5_000 },
-                { quote: 101, feeBps: 1, facBps: 2_500 },
-                { quote: 10_000, feeBps: 100, facBps: 2_000 },
-                { quote: DEFAULT_QUOTE_AMOUNT, feeBps: DEFAULT_FEE_AMOUNT, facBps: 2_000 },
-            ];
+        it("ceil fee on small trade where floor would be 0 (quoteAmount=5, feeBps=10)", async () => {
+            // floor(5 * 10 / 10_000) = 0, ceil = 1
+            const { feesTracker, expectedTotalFee } =
+                await runSettlementWithFeeParams(5, 10);
 
-            for (const { quote, feeBps, facBps } of cases) {
-                const totalFee = ceilFee(quote, feeBps);
-                const facilitatorShare = Math.floor(totalFee * facBps / 10_000);
-                const treasuryShare = totalFee - facilitatorShare;
+            assert.strictEqual(expectedTotalFee, 1, "expected ceil fee = 1");
+            assert.ok(
+                feesTracker.amount.eq(new anchor.BN(1)),
+                `on-chain fee must be 1 (not 0), got ${feesTracker.amount.toString()}`
+            );
+        });
 
-                assert.ok(totalFee >= 0, `totalFee >= 0 for quote=${quote}`);
-                assert.ok(facilitatorShare >= 0, `facilitatorShare >= 0 for quote=${quote}`);
-                assert.ok(treasuryShare >= 0, `treasuryShare >= 0 for quote=${quote}`);
-                assert.ok(facilitatorShare <= totalFee, `facilitatorShare <= totalFee for quote=${quote}`);
-                assert.ok(treasuryShare <= totalFee, `treasuryShare <= totalFee for quote=${quote}`);
-                assert.strictEqual(
-                    facilitatorShare + treasuryShare,
-                    totalFee,
-                    `shares must sum to totalFee for quote=${quote}`
-                );
-                if (feeBps > 0) {
-                    assert.ok(totalFee >= 1, `totalFee >= 1 when feeBps > 0 for quote=${quote}`);
-                }
-            }
+        it("ceil fee on exact division (quoteAmount=10_000, feeBps=100)", async () => {
+            // 10_000 * 100 / 10_000 = 100 exactly, ceil = floor = 100
+            const { feesTracker, expectedTotalFee } =
+                await runSettlementWithFeeParams(10_000, 100);
+
+            assert.strictEqual(expectedTotalFee, 100, "expected fee = 100");
+            assert.ok(
+                feesTracker.amount.eq(new anchor.BN(100)),
+                `on-chain fee should be exactly 100, got ${feesTracker.amount.toString()}`
+            );
+        });
+
+        it("zero fee when takerFeeBps=0", async () => {
+            const { feesTracker, expectedTotalFee } =
+                await runSettlementWithFeeParams(1_000_000, 0);
+
+            assert.strictEqual(expectedTotalFee, 0, "expected fee = 0");
+            assert.ok(
+                feesTracker.amount.eq(new anchor.BN(0)),
+                `on-chain fee should be 0, got ${feesTracker.amount.toString()}`
+            );
         });
     });
 
