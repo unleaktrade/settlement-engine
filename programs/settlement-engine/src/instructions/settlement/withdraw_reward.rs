@@ -93,14 +93,17 @@ pub fn withdraw_reward_handler(ctx: Context<WithdrawReward>) -> Result<()> {
         RfqError::Unauthorized
     );
 
-    // total_fee = quote_amount * taker_fee_bps / 10_000
-    let quote_amount_u128 = settlement.quote_amount as u128;
-    let taker_fee_bps_u128 = settlement.taker_fee_bps as u128;
-    let total_fee: u64 = quote_amount_u128
-        .checked_mul(taker_fee_bps_u128)
-        .and_then(|v| v.checked_div(10_000))
-        .and_then(|v| u64::try_from(v).ok())
-        .ok_or(RfqError::ArithmeticOverflow)?;
+    // ceil division so total_fee >= 1 when taker_fee_bps > 0
+    let total_fee: u64 = if settlement.taker_fee_bps > 0 {
+        (settlement.quote_amount as u128)
+            .checked_mul(settlement.taker_fee_bps as u128)
+            .and_then(|v| v.checked_add(9_999))
+            .and_then(|v| v.checked_div(10_000))
+            .and_then(|v| u64::try_from(v).ok())
+            .ok_or(RfqError::ArithmeticOverflow)?
+    } else {
+        0
+    };
 
     let bps_u128 = rfq.facilitator_fee_bps as u128;
     let facilitator_share: u64 = (total_fee as u128)

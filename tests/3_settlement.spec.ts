@@ -28,6 +28,10 @@ const DEFAULT_BASE_AMOUNT = 1_000_000_000;
 const DEFAULT_BOND_AMOUNT = 1_000_000;
 const DEFAULT_FEE_AMOUNT = 1_000;
 
+/** Ceiling division matching liquidity-guard: ceil(quote_amount * fee_bps / 10_000) */
+const ceilFee = (quoteAmount: number, feeBps: number): number =>
+    feeBps > 0 ? Math.ceil(quoteAmount * feeBps / 10_000) : 0;
+
 const confirm = async (signature: string) => {
     const bh = await provider.connection.getLatestBlockhash();
     await provider.connection.confirmTransaction({ signature, ...bh });
@@ -324,7 +328,7 @@ describe("COMPLETE_SETTLEMENT", () => {
                 quoteMint,
                 account.address,
                 admin,
-                DEFAULT_QUOTE_AMOUNT + Math.floor(DEFAULT_QUOTE_AMOUNT * DEFAULT_FEE_AMOUNT / 10_000) // quote_amount + taker fees (in quote mint)
+                DEFAULT_QUOTE_AMOUNT + ceilFee(DEFAULT_QUOTE_AMOUNT, DEFAULT_FEE_AMOUNT) // quote_amount + taker fees (in quote mint)
             )),
         ]);
 
@@ -578,7 +582,7 @@ describe("COMPLETE_SETTLEMENT", () => {
         assert(feesTracker.taker.equals(taker.publicKey), "Taker mismatch in feesTracker");
         assert(feesTracker.quoteMint.equals(quoteMint), "quoteMint mismatch in feesTracker");
         assert(feesTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in feesTracker");
-        const totalFee = Math.floor(DEFAULT_QUOTE_AMOUNT * DEFAULT_FEE_AMOUNT / 10_000);
+        const totalFee = ceilFee(DEFAULT_QUOTE_AMOUNT, DEFAULT_FEE_AMOUNT);
         const facilitatorFee = new anchor.BN(Math.floor(totalFee * FACILITATOR_FEE_BPS / 10_000));
         const treasuryFee = new anchor.BN(totalFee).sub(facilitatorFee);
         assert(feesTracker.amount.eq(treasuryFee), "amount mismatch in feesTracker");
@@ -747,6 +751,68 @@ describe("COMPLETE_SETTLEMENT", () => {
         assert(withdrawFailed, "facilitator should not be able to withdraw twice");
     });
 
+    describe("fee uplift ceiling division", () => {
+        it("ceilFee matches liquidity-guard formula", () => {
+            // taker_fee_bps = 0 → fee = 0
+            assert.strictEqual(ceilFee(1_000_000, 0), 0, "zero bps should yield zero fee");
 
+            // exact multiple: 10_000 * 100 / 10_000 = 100 (no rounding)
+            assert.strictEqual(ceilFee(10_000, 100), 100, "exact multiple should not round");
+
+            // small trade that would floor to 0: ceil(5 * 10 / 10_000) = 1
+            assert.strictEqual(ceilFee(5, 10), 1, "tiny trade must produce fee >= 1");
+
+            // smallest possible: ceil(1 * 1 / 10_000) = 1
+            assert.strictEqual(ceilFee(1, 1), 1, "minimum inputs must produce fee = 1");
+
+            // ceil(1 * 10_000 / 10_000) = 1 (exact)
+            assert.strictEqual(ceilFee(1, 10_000), 1, "max bps on 1 unit = 1");
+
+            // ceil(9_999 * 1 / 10_000) = 1 (just under exact boundary)
+            assert.strictEqual(ceilFee(9_999, 1), 1, "9999 * 1 bps should ceil to 1");
+
+            // ceil(10_000 * 1 / 10_000) = 1 (exact boundary)
+            assert.strictEqual(ceilFee(10_000, 1), 1, "10000 * 1 bps should be exactly 1");
+
+            // ceil(10_001 * 1 / 10_000) = 2
+            assert.strictEqual(ceilFee(10_001, 1), 2, "10001 * 1 bps should ceil to 2");
+
+            // DEFAULT values used in settlement test
+            const defaultFee = ceilFee(DEFAULT_QUOTE_AMOUNT, DEFAULT_FEE_AMOUNT);
+            const floorFee = Math.floor(DEFAULT_QUOTE_AMOUNT * DEFAULT_FEE_AMOUNT / 10_000);
+            assert.ok(defaultFee >= floorFee, "ceil fee should be >= floor fee");
+            assert.ok(defaultFee - floorFee <= 1, "ceil and floor should differ by at most 1");
+        });
+
+        it("facilitator/treasury split preserves invariants", () => {
+            const cases = [
+                { quote: 5, feeBps: 10, facBps: 2_500 },
+                { quote: 1, feeBps: 1, facBps: 5_000 },
+                { quote: 101, feeBps: 1, facBps: 2_500 },
+                { quote: 10_000, feeBps: 100, facBps: 2_000 },
+                { quote: DEFAULT_QUOTE_AMOUNT, feeBps: DEFAULT_FEE_AMOUNT, facBps: 2_000 },
+            ];
+
+            for (const { quote, feeBps, facBps } of cases) {
+                const totalFee = ceilFee(quote, feeBps);
+                const facilitatorShare = Math.floor(totalFee * facBps / 10_000);
+                const treasuryShare = totalFee - facilitatorShare;
+
+                assert.ok(totalFee >= 0, `totalFee >= 0 for quote=${quote}`);
+                assert.ok(facilitatorShare >= 0, `facilitatorShare >= 0 for quote=${quote}`);
+                assert.ok(treasuryShare >= 0, `treasuryShare >= 0 for quote=${quote}`);
+                assert.ok(facilitatorShare <= totalFee, `facilitatorShare <= totalFee for quote=${quote}`);
+                assert.ok(treasuryShare <= totalFee, `treasuryShare <= totalFee for quote=${quote}`);
+                assert.strictEqual(
+                    facilitatorShare + treasuryShare,
+                    totalFee,
+                    `shares must sum to totalFee for quote=${quote}`
+                );
+                if (feeBps > 0) {
+                    assert.ok(totalFee >= 1, `totalFee >= 1 when feeBps > 0 for quote=${quote}`);
+                }
+            }
+        });
+    });
 
 });
