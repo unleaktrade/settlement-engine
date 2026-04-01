@@ -28,11 +28,11 @@ const DEFAULT_BASE_AMOUNT = 1_000_000_000;
 const DEFAULT_BOND_AMOUNT = 1_000_000;
 const DEFAULT_FEE_AMOUNT = 1_000;
 
-/** Ceiling division matching liquidity-guard: ceil(quote_amount * fee_bps / 10_000) using BigInt for precision */
-const ceilFee = (quoteAmount: number, feeBps: number): number => {
+/** Floor division, but guarantee at least 1 when feeBps > 0 (protocol is never free) */
+const computeFee = (quoteAmount: number, feeBps: number): number => {
     if (feeBps === 0) return 0;
-    const numerator = BigInt(quoteAmount) * BigInt(feeBps);
-    return Number((numerator + 9_999n) / 10_000n);
+    const fee = Number(BigInt(quoteAmount) * BigInt(feeBps) / 10_000n);
+    return fee === 0 ? 1 : fee;
 };
 
 const confirm = async (signature: string) => {
@@ -331,7 +331,7 @@ describe("COMPLETE_SETTLEMENT", () => {
                 quoteMint,
                 account.address,
                 admin,
-                DEFAULT_QUOTE_AMOUNT + ceilFee(DEFAULT_QUOTE_AMOUNT, DEFAULT_FEE_AMOUNT) // quote_amount + taker fees (in quote mint)
+                DEFAULT_QUOTE_AMOUNT + computeFee(DEFAULT_QUOTE_AMOUNT, DEFAULT_FEE_AMOUNT) // quote_amount + taker fees (in quote mint)
             )),
         ]);
 
@@ -585,7 +585,7 @@ describe("COMPLETE_SETTLEMENT", () => {
         assert(feesTracker.taker.equals(taker.publicKey), "Taker mismatch in feesTracker");
         assert(feesTracker.quoteMint.equals(quoteMint), "quoteMint mismatch in feesTracker");
         assert(feesTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in feesTracker");
-        const totalFee = ceilFee(DEFAULT_QUOTE_AMOUNT, DEFAULT_FEE_AMOUNT);
+        const totalFee = computeFee(DEFAULT_QUOTE_AMOUNT, DEFAULT_FEE_AMOUNT);
         const facilitatorFee = new anchor.BN(Math.floor(totalFee * FACILITATOR_FEE_BPS / 10_000));
         const treasuryFee = new anchor.BN(totalFee).sub(facilitatorFee);
         assert(feesTracker.amount.eq(treasuryFee), "amount mismatch in feesTracker");
@@ -766,7 +766,7 @@ describe("COMPLETE_SETTLEMENT", () => {
         const taker = Keypair.generate();
         await Promise.all([fund(maker), fund(taker)]);
 
-        const expectedTotalFee = ceilFee(quoteAmount, takerFeeBps);
+        const expectedTotalFee = computeFee(quoteAmount, takerFeeBps);
         const u = uuidBytes();
         const [rfqPDA] = rfqPda(maker.publicKey, u);
         const [settlementPDA] = settlementPda(rfqPDA);
@@ -892,33 +892,33 @@ describe("COMPLETE_SETTLEMENT", () => {
         return { feesTracker, expectedTotalFee };
     };
 
-    describe("on-chain fee uplift (ceiling division)", () => {
-        it("ceil fee on non-exact division (quoteAmount=1_000_000_001, feeBps=1000)", async () => {
-            // floor would give 100_000_000, ceil gives 100_000_001
+    describe("on-chain fee uplift (floor + min 1)", () => {
+        it("normal trade uses floor division (quoteAmount=1_000_000_001, feeBps=1000)", async () => {
+            // 10% of 1_000_000_001 = 100_000_000.1 → floor = 100_000_000
             const { feesTracker, expectedTotalFee } =
                 await runSettlementWithFeeParams(1_000_000_001, 1_000);
 
-            assert.strictEqual(expectedTotalFee, 100_000_001, "expected ceil fee = 100_000_001");
+            assert.strictEqual(expectedTotalFee, 100_000_000, "expected floor fee = 100_000_000");
             assert.ok(
                 feesTracker.amount.eq(new anchor.BN(expectedTotalFee)),
-                `on-chain treasury fee should be ${expectedTotalFee}, got ${feesTracker.amount.toString()}`
+                `on-chain fee should be ${expectedTotalFee}, got ${feesTracker.amount.toString()}`
             );
         });
 
-        it("ceil fee on small trade where floor would be 0 (quoteAmount=5, feeBps=10)", async () => {
-            // floor(5 * 10 / 10_000) = 0, ceil = 1
+        it("small trade where floor is 0 bumps to 1 (quoteAmount=5, feeBps=10)", async () => {
+            // floor(5 * 10 / 10_000) = 0 → bumped to 1
             const { feesTracker, expectedTotalFee } =
                 await runSettlementWithFeeParams(5, 10);
 
-            assert.strictEqual(expectedTotalFee, 1, "expected ceil fee = 1");
+            assert.strictEqual(expectedTotalFee, 1, "expected min fee = 1");
             assert.ok(
                 feesTracker.amount.eq(new anchor.BN(1)),
                 `on-chain fee must be 1 (not 0), got ${feesTracker.amount.toString()}`
             );
         });
 
-        it("ceil fee on exact division (quoteAmount=10_000, feeBps=100)", async () => {
-            // 10_000 * 100 / 10_000 = 100 exactly, ceil = floor = 100
+        it("exact division stays exact (quoteAmount=10_000, feeBps=100)", async () => {
+            // 10_000 * 100 / 10_000 = 100 exactly
             const { feesTracker, expectedTotalFee } =
                 await runSettlementWithFeeParams(10_000, 100);
 

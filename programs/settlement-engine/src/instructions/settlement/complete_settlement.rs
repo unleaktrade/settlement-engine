@@ -242,14 +242,14 @@ pub fn complete_settlement_handler<'info>(
     )?;
 
     // --- Fee collection (paid in quote_mint tokens) ---
-    // ceil division so total_fee >= 1 when taker_fee_bps > 0
+    // floor division, but guarantee at least 1 when taker_fee_bps > 0
     let total_fee: u64 = if settlement.taker_fee_bps > 0 {
-        (settlement.quote_amount as u128)
+        let fee = (settlement.quote_amount as u128)
             .checked_mul(settlement.taker_fee_bps as u128)
-            .and_then(|v| v.checked_add(9_999))
             .and_then(|v| v.checked_div(10_000))
             .and_then(|v| u64::try_from(v).ok())
-            .ok_or(RfqError::ArithmeticOverflow)?
+            .ok_or(RfqError::ArithmeticOverflow)?;
+        if fee == 0 { 1 } else { fee }
     } else {
         0
     };
