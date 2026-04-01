@@ -93,24 +93,8 @@ pub fn withdraw_reward_handler(ctx: Context<WithdrawReward>) -> Result<()> {
         RfqError::Unauthorized
     );
 
-    // floor division, but guarantee at least 1 when taker_fee_bps > 0
-    let total_fee: u64 = if settlement.taker_fee_bps > 0 {
-        let fee = (settlement.quote_amount as u128)
-            .checked_mul(settlement.taker_fee_bps as u128)
-            .and_then(|v| v.checked_div(10_000))
-            .and_then(|v| u64::try_from(v).ok())
-            .ok_or(RfqError::ArithmeticOverflow)?;
-        if fee == 0 { 1 } else { fee }
-    } else {
-        0
-    };
-
-    let bps_u128 = rfq.facilitator_fee_bps as u128;
-    let facilitator_share: u64 = (total_fee as u128)
-        .checked_mul(bps_u128)
-        .and_then(|v| v.checked_div(10_000))
-        .and_then(|v| u64::try_from(v).ok())
-        .ok_or(RfqError::ArithmeticOverflow)?;
+    let total_fee = settlement.compute_total_fee()?;
+    let facilitator_share = settlement.compute_facilitator_share(total_fee, rfq.facilitator_fee_bps)?;
     require!(facilitator_share > 0, RfqError::InvalidParams);
 
     let seeds_rfq: &[&[u8]] = &[
