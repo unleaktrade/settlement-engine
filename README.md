@@ -1,7 +1,7 @@
 # 🧩 UnleakTrade Settlement Engine
 
 **UnleakTrade Settlement Engine** is the core **on-chain Solana program** for OTC (Over-The-Counter) RFQ trading between makers and takers.  
-It enforces trustless settlement, manages bonds and fees in USDC, and encodes the entire **RFQ lifecycle** into verifiable, stateful Solana accounts.
+It enforces trustless settlement, manages USDC bonds and quote-token fees, and encodes the entire **RFQ lifecycle** into verifiable, stateful Solana accounts.
 
 ---
 
@@ -10,7 +10,7 @@ It enforces trustless settlement, manages bonds and fees in USDC, and encodes th
 ### 🧱 Accounts & PDAs
 
 - **Config**
-  - Global singleton: admin, USDC mint, treasury owner, liquidity guard pubkey (ed25519), facilitator fee bps.
+  - Global singleton: admin, USDC mint, treasury wallet, liquidity guard pubkey (ed25519), facilitator fee bps.
   - PDA: `["config"]`
 - **RFQ**
   - One per OTC request, uniquely identified by `(maker, uuid)`.
@@ -29,7 +29,7 @@ It enforces trustless settlement, manages bonds and fees in USDC, and encodes th
   - Tracks bond seizures into treasury for a given RFQ.
   - PDA: `["slashed_bonds_tracker", rfq]`
 - **FeesTracker**
-  - Records taker fee paid to treasury.
+  - Records taker fee paid to treasury (in quote tokens).
   - PDA: `["fees_tracker", rfq]`
 - **FacilitatorRewardTracker**
   - Records facilitator fee claim (when applicable).
@@ -72,7 +72,7 @@ hash(
   quote_mint ||
   quote_amount (u64 LE) ||
   bond_amount (u64 LE) ||
-  fee_amount (u64 LE)
+  taker_fee_bps (u16 LE)
 )
 ```
 
@@ -91,7 +91,7 @@ sequenceDiagram
     actor Facilitator
     participant SE as Settlement Engine (Program)
     participant LG as Liquidity Guard
-    participant Treas as Treasury USDC Owner
+    participant Treas as Treasury Wallet
 
     Note over Maker: Create draft RFQ (init_rfq)
     Maker->>SE: init_rfq (draft)
@@ -116,15 +116,15 @@ sequenceDiagram
     Maker->>SE: select_quote + deposit base to vault
 
     Note over Taker1: Complete settlement (if selected)
-    Taker1->>SE: complete_settlement (deposit quote + fee)
+    Taker1->>SE: complete_settlement (deposit quote + fee in quote tokens)
     SE-->>Maker: Transfer quote asset
     SE-->>Taker1: Transfer base asset
     SE-->>Maker: Refund maker bond (USDC)
     SE-->>Taker1: Refund taker bond (USDC)
-    SE-->>Treas: Collect treasury fee share (USDC)
+    SE-->>Treas: Collect treasury fee share (quote tokens)
 
     alt Optional facilitator fee (rfq.facilitator == quote.facilitator)
-        SE-->>SE: Retain facilitator share in vault
+        SE-->>SE: Retain facilitator share in fee escrow (quote tokens)
         Facilitator->>SE: withdraw_reward (claim share)
     end
 
@@ -137,12 +137,17 @@ sequenceDiagram
 
 ## 💰 Bonds, Fees, and Slashing
 
-- Maker and each taker post a **USDC bond** into the RFQ-owned `bonds_fees_vault`.
+### Bonds (USDC)
+- Maker and each taker post a **USDC bond** into the RFQ-owned `bonds_escrow`.
 - On successful settlement, both bonds are refunded to their owners.
-- Slashed bonds (for invalid or missing reveals, or incomplete settlement) are sent **entirely to the treasury**.
-- Takers pay a fixed **USDC fee** on settlement:
-  - Treasury receives the fee minus any facilitator share.
-  - If `rfq.facilitator` matches `quote.facilitator`, the facilitator share is retained in the vault and can be claimed via `withdraw_reward`.
+- Slashed bonds (for invalid or missing reveals, or incomplete settlement) are sent **entirely to the treasury** in USDC.
+
+### Fees (Quote tokens)
+- Takers pay a protocol fee **in quote tokens** on settlement.
+- Fee formula: `floor(quote_amount * taker_fee_bps / 10_000)`, with a minimum of **1** when `taker_fee_bps > 0` (the protocol is never free).
+- Treasury receives the fee minus any facilitator share.
+- If `rfq.facilitator` matches `quote.facilitator`, the facilitator share (`floor(total_fee * facilitator_fee_bps / 10_000)`) is retained in a quote-token fee escrow and can be claimed via `withdraw_reward`.
+- The fee formula must match the **liquidity-guard** implementation exactly to prevent preflight/on-chain mismatches.
 
 ---
 
