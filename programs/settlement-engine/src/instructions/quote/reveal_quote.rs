@@ -69,7 +69,7 @@ pub fn reveal_quote_handler(
         32 + // quote mint
         8  + // quote amount
         8  + // bond amount
-        8, // fee amount
+        2, // taker_fee_bps
     );
     buf.extend_from_slice(&salt);
     buf.extend_from_slice(rfq.key().as_ref());
@@ -77,7 +77,7 @@ pub fn reveal_quote_handler(
     buf.extend_from_slice(rfq.quote_mint.key().as_ref());
     buf.extend_from_slice(&quote_amount.to_le_bytes());
     buf.extend_from_slice(&rfq.bond_amount.to_le_bytes());
-    buf.extend_from_slice(&rfq.fee_amount.to_le_bytes());
+    buf.extend_from_slice(&rfq.taker_fee_bps.to_le_bytes());
 
     let computed = hash(&buf).to_bytes();
     #[cfg(feature = "debug-logs")]

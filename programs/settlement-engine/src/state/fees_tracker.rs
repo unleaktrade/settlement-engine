@@ -5,9 +5,9 @@ use anchor_lang::prelude::*;
 pub struct FeesTracker {
     pub rfq: Pubkey,
     pub taker: Pubkey,
-    pub usdc_mint: Pubkey,
-    pub treasury_usdc_owner: Pubkey,
-    pub amount: u64,
+    pub quote_mint: Pubkey,
+    pub treasury_wallet: Pubkey,
+    pub amount: u64, // in quote_mint tokens
     pub payed_at: i64,
     pub bump: u8,
 }

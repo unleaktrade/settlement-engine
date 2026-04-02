@@ -63,7 +63,7 @@ describe("QUOTE", () => {
     let rfqPDA: PublicKey;
     let rfqBump: number;
     let validTaker: Keypair;
-    let bondsFeesVault: PublicKey;
+    let bondsEscrow: PublicKey;
     let makerPaymentAccount: PublicKey;
     let makerPaymentBalance: anchor.BN;
     let vaultPaymentBalance: anchor.BN;
@@ -123,7 +123,7 @@ describe("QUOTE", () => {
             await program.account.rfq.fetch(rfqPDA);
         } catch { needInit = true; }
         if (needInit) {
-            bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
+            bondsEscrow = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
             makerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, maker.publicKey);
 
             // mint the bonds to maker's payment ATA
@@ -154,7 +154,7 @@ describe("QUOTE", () => {
                     new anchor.BN(1_000_000),
                     new anchor.BN(1_000_000_000),
                     new anchor.BN(1_000_000_000),
-                    new anchor.BN(1_000),
+                    1000,
                     commitTTL,
                     revealTTL,
                     selectionTTL,
@@ -165,7 +165,7 @@ describe("QUOTE", () => {
                     maker: maker.publicKey,
                     config: configPda,
                     usdcMint,
-                    bondsFeesVault,
+                    bondsEscrow,
                     makerPaymentAccount,
                     systemProgram: SystemProgram.programId,
                     tokenProgram: TOKEN_PROGRAM_ID,
@@ -177,7 +177,7 @@ describe("QUOTE", () => {
 
         [makerPaymentBalance, vaultPaymentBalance] = await Promise.all([
             getAndLogBalance("Before opening RFQ", "Maker USDC", makerPaymentAccount),
-            getAndLogBalance("Before opening RFQ", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("Before opening RFQ", "RFQ Bonds Vault", bondsEscrow),
         ]);
 
         await program.methods.openRfq()
@@ -185,7 +185,7 @@ describe("QUOTE", () => {
                 maker: maker.publicKey,
                 rfq: rfqPDA,
                 config: configPda,
-                bondsFeesVault,
+                bondsEscrow,
                 makerPaymentAccount,
                 usdcMint,
             })
@@ -194,7 +194,7 @@ describe("QUOTE", () => {
 
         [makerPaymentBalance, vaultPaymentBalance] = await Promise.all([
             getAndLogBalance("After opening RFQ", "Maker USDC", makerPaymentAccount),
-            getAndLogBalance("After opening RFQ", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After opening RFQ", "RFQ Bonds Vault", bondsEscrow),
         ]);
 
         const rfq = await program.account.rfq.fetch(rfqPDA);
@@ -234,7 +234,7 @@ describe("QUOTE", () => {
             quote_mint: quoteMint.toBase58(),
             quote_amount: new anchor.BN(1_000_000_001).toString(),
             bond_amount_usdc: new anchor.BN(1_000_000).toString(),
-            fee_amount_usdc: new anchor.BN(1_000).toString(),
+            taker_fee_bps: new anchor.BN(1_000).toString(),
         };
 
         const response = await fetchJson<CheckResult>(`${liquidityGuardURL}/check`, {
@@ -254,7 +254,7 @@ describe("QUOTE", () => {
             assert(response.quote_mint === quoteMint.toBase58(), `unexpected quote mint ${response.quote_mint}`);
             assert(response.quote_amount === "1000000001", `unexpected quote amount ${response.quote_amount}`);
             assert(response.bond_amount_usdc === "1000000", `unexpected bond amount ${response.bond_amount_usdc}`);
-            assert(response.fee_amount_usdc === "1000", `unexpected fee amount ${response.fee_amount_usdc}`);
+            assert(response.taker_fee_bps === "1000", `unexpected taker fee bps ${response.taker_fee_bps}`);
             assert(response.service_pubkey === liquidityGuard.toBase58(), `unexpected service pubkey ${response.service_pubkey}`);
             assert(response.commit_hash.length > 0, `empty commit_hash`);
             assert(response.liquidity_proof.length > 0, `empty liquidity_proof`);
@@ -288,7 +288,7 @@ describe("QUOTE", () => {
             quote_mint: quoteMint.toBase58(),
             quote_amount: new anchor.BN(1_000_000_001).toString(),
             bond_amount_usdc: new anchor.BN(1_000_000).toString(),
-            fee_amount_usdc: new anchor.BN(1_000).toString(),
+            taker_fee_bps: new anchor.BN(1_000).toString(),
         };
 
         const response = await fetchJson<CheckResult>(`${liquidityGuardURL}/check`, {
@@ -425,7 +425,7 @@ describe("QUOTE", () => {
 
         [makerPaymentBalance, vaultPaymentBalance, takerPaymentBalance] = await Promise.all([
             getAndLogBalance("After commiting quote", "Maker USDC", makerPaymentAccount),
-            getAndLogBalance("After commiting quote", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After commiting quote", "RFQ Bonds Vault", bondsEscrow),
             getAndLogBalance("After commiting quote", "Taker USDC", takerPaymentAccount),
         ]);
 
@@ -523,7 +523,7 @@ describe("QUOTE", () => {
             quote_mint: quoteMint.toBase58(),
             quote_amount: new anchor.BN(1_000_000_001).toString(),
             bond_amount_usdc: new anchor.BN(1_000_000).toString(),
-            fee_amount_usdc: new anchor.BN(1_000).toString(),
+            taker_fee_bps: new anchor.BN(1_000).toString(),
         };
         const response = await fetchJson<CheckResult>(`${liquidityGuardURL}/check`, {
             method: "POST",
@@ -844,7 +844,7 @@ describe("QUOTE", () => {
         assert(settlement.baseAmount.eq(rfq.baseAmount), "settlement baseAmount mismatch");
         assert(settlement.quoteAmount!.eq(quote.quoteAmount!), "settlement quoteAmount mismatch");
         assert(settlement.bondAmount.eq(rfq.bondAmount), "settlement bondAmount mismatch");
-        assert(settlement.feeAmount.eq(rfq.feeAmount), "settlement feeAmount mismatch");
+        assert.strictEqual(settlement.takerFeeBps, rfq.takerFeeBps, "settlement takerFeeBps mismatch");
         assert.ok(settlement.createdAt!.toNumber() > 0, "settlement createdAt should be set");
         assert.strictEqual(settlement.completedAt, null, "settlement completedAt should be None");
         assert(settlement.makerFundedAt.toNumber() > 0, "settlement makerFundedAt should be set");
@@ -853,7 +853,7 @@ describe("QUOTE", () => {
         assert(settlement.taker.equals(taker.publicKey), "settlement taker mismatch");
         assert(settlement.makerPaymentAccount.equals(makerPaymentAccount), "settlement makerPaymentAccount mismatch");
         assert(settlement.takerPaymentAccount.equals(quote.takerPaymentAccount), "settlement takerPaymentAccount mismatch");
-        assert(settlement.bondsFeesVault.equals(bondsFeesVault), "settlement bondsFeesVault mismatch");
+        assert(settlement.bondsEscrow.equals(bondsEscrow), "settlement bondsEscrow mismatch");
         assert(settlement.makerBaseAccount.equals(makerBaseAccount), "settlement makerBaseAccount mismatch");
         assert.strictEqual(settlement.takerBaseAccount, null, "settlement takerBaseAccount should be None");
         assert(settlement.vaultBaseAta.equals(vaultBaseATA), "settlement vaultBaseAta mismatch");
@@ -891,7 +891,7 @@ export interface CheckResponse {
     quote_mint: string;
     quote_amount: string;
     bond_amount_usdc: string;
-    fee_amount_usdc: string;
+    taker_fee_bps: string;
     service_pubkey: string;
     commit_hash: string;
     liquidity_proof: string;

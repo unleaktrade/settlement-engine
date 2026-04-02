@@ -81,7 +81,7 @@ const provideLiquidityGuardAttestation = async (taker: anchor.web3.Keypair,
         quote_mint: quoteMint.toBase58(),
         quote_amount: new anchor.BN(quoteAmount).toString(),
         bond_amount_usdc: new anchor.BN(bondAmount).toString(),
-        fee_amount_usdc: new anchor.BN(feeAmount).toString(),
+        taker_fee_bps: new anchor.BN(feeAmount).toString(),
     };
 
     const response = await fetchJson<CheckResult>(`${liquidityGuardURL}/check`, {
@@ -235,7 +235,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
         const taker2PaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker2.publicKey);
         const taker3PaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker3.publicKey);
         const taker4PaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker4.publicKey);
-        const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
+        const bondsEscrow = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
         const baseVault = getAssociatedTokenAddressSync(baseMint, rfqPDA, true);
         const treasuryPaymentAccount = getAssociatedTokenAddressSync(usdcMint, treasury.publicKey);
 
@@ -278,7 +278,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                 usdcMint,
                 account.address,
                 admin,
-                DEFAULT_BOND_AMOUNT + DEFAULT_FEE_AMOUNT //sufficient for bonds + fees
+                DEFAULT_BOND_AMOUNT //sufficient for bonds
             )),
             await getOrCreateAssociatedTokenAccount(
                 provider.connection,
@@ -291,7 +291,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                 usdcMint,
                 account.address,
                 admin,
-                DEFAULT_BOND_AMOUNT + DEFAULT_FEE_AMOUNT //sufficient for bonds + fees
+                DEFAULT_BOND_AMOUNT //sufficient for bonds
             ))
             ,
             await getOrCreateAssociatedTokenAccount(
@@ -305,7 +305,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                 usdcMint,
                 account.address,
                 admin,
-                DEFAULT_BOND_AMOUNT + DEFAULT_FEE_AMOUNT //sufficient for bonds + fees
+                DEFAULT_BOND_AMOUNT //sufficient for bonds
             )),
             await getOrCreateAssociatedTokenAccount(
                 provider.connection,
@@ -318,7 +318,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                 usdcMint,
                 account.address,
                 admin,
-                DEFAULT_BOND_AMOUNT + DEFAULT_FEE_AMOUNT //sufficient for bonds + fees
+                DEFAULT_BOND_AMOUNT //sufficient for bonds
             ))
         ]);
 
@@ -342,7 +342,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                     new anchor.BN(DEFAULT_BOND_AMOUNT),
                     new anchor.BN(DEFAULT_BASE_AMOUNT),
                     new anchor.BN(1_000_000_000),
-                    new anchor.BN(DEFAULT_FEE_AMOUNT),
+                    DEFAULT_FEE_AMOUNT,
                     commitTTL,
                     revealTTL,
                     selectionTTL,
@@ -353,7 +353,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                     maker: maker.publicKey,
                     config: configPda,
                     usdcMint,
-                    bondsFeesVault,
+                    bondsEscrow,
                     makerPaymentAccount,
                     systemProgram: SystemProgram.programId,
                     tokenProgram: TOKEN_PROGRAM_ID,
@@ -366,7 +366,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
             console.log("initRfq failed:", e);
         }
 
-        await getAndLogBalance("Before opening RFQ", "RFQ Bonds Vault", bondsFeesVault);
+        await getAndLogBalance("Before opening RFQ", "RFQ Bonds Vault", bondsEscrow);
 
         console.log("Rfq PDA:", rfqPDA.toBase58());
         console.log("Slashed Bonds Tracker PDA", slashedBondsTrackerPDA.toBase58());
@@ -378,7 +378,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                     maker: maker.publicKey,
                     rfq: rfqPDA,
                     config: configPda,
-                    bondsFeesVault,
+                    bondsEscrow,
                     makerPaymentAccount,
                     usdcMint,
                 })
@@ -394,7 +394,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
             getAndLogBalance("After opening RFQ", "Taker2 USDC", taker2PaymentAccount),
             getAndLogBalance("After opening RFQ", "Taker3 USDC", taker3PaymentAccount),
             getAndLogBalance("After opening RFQ", "Taker4 USDC", taker4PaymentAccount),
-            getAndLogBalance("After opening RFQ", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After opening RFQ", "RFQ Bonds Vault", bondsEscrow),
         ]);
 
         const [saltQ1, commit_hashQ1, liquidity_proofQ1] = await provideLiquidityGuardAttestation(taker, rfqPDA, quoteMint);
@@ -479,7 +479,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
             getAndLogBalance("After commiting quote", "Taker2 USDC", taker2PaymentAccount),
             getAndLogBalance("After commiting quote", "Taker3 USDC", taker3PaymentAccount),
             getAndLogBalance("After commiting quote", "Taker4 USDC", taker4PaymentAccount),
-            getAndLogBalance("After commiting quote", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After commiting quote", "RFQ Bonds Vault", bondsEscrow),
         ]);
 
         const rfqAfterCommit = await program.account.rfq.fetch(rfqPDA);
@@ -546,7 +546,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
             getAndLogBalance("After selecting quote", "Taker2 USDC", taker2PaymentAccount),
             getAndLogBalance("After selecting quote", "Taker3 USDC", taker3PaymentAccount),
             getAndLogBalance("After selecting quote", "Taker4 USDC", taker4PaymentAccount),
-            getAndLogBalance("After selecting quote", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After selecting quote", "RFQ Bonds Vault", bondsEscrow),
             getAndLogBalance("After selecting quote", "Maker Base", makerBaseAccount),
         ]);
 
@@ -607,9 +607,9 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                     vaultBaseAta: wrongBaseVault.address,
                     makerBaseAccount: wrongMakerBaseAccount.address,
                     usdcMint,
-                    bondsFeesVault,
+                    bondsEscrow,
                     makerPaymentAccount,
-                    treasuryUsdcOwner: treasury.publicKey,
+                    treasuryWallet: treasury.publicKey,
                     slashBoundsTracker: slashedBondsTrackerPDA,
                 })
                 .signers([maker])
@@ -630,9 +630,9 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                 vaultBaseAta: baseVault,
                 makerBaseAccount,
                 usdcMint,
-                bondsFeesVault,
+                bondsEscrow,
                 makerPaymentAccount,
-                treasuryUsdcOwner: treasury.publicKey,
+                treasuryWallet: treasury.publicKey,
                 slashBoundsTracker: slashedBondsTrackerPDA,
             })
             .signers([maker])
@@ -660,7 +660,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
             taker2PaymentAccountBalance,
             taker3PaymentAccountBalance,
             taker4PaymentAccountBalance,
-            bondsFeesVaultBalance,
+            bondsEscrowBalance,
             treasuryPaymentAccountBalance,
             makerBaseAccountBalance,
         ]
@@ -670,7 +670,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                 getAndLogBalance("After closing incomplete Rfq", "Taker2 USDC", taker2PaymentAccount),
                 getAndLogBalance("After closing incomplete Rfq", "Taker3 USDC", taker3PaymentAccount),
                 getAndLogBalance("After closing incomplete Rfq", "Taker4 USDC", taker4PaymentAccount),
-                getAndLogBalance("After closing incomplete Rfq", "RFQ Bonds Vault", bondsFeesVault),
+                getAndLogBalance("After closing incomplete Rfq", "RFQ Bonds Vault", bondsEscrow),
                 getAndLogBalance("After closing incomplete Rfq", "Treasury USCD", treasuryPaymentAccount),
                 getAndLogBalance("After closing incomplete Rfq", "Maker Base", makerBaseAccount),
             ]);
@@ -682,17 +682,17 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
         assert(slashedBondsTracker.seizedAt.eq(rfq.completedAt), "slashBondsTracker seizedAt and rfq completeAt shoud be equal");
         assert.strictEqual(slashedBondsTracker.bump, bumpslashedBondsTracker, "bump mismatch for slashedBondsTracker");
         assert(slashedBondsTracker.usdcMint.equals(usdcMint), "usdcMint mismatch in slashedBondsTracker");
-        assert(slashedBondsTracker.treasuryUsdcOwner.equals(treasury.publicKey), "treasury mismatch in slashedBondsTracker");
+        assert(slashedBondsTracker.treasuryWallet.equals(treasury.publicKey), "treasury mismatch in slashedBondsTracker");
 
         //no-show for valid taker + 2 invalid quotes (taker3 and taker4)
         const expectedSlashed = expectedSlashedAmount(rfq, true);
         assert(slashedBondsTracker.amount.eq(expectedSlashed), "amount should be equal to expected slashed amount");
         assert(new anchor.BN(DEFAULT_BOND_AMOUNT).eq(makerPaymentAccountBalance), "maker balance mismatch");
-        assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(takerPaymentAccountBalance), "taker balance mismatch");
-        assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(taker2PaymentAccountBalance), "taker2 balance mismatch");
-        assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(taker3PaymentAccountBalance), "taker3 balance mismatch");
-        assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(taker4PaymentAccountBalance), "taker4 balance mismatch");
-        assert(new anchor.BN(DEFAULT_BOND_AMOUNT).eq(bondsFeesVaultBalance), `bonds and fees vault should not be empty and 1x ${DEFAULT_BOND_AMOUNT}`);
+        assert(takerPaymentAccountBalance.isZero(), "taker balance mismatch");
+        assert(taker2PaymentAccountBalance.isZero(), "taker2 balance mismatch");
+        assert(taker3PaymentAccountBalance.isZero(), "taker3 balance mismatch");
+        assert(taker4PaymentAccountBalance.isZero(), "taker4 balance mismatch");
+        assert(new anchor.BN(DEFAULT_BOND_AMOUNT).eq(bondsEscrowBalance), `bonds escrow should not be empty and 1x ${DEFAULT_BOND_AMOUNT}`);
         assert(treasuryPaymentAccountBalance.eq(slashedBondsTracker.amount), "treasury payment balance should be equalt to slashed bonds tracker amount");
         assert(new anchor.BN(DEFAULT_BASE_AMOUNT).eq(makerBaseAccountBalance), "maker base balance mismatch");
 
@@ -737,7 +737,7 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
         const [quote4PDA] = quotePda(rfqPDA, taker4);
         console.log("Quote4 PDA:", quote4PDA.toBase58());
 
-        const bondsFeesVault = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
+        const bondsEscrow = getAssociatedTokenAddressSync(usdcMint, rfqPDA, true);
         const takerPaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker.publicKey);
         const taker2PaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker2.publicKey);
         const taker3PaymentAccount = getAssociatedTokenAddressSync(usdcMint, taker3.publicKey);
@@ -752,9 +752,9 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                     config: configPda,
                     rfq: rfqPDA,
                     usdcMint,
-                    bondsFeesVault,
+                    bondsEscrow,
                     takerPaymentAccount,
-                    treasuryUsdcOwner: treasury.publicKey,
+                    treasuryWallet: treasury.publicKey,
                     slashBoundsTracker: slashedBondsTrackerPDA,
                 })
                 .signers([taker])
@@ -770,9 +770,9 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                 config: configPda,
                 rfq: rfqPDA,
                 usdcMint,
-                bondsFeesVault,
+                bondsEscrow,
                 takerPaymentAccount: taker2PaymentAccount,
-                treasuryUsdcOwner: treasury.publicKey,
+                treasuryWallet: treasury.publicKey,
                 slashBoundsTracker: slashedBondsTrackerPDA,
             })
             .signers([taker2])
@@ -786,9 +786,9 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                     config: configPda,
                     rfq: rfqPDA,
                     usdcMint,
-                    bondsFeesVault,
+                    bondsEscrow,
                     takerPaymentAccount: taker3PaymentAccount,
-                    treasuryUsdcOwner: treasury.publicKey,
+                    treasuryWallet: treasury.publicKey,
                     slashBoundsTracker: slashedBondsTrackerPDA,
                 })
                 .signers([taker3])
@@ -806,9 +806,9 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
                     config: configPda,
                     rfq: rfqPDA,
                     usdcMint,
-                    bondsFeesVault,
+                    bondsEscrow,
                     takerPaymentAccount: taker4PaymentAccount,
-                    treasuryUsdcOwner: treasury.publicKey,
+                    treasuryWallet: treasury.publicKey,
                     slashBoundsTracker: slashedBondsTrackerPDA,
                 })
                 .signers([taker4])
@@ -832,14 +832,14 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
             taker2PaymentAccountBalance,
             taker3PaymentAccountBalance,
             taker4PaymentAccountBalance,
-            bondsFeesVaultBalance,
+            bondsEscrowBalance,
             treasuryPaymentAccountBalance,
         ] = await Promise.all([
             getAndLogBalance("After refunding quote bonds", "Taker USDC", takerPaymentAccount),
             getAndLogBalance("After refunding quote bonds", "Taker2 USDC", taker2PaymentAccount),
             getAndLogBalance("After refunding quote bonds", "Taker3 USDC", taker3PaymentAccount),
             getAndLogBalance("After refunding quote bonds", "Taker4 USDC", taker4PaymentAccount),
-            getAndLogBalance("After refunding quote bonds", "RFQ Bonds Vault", bondsFeesVault),
+            getAndLogBalance("After refunding quote bonds", "RFQ Bonds Vault", bondsEscrow),
             getAndLogBalance("After refunding quote bonds", "Treasury USCD", treasuryPaymentAccount),
         ]);
 
@@ -852,11 +852,11 @@ describe("CLOSE_INCOMPLETE & REFUND_QUOTE_BONDS", () => {
         assert(!!quote2.bondsRefundedAt, "quote2 bondsRefundedAt should be set");
         assert(!quote3.bondsRefundedAt, "quote3 bondsRefundedAt should be None");// invalid quote
         assert(!quote4.bondsRefundedAt, "quote4 bondsRefundedAt should be None");// invalid quote
-        assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(takerPaymentAccountBalance), "taker balance mismatch");
-        assert(taker2PaymentAccountBalance.eq(new anchor.BN(DEFAULT_FEE_AMOUNT).addn(DEFAULT_BOND_AMOUNT)), "taker2 balance mismatch");
-        assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(taker3PaymentAccountBalance), "taker3 balance mismatch");
-        assert(new anchor.BN(DEFAULT_FEE_AMOUNT).eq(taker4PaymentAccountBalance), "taker4 balance mismatch");
-        assert(bondsFeesVaultBalance.isZero(), `bonds and fees vault should be 0`);
+        assert(takerPaymentAccountBalance.isZero(), "taker balance mismatch");
+        assert(taker2PaymentAccountBalance.eq(new anchor.BN(DEFAULT_BOND_AMOUNT)), "taker2 balance mismatch");
+        assert(taker3PaymentAccountBalance.isZero(), "taker3 balance mismatch");
+        assert(taker4PaymentAccountBalance.isZero(), "taker4 balance mismatch");
+        assert(bondsEscrowBalance.isZero(), `bonds escrow should be 0`);
         assert(treasuryPaymentAccountBalance.eq(slashedBondsTracker.amount), "treasury payment balance should be equalt to slashed bonds tracker amount");
     });
 });

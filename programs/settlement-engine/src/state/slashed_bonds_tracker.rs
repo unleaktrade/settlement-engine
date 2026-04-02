@@ -5,7 +5,7 @@ use anchor_lang::prelude::*;
 pub struct SlashedBondsTracker {
     pub rfq: Pubkey,
     pub usdc_mint: Pubkey,
-    pub treasury_usdc_owner: Pubkey,
+    pub treasury_wallet: Pubkey,
     pub amount: Option<u64>,
     pub seized_at: Option<i64>,
     pub bump: u8,

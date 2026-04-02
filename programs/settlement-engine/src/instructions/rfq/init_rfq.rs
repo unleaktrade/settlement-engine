@@ -34,14 +34,14 @@ pub struct InitRfq<'info> {
     )]
     pub rfq: Account<'info, Rfq>,
 
-    /// Create RFQ-owned USDC ATA
+    /// Create RFQ-owned USDC ATA for bonds
     #[account(
         init_if_needed,
         payer = maker,
         associated_token::mint = usdc_mint,
         associated_token::authority = rfq,
     )]
-    pub bonds_fees_vault: Account<'info, TokenAccount>,
+    pub bonds_escrow: Account<'info, TokenAccount>,
 
     #[account(
         mut,
@@ -64,7 +64,7 @@ pub fn init_rfq_handler(
     bond_amount: u64,
     base_amount: u64,
     min_quote_amount: u64,
-    taker_fee_usdc: u64,
+    taker_fee_bps: u16,
     commit_ttl_secs: u32,
     reveal_ttl_secs: u32,
     selection_ttl_secs: u32,
@@ -75,7 +75,7 @@ pub fn init_rfq_handler(
     let config = &ctx.accounts.config;
 
     require!(bond_amount > 0, RfqError::InvalidBondAmount);
-    require!(taker_fee_usdc > 0, RfqError::InvalidFeeAmount);
+    require!(taker_fee_bps <= 10_000, RfqError::InvalidFeeAmount);
     require!(base_amount > 0, RfqError::InvalidBaseAmount);
     require!(min_quote_amount > 0, RfqError::InvalidMinQuoteAmount);
 
@@ -96,12 +96,12 @@ pub fn init_rfq_handler(
     rfq.base_mint = base_mint;
     rfq.quote_mint = quote_mint;
     rfq.usdc_mint = config.usdc_mint;
-    rfq.treasury_usdc_owner = config.treasury_usdc_owner;
+    rfq.treasury_wallet = config.treasury_wallet;
     rfq.liquidity_guard = config.liquidity_guard;
     rfq.bond_amount = bond_amount;
     rfq.base_amount = base_amount;
     rfq.min_quote_amount = min_quote_amount;
-    rfq.fee_amount = taker_fee_usdc;
+    rfq.taker_fee_bps = taker_fee_bps;
     rfq.facilitator_fee_bps = config.facilitator_fee_bps;
 
     // ttls
@@ -124,7 +124,7 @@ pub fn init_rfq_handler(
     rfq.selected_quote = None;
     rfq.settlement = None;
 
-    rfq.bonds_fees_vault = ctx.accounts.bonds_fees_vault.key();
+    rfq.bonds_escrow = ctx.accounts.bonds_escrow.key();
     rfq.maker_payment_account = ctx.accounts.maker_payment_account.key();
     rfq.facilitator = facilitator;
 

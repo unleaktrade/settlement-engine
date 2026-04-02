@@ -63,7 +63,7 @@ pub struct CloseIncomplete<'info> {
         associated_token::mint = usdc_mint,
         associated_token::authority = rfq,
     )]
-    pub bonds_fees_vault: Box<Account<'info, TokenAccount>>,
+    pub bonds_escrow: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -75,15 +75,15 @@ pub struct CloseIncomplete<'info> {
 
     #[account(
         mut,
-        address = rfq.treasury_usdc_owner,
+        address = rfq.treasury_wallet,
     )]
-    pub treasury_usdc_owner: SystemAccount<'info>,
+    pub treasury_wallet: SystemAccount<'info>,
 
     #[account(
         init_if_needed,
         payer = maker,
         associated_token::mint = usdc_mint,
-        associated_token::authority = treasury_usdc_owner,
+        associated_token::authority = treasury_wallet,
     )]
     pub treasury_ata: Box<Account<'info, TokenAccount>>,
 
@@ -92,7 +92,7 @@ pub struct CloseIncomplete<'info> {
         seeds = [SlashedBondsTracker::SEED_PREFIX, rfq.key().as_ref()],
         bump = slashed_bonds_tracker.bump,
         has_one = usdc_mint,
-        has_one = treasury_usdc_owner,
+        has_one = treasury_wallet,
     )]
     pub slashed_bonds_tracker: Box<Account<'info, SlashedBondsTracker>>,
 
@@ -120,7 +120,7 @@ pub fn close_incomplete_handler(ctx: Context<CloseIncomplete>) -> Result<()> {
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             Transfer {
-                from: ctx.accounts.bonds_fees_vault.to_account_info(),
+                from: ctx.accounts.bonds_escrow.to_account_info(),
                 to: ctx.accounts.maker_payment_account.to_account_info(),
                 authority: rfq.to_account_info(),
             },
@@ -151,7 +151,7 @@ pub fn close_incomplete_handler(ctx: Context<CloseIncomplete>) -> Result<()> {
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
                     Transfer {
-                        from: ctx.accounts.bonds_fees_vault.to_account_info(),
+                        from: ctx.accounts.bonds_escrow.to_account_info(),
                         to: ctx.accounts.treasury_ata.to_account_info(),
                         authority: rfq.to_account_info(),
                     },

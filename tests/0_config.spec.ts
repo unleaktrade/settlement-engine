@@ -56,7 +56,7 @@ describe("CONFIG", () => {
     const cfg1 = await program.account.config.fetch(cfgPda);
     assert(cfg1.admin.equals(admin.publicKey));
     assert(cfg1.usdcMint.equals(usdcMint));
-    assert(cfg1.treasuryUsdcOwner.equals(treasury));
+    assert(cfg1.treasuryWallet.equals(treasury));
     assert(cfg1.liquidityGuard.equals(liquidityGuard));
     assert(cfg1.facilitatorFeeBps === 1000); // default 10%
     console.log("stored admin pubkey:", cfg1.admin.toBase58());
@@ -84,13 +84,13 @@ describe("CONFIG", () => {
 
     const cfg3 = await program.account.config.fetch(cfgPda);
     assert(cfg3.usdcMint.equals(usdcMint2));
-    assert(cfg3.treasuryUsdcOwner.equals(treasury2));
-    assert(cfg3.treasuryUsdcOwner.equals(treasury2));
+    assert(cfg3.treasuryWallet.equals(treasury2));
+    assert(cfg3.treasuryWallet.equals(treasury2));
     assert(cfg3.liquidityGuard.equals(liquidityGuard2));
     assert(!cfg3.liquidityGuard.equals(liquidityGuard));
     assert(cfg3.facilitatorFeeBps === 2000); // 20%
     console.log("usdc mint:", cfg3.usdcMint.toBase58());
-    console.log("treasury:", cfg3.treasuryUsdcOwner.toBase58());
+    console.log("treasury:", cfg3.treasuryWallet.toBase58());
     console.log("liquidity guard:", cfg3.liquidityGuard.toBase58());
 
     let failed = false;
