@@ -37,6 +37,98 @@ It enforces trustless settlement, manages USDC bonds and quote-token fees, and e
 
 ---
 
+## 🛠️ Managing Config
+
+`Config` is the **single most important account** in the deployment — it is the
+global singleton (PDA `["config"]`) that every other instruction reads. There is
+exactly one per program deployment, owned by `admin`.
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `admin` | `Pubkey` | Admin authority — the only signer allowed to update/close Config |
+| `usdcMint` | `Pubkey` | USDC mint used for fees/bonds |
+| `treasuryWallet` | `Pubkey` | Treasury wallet that collects fees |
+| `liquidityGuard` | `Pubkey` | ed25519 public key of the liquidity-guard service |
+| `facilitatorFeeBps` | `u16` | Facilitator fee in basis points (1 BPS = 0.01%), **0..10000** |
+
+There are two scripts, both cluster-agnostic via `ANCHOR_PROVIDER_URL`:
+
+### 1. Initialise (once per cluster) — `scripts/init-config-devnet.ts`
+
+Creates the Config account. Idempotent (exits if it already exists). Inputs via
+env vars; the `ANCHOR_WALLET` keypair becomes `Config.admin`:
+
+```bash
+ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \
+ANCHOR_WALLET=~/.config/solana/id.json \
+LIQUIDITY_GUARD=<ed25519 service pubkey> \
+USDC_MINT=4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU \
+TREASURY_WALLET=<pubkey> \
+FACILITATOR_FEE_BPS=1000 \
+yarn init-config
+```
+
+### 2. Update any field(s) — `scripts/update-config.ts`
+
+Drives the on-chain `update_config` instruction, which updates **any subset** of
+fields in one transaction; fields you don't pass are left untouched. Values come
+from a **JSON or YAML file**, **CLI flags**, or both (**flags override the file**).
+
+> ⚠️ The signing wallet (`ANCHOR_WALLET`) **must be the current `Config.admin`**,
+> otherwise the transaction fails with `Unauthorized`.
+
+**a) CLI flags only**
+
+```bash
+ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \
+ANCHOR_WALLET=~/.config/solana/id.json \
+yarn update-config --facilitator-fee-bps 1500
+```
+
+**b) From a JSON / YAML file** (parsed by extension; both camelCase and
+snake_case keys accepted). Copy `scripts/config.example.yaml` (or `.json`) and
+edit only the fields you want to change:
+
+```bash
+yarn update-config --config scripts/config.example.yaml
+```
+
+```yaml
+# scripts/config.example.yaml — every key is optional
+facilitatorFeeBps: 1500
+# treasuryWallet: "TreasuryPubkeyBase58Here..."
+# liquidityGuard: "5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg"
+```
+
+**c) File for the base, flags to override individual fields**
+
+```bash
+yarn update-config --config scripts/config.example.yaml --treasury-wallet <pubkey>
+```
+
+**Available flags**
+
+```
+--config <path>            JSON (.json) or YAML (.yaml/.yml) file of fields
+--admin <pubkey>           rotate admin authority (ONE-WAY handoff!)
+--usdc-mint <pubkey>
+--treasury-wallet <pubkey>
+--liquidity-guard <pubkey>
+--facilitator-fee-bps <n>  integer 0..10000
+--dry-run                  print the planned before → after diff, send no tx
+--help                     show usage
+```
+
+The script prints a **before → after diff**, skips values that already match
+on-chain (so the tx never carries no-op writes), warns loudly on **admin
+rotation**, and supports `--dry-run` to preview changes safely:
+
+```bash
+yarn update-config --config scripts/config.example.yaml --dry-run
+```
+
+---
+
 ## 🔄 RFQ Lifecycle
 
 Each RFQ passes through the following **states**, driven by user actions and TTL expirations (all TTLs are relative to `opened_at`):
