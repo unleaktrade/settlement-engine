@@ -13,7 +13,8 @@
  *
  * Field values come from a JSON/YAML file and/or CLI flags. CLI flags override
  * file values. Only the fields you provide are sent — everything else is left
- * untouched on-chain.
+ * untouched on-chain. Pure parsing/validation/diff logic lives in
+ * `./config-fields` so it can be unit-tested without a validator.
  *
  * Updatable fields (canonical camelCase keys; snake_case also accepted in files):
  *   admin             Pubkey  — rotates the admin authority (one-way handoff!)
@@ -51,39 +52,14 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
-import * as fs from "fs";
-import * as path from "path";
-import * as YAML from "yaml";
 import { SettlementEngine } from "../target/types/settlement_engine";
-
-/** Canonical field set that maps onto the on-chain `update_config` args. */
-type ConfigFields = {
-  admin?: PublicKey;
-  usdcMint?: PublicKey;
-  treasuryWallet?: PublicKey;
-  liquidityGuard?: PublicKey;
-  facilitatorFeeBps?: number;
-};
-
-/** Map every accepted input key (snake_case + camelCase + flag) → canonical. */
-const KEY_ALIASES: Record<string, keyof ConfigFields> = {
-  admin: "admin",
-  "new-admin": "admin",
-  new_admin: "admin",
-  usdcmint: "usdcMint",
-  usdc_mint: "usdcMint",
-  "usdc-mint": "usdcMint",
-  treasurywallet: "treasuryWallet",
-  treasury_wallet: "treasuryWallet",
-  "treasury-wallet": "treasuryWallet",
-  treasury: "treasuryWallet",
-  liquidityguard: "liquidityGuard",
-  liquidity_guard: "liquidityGuard",
-  "liquidity-guard": "liquidityGuard",
-  facilitatorfeebps: "facilitatorFeeBps",
-  facilitator_fee_bps: "facilitatorFeeBps",
-  "facilitator-fee-bps": "facilitatorFeeBps",
-};
+import {
+  ConfigFields,
+  computeChanges,
+  normalize,
+  parseArgv,
+  readConfigFile,
+} from "./config-fields";
 
 const HELP = `Update any field(s) of the singleton Config account.
 
@@ -104,109 +80,6 @@ Example:
   ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \\
   ANCHOR_WALLET=~/.config/solana/id.json \\
   yarn update-config --config scripts/config.example.yaml --facilitator-fee-bps 1500`;
-
-function requirePubkey(name: string, value: string): PublicKey {
-  try {
-    return new PublicKey(value);
-  } catch {
-    throw new Error(`${name} is not a valid base58 pubkey: ${value}`);
-  }
-}
-
-function parseFeeBps(name: string, value: number | string): number {
-  const n = typeof value === "number" ? value : Number(value);
-  if (!Number.isInteger(n) || n < 0 || n > 10_000) {
-    throw new Error(`${name} must be an integer 0..10000, got: ${value}`);
-  }
-  return n;
-}
-
-/** Normalize a raw {key: value} record into a typed, validated ConfigFields. */
-function normalize(raw: Record<string, unknown>, source: string): ConfigFields {
-  const out: ConfigFields = {};
-  for (const [rawKey, rawVal] of Object.entries(raw)) {
-    if (rawVal === undefined || rawVal === null) continue;
-    const key = KEY_ALIASES[rawKey.toLowerCase()];
-    if (!key) {
-      throw new Error(
-        `Unknown field "${rawKey}" in ${source}. Allowed: admin, usdcMint, ` +
-          `treasuryWallet, liquidityGuard, facilitatorFeeBps (snake_case ok).`
-      );
-    }
-    if (key === "facilitatorFeeBps") {
-      out[key] = parseFeeBps(rawKey, rawVal as number | string);
-    } else {
-      out[key] = requirePubkey(rawKey, String(rawVal));
-    }
-  }
-  return out;
-}
-
-/** Parse a JSON/YAML config file into a raw record (by file extension). */
-function readConfigFile(file: string): Record<string, unknown> {
-  if (!fs.existsSync(file)) {
-    throw new Error(`--config file not found: ${file}`);
-  }
-  const text = fs.readFileSync(file, "utf8");
-  const ext = path.extname(file).toLowerCase();
-  let parsed: unknown;
-  if (ext === ".json") {
-    parsed = JSON.parse(text);
-  } else if (ext === ".yaml" || ext === ".yml") {
-    parsed = YAML.parse(text);
-  } else {
-    throw new Error(
-      `--config must be .json, .yaml, or .yml (got "${ext || "no extension"}")`
-    );
-  }
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error(`--config file must contain a top-level object: ${file}`);
-  }
-  return parsed as Record<string, unknown>;
-}
-
-/** Minimal flag parser: --key value, plus --dry-run / --help booleans. */
-function parseArgv(argv: string[]): {
-  raw: Record<string, string>;
-  configFile?: string;
-  dryRun: boolean;
-  help: boolean;
-} {
-  const raw: Record<string, string> = {};
-  let configFile: string | undefined;
-  let dryRun = false;
-  let help = false;
-
-  for (let i = 0; i < argv.length; i++) {
-    const tok = argv[i];
-    if (!tok.startsWith("--")) {
-      throw new Error(`Unexpected argument: ${tok} (flags must start with --)`);
-    }
-    const name = tok.slice(2);
-    if (name === "help") {
-      help = true;
-      continue;
-    }
-    if (name === "dry-run") {
-      dryRun = true;
-      continue;
-    }
-    const value = argv[++i];
-    if (value === undefined) {
-      throw new Error(`Flag --${name} requires a value`);
-    }
-    if (name === "config") {
-      configFile = value;
-    } else {
-      raw[name] = value;
-    }
-  }
-  return { raw, configFile, dryRun, help };
-}
-
-function fmt(field: keyof ConfigFields, value: PublicKey | number): string {
-  return value instanceof PublicKey ? value.toBase58() : String(value);
-}
 
 async function main() {
   const { raw, configFile, dryRun, help } = parseArgv(process.argv.slice(2));
@@ -253,40 +126,20 @@ async function main() {
     );
   }
 
-  // Map on-chain account fields to our canonical keys for the before/after diff.
-  const current: Record<keyof ConfigFields, PublicKey | number> = {
-    admin: existing.admin,
-    usdcMint: existing.usdcMint,
-    treasuryWallet: existing.treasuryWallet,
-    liquidityGuard: existing.liquidityGuard,
-    facilitatorFeeBps: existing.facilitatorFeeBps,
-  };
+  // Diff desired against current; keep only real changes (no no-op writes).
+  const { changes, lines, rotatesAdmin } = computeChanges(
+    {
+      admin: existing.admin,
+      usdcMint: existing.usdcMint,
+      treasuryWallet: existing.treasuryWallet,
+      liquidityGuard: existing.liquidityGuard,
+      facilitatorFeeBps: existing.facilitatorFeeBps,
+    },
+    desired
+  );
 
-  // Keep only real changes so the tx never carries no-op writes.
-  const changes: ConfigFields = {};
-  const ORDER: (keyof ConfigFields)[] = [
-    "admin",
-    "usdcMint",
-    "treasuryWallet",
-    "liquidityGuard",
-    "facilitatorFeeBps",
-  ];
   console.log("\nPlanned changes:");
-  for (const field of ORDER) {
-    const next = desired[field];
-    if (next === undefined) continue;
-    const cur = current[field];
-    const unchanged =
-      next instanceof PublicKey
-        ? (cur as PublicKey).equals(next)
-        : cur === next;
-    if (unchanged) {
-      console.log(`  ${field}: ${fmt(field, cur)} (already set — skipping)`);
-      continue;
-    }
-    console.log(`  ${field}: ${fmt(field, cur)} -> ${fmt(field, next)}`);
-    (changes as Record<string, unknown>)[field] = next;
-  }
+  for (const line of lines) console.log(line);
 
   if (Object.keys(changes).length === 0) {
     console.log(
@@ -295,7 +148,7 @@ async function main() {
     return;
   }
 
-  if (changes.admin) {
+  if (rotatesAdmin && changes.admin) {
     console.warn(
       "\n⚠  ADMIN ROTATION REQUESTED — this hands control of Config to " +
         `${changes.admin.toBase58()}.\n   After this tx the current wallet can no longer update Config.`
@@ -328,14 +181,18 @@ async function main() {
   console.log(JSON.stringify(cfg, null, 2));
 }
 
-main().catch((err) => {
-  const msg = String(err?.message ?? err);
-  if (/has_one|Unauthorized|2001|has one/i.test(msg)) {
-    console.error(
-      "\nUpdate failed: the signing wallet is not the current Config admin.\n" +
-        "Point ANCHOR_WALLET at the admin keypair and retry."
-    );
-  }
-  console.error(err);
-  process.exit(1);
-});
+// Only run the CLI when executed directly — importing this module (e.g. in
+// tests) must not fire a transaction.
+if (require.main === module) {
+  main().catch((err) => {
+    const msg = String(err?.message ?? err);
+    if (/has_one|Unauthorized|2001|has one/i.test(msg)) {
+      console.error(
+        "\nUpdate failed: the signing wallet is not the current Config admin.\n" +
+          "Point ANCHOR_WALLET at the admin keypair and retry."
+      );
+    }
+    console.error(err);
+    process.exit(1);
+  });
+}

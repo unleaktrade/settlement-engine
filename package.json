@@ -4,7 +4,8 @@
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
     "init-config": "ts-node scripts/init-config-devnet.ts",
-    "update-config": "ts-node scripts/update-config.ts"
+    "update-config": "ts-node scripts/update-config.ts",
+    "test:unit": "ts-mocha -p ./tsconfig.json -t 60000 \"tests/unit/**/*.spec.ts\""
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
