@@ -1,0 +1,24 @@
+# Example Config update file for scripts/update-config.ts
+#
+#   yarn update-config --config scripts/config.example.yaml
+#
+# Only include the fields you want to change — every key is OPTIONAL and any
+# field you omit is left untouched on-chain. CLI flags override values here.
+# Both camelCase and snake_case keys are accepted. A matching config.example.json
+# exists if you prefer JSON.
+
+# Admin authority. WARNING: rotating this is a one-way handoff — the new admin
+# becomes the only wallet that can update Config afterwards.
+# admin: "AdminPubkeyBase58Here11111111111111111111111"
+
+# USDC mint used for fees/bonds (devnet USDC shown).
+# usdcMint: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+
+# Treasury wallet that collects fees.
+# treasuryWallet: "TreasuryPubkeyBase58Here1111111111111111111"
+
+# ed25519 public key of the running liquidity-guard service.
+# liquidityGuard: "5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg"
+
+# Facilitator fee in basis points (1 BPS = 0.01%). Integer 0..10000.
+facilitatorFeeBps: 1500

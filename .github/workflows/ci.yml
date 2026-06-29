@@ -18,6 +18,27 @@ on:
         default: "*"
 
 jobs:
+  lint-and-unit:
+    name: Lint & unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+
+      - run: yarn install --frozen-lockfile
+
+      # Scoped to the script + unit-test sources this job covers; the legacy
+      # tests/*.spec.ts files predate Prettier enforcement and are out of scope.
+      - name: Prettier (scripts & unit tests)
+        run: npx prettier "scripts/**/*.ts" "tests/unit/**/*.ts" --check
+
+      - name: Unit tests (no validator)
+        run: yarn test:unit
+
   test:
     runs-on: ubuntu-latest
     steps:

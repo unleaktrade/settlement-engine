@@ -27,6 +27,7 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 import { SettlementEngine } from "../target/types/settlement_engine";
+import { resolveClusterUrl } from "./cluster";
 
 const DEVNET_USDC = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 
@@ -42,6 +43,10 @@ function requirePubkey(name: string, value: string | undefined): PublicKey {
 }
 
 async function main() {
+  // Default to devnet (and expand aliases) when ANCHOR_PROVIDER_URL is unset.
+  process.env.ANCHOR_PROVIDER_URL = resolveClusterUrl(
+    process.env.ANCHOR_PROVIDER_URL
+  );
   anchor.setProvider(anchor.AnchorProvider.env());
   const provider = anchor.getProvider() as anchor.AnchorProvider;
   // PascalCase workspace key from the crate name, same as the test suite. Reads
