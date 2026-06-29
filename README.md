@@ -51,7 +51,9 @@ exactly one per program deployment, owned by `admin`.
 | `liquidityGuard` | `Pubkey` | ed25519 public key of the liquidity-guard service |
 | `facilitatorFeeBps` | `u16` | Facilitator fee in basis points (1 BPS = 0.01%), **0..10000** |
 
-There are three scripts, all cluster-agnostic via `ANCHOR_PROVIDER_URL`:
+There are three scripts, all cluster-agnostic. The target cluster comes from
+`ANCHOR_PROVIDER_URL` — a full RPC URL **or** a short alias (`devnet`, `testnet`,
+`mainnet`, `localnet`) — and **defaults to devnet** when unset:
 
 ### 1. Initialise (once per cluster) — `scripts/init-config-devnet.ts`
 
@@ -129,14 +131,16 @@ yarn update-config --config scripts/config.example.yaml --dry-run
 
 ### 3. View the current Config — `scripts/get-config.ts`
 
-Read-only: fetches and displays the Config account. No admin keypair needed (no
-transaction is sent).
+Read-only: fetches and displays the Config account. No `ANCHOR_WALLET` needed (no
+transaction is sent — an ephemeral wallet is used), and the cluster defaults to
+devnet.
 
 ```bash
-# Human-readable summary (PDA, cluster, fields, fee as %)
-ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \
-ANCHOR_WALLET=~/.config/solana/id.json \
+# Human-readable summary (PDA, cluster, fields, fee as %) — defaults to devnet
 yarn get-config
+
+# Target another cluster (alias or full URL)
+ANCHOR_PROVIDER_URL=localnet yarn get-config
 
 # Machine-readable JSON only (pipeable); prints `null` if not initialised
 yarn get-config --json

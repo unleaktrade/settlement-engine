@@ -60,6 +60,7 @@ import {
   parseArgv,
   readConfigFile,
 } from "./config-fields";
+import { resolveClusterUrl } from "./cluster";
 
 const HELP = `Update any field(s) of the singleton Config account.
 
@@ -102,6 +103,11 @@ async function main() {
     );
   }
 
+  // Default to devnet (and expand aliases) when ANCHOR_PROVIDER_URL is unset;
+  // ANCHOR_WALLET is still required by env() since this script signs.
+  process.env.ANCHOR_PROVIDER_URL = resolveClusterUrl(
+    process.env.ANCHOR_PROVIDER_URL
+  );
   anchor.setProvider(anchor.AnchorProvider.env());
   const provider = anchor.getProvider() as anchor.AnchorProvider;
   // PascalCase workspace key from the crate name, same as the test suite.

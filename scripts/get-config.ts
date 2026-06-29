@@ -5,15 +5,17 @@
  * the Config PDA (`["config"]`) and prints it. Never sends a transaction, so no
  * admin keypair is required — any wallet works as the provider.
  *
- * Cluster-agnostic: whatever `ANCHOR_PROVIDER_URL` points at (localnet, devnet,
- * mainnet) is the target.
+ * Cluster-agnostic: the target is `ANCHOR_PROVIDER_URL` if set (a full URL or a
+ * short alias like `devnet`/`localnet`), otherwise it **defaults to devnet**.
+ * Read-only, so no `ANCHOR_WALLET` is needed — an ephemeral wallet is used.
  *
  * Usage:
  *
- *   # Human-readable summary
- *   ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \
- *   ANCHOR_WALLET=~/.config/solana/id.json \
+ *   # Human-readable summary (defaults to devnet)
  *   yarn get-config
+ *
+ *   # Target another cluster
+ *   ANCHOR_PROVIDER_URL=localnet yarn get-config
  *
  *   # Machine-readable JSON only (pipeable); prints `null` if not initialised
  *   yarn get-config --json
@@ -27,19 +29,21 @@ import { Program } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 import { SettlementEngine } from "../target/types/settlement_engine";
 import { formatConfig, parseGetArgs } from "./config-fields";
+import { resolveClusterUrl } from "./cluster";
 
 const HELP = `View the singleton Config account.
 
-Cluster is whatever ANCHOR_PROVIDER_URL points at. Read-only — no tx is sent.
+Cluster comes from ANCHOR_PROVIDER_URL (full URL or alias devnet/testnet/
+mainnet/localnet); defaults to devnet when unset. Read-only — no tx is sent and
+no ANCHOR_WALLET is required.
 
 Flags:
   --json   print only the account as JSON (or \`null\` if not initialised)
   --help   show this help
 
 Example:
-  ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \\
-  ANCHOR_WALLET=~/.config/solana/id.json \\
-  yarn get-config`;
+  yarn get-config
+  ANCHOR_PROVIDER_URL=localnet yarn get-config --json`;
 
 async function main() {
   const { json, help } = parseGetArgs(process.argv.slice(2));
@@ -48,8 +52,15 @@ async function main() {
     return;
   }
 
-  anchor.setProvider(anchor.AnchorProvider.env());
-  const provider = anchor.getProvider() as anchor.AnchorProvider;
+  // Read-only provider: default to devnet, and use an ephemeral wallet so no
+  // ANCHOR_WALLET keypair is needed just to view Config (it never signs).
+  const url = resolveClusterUrl(process.env.ANCHOR_PROVIDER_URL);
+  const connection = new anchor.web3.Connection(url, "confirmed");
+  const wallet = new anchor.Wallet(anchor.web3.Keypair.generate());
+  const provider = new anchor.AnchorProvider(connection, wallet, {
+    commitment: "confirmed",
+  });
+  anchor.setProvider(provider);
   const program = anchor.workspace
     .SettlementEngine as Program<SettlementEngine>;
 
