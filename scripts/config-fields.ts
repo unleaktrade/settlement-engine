@@ -199,3 +199,51 @@ export function computeChanges(
 
   return { changes, skipped, lines, rotatesAdmin: changes.admin !== undefined };
 }
+
+/** Structural shape of a fetched Config account (no Anchor import needed). */
+export type ConfigAccount = {
+  admin: PublicKey;
+  usdcMint: PublicKey;
+  treasuryWallet: PublicKey;
+  liquidityGuard: PublicKey;
+  facilitatorFeeBps: number;
+  bump: number;
+};
+
+/** Format a BPS fee as a human percentage, e.g. 1500 -> "15%", 1234 -> "12.34%". */
+export function feeBpsToPercent(bps: number): string {
+  const pct = bps / 100;
+  return `${Number.isInteger(pct) ? pct : Number(pct.toFixed(2))}%`;
+}
+
+/** Render a fetched Config account as human-readable display lines (pure). */
+export function formatConfig(cfg: ConfigAccount): string[] {
+  return [
+    `  admin            : ${cfg.admin.toBase58()}`,
+    `  usdcMint         : ${cfg.usdcMint.toBase58()}`,
+    `  treasuryWallet   : ${cfg.treasuryWallet.toBase58()}`,
+    `  liquidityGuard   : ${cfg.liquidityGuard.toBase58()}`,
+    `  facilitatorFeeBps: ${cfg.facilitatorFeeBps} (${feeBpsToPercent(
+      cfg.facilitatorFeeBps
+    )})`,
+    `  bump             : ${cfg.bump}`,
+  ];
+}
+
+export type GetArgs = { json: boolean; help: boolean };
+
+/** Minimal boolean-flag parser for the get-config script (--json / --help). */
+export function parseGetArgs(argv: string[]): GetArgs {
+  let json = false;
+  let help = false;
+  for (const tok of argv) {
+    if (!tok.startsWith("--")) {
+      throw new Error(`Unexpected argument: ${tok} (flags must start with --)`);
+    }
+    const name = tok.slice(2);
+    if (name === "json") json = true;
+    else if (name === "help") help = true;
+    else throw new Error(`Unknown flag --${name} (supported: --json, --help)`);
+  }
+  return { json, help };
+}
