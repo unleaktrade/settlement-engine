@@ -295,3 +295,10 @@ anchor build
 # Run tests
 anchor test
 ```
+
+The integration tests call a live Liquidity Guard (`POST /check`) to obtain commit attestations (helpers in `tests/utils/liquidityGuard.ts`):
+
+| Env var | Purpose |
+| --- | --- |
+| `LIQUIDITY_GUARD_URL` | Guard base URL (default: the devnet `SKIP_FUND_CHECKS` instance) |
+| `LIQUIDITY_GUARD_API_KEY` | Sent as `X-API-Key` on `/check` when the guard runs with `API_KEYS`; unset = no header. CI reads it from the `LIQUIDITY_GUARD_API_KEY` repository secret |
