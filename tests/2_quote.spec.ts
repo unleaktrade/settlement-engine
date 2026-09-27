@@ -14,6 +14,7 @@ import {
 import { v4 as uuidv4, parse as uuidParse } from "uuid";
 import assert from "assert";
 import { waitForChainTime } from "./utils/time";
+import { liquidityGuardHeaders, liquidityGuardURL } from "./utils/liquidityGuard";
 import { uuidBytes } from "./1_rfq.spec";
 
 anchor.setProvider(anchor.AnchorProvider.env());
@@ -41,7 +42,6 @@ const rfqPda = (maker: PublicKey, u16: Uint8Array) =>
         program.programId
     );
 
-const liquidityGuardURL = "https://liquidity-guard-devnet-skip-c644b6411603.herokuapp.com";
 const toNum = (v: any) => (typeof v === "number" ? v : new anchor.BN(v).toNumber());
 
 async function getAndLogBalance(
@@ -239,9 +239,7 @@ describe("QUOTE", () => {
 
         const response = await fetchJson<CheckResult>(`${liquidityGuardURL}/check`, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
+            headers: liquidityGuardHeaders(),
             body: JSON.stringify(payload),
         });
 
@@ -293,9 +291,7 @@ describe("QUOTE", () => {
 
         const response = await fetchJson<CheckResult>(`${liquidityGuardURL}/check`, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
+            headers: liquidityGuardHeaders(),
             body: JSON.stringify(payload),
         });
 
@@ -527,9 +523,7 @@ describe("QUOTE", () => {
         };
         const response = await fetchJson<CheckResult>(`${liquidityGuardURL}/check`, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
+            headers: liquidityGuardHeaders(),
             body: JSON.stringify(payload),
         });
 
@@ -911,8 +905,12 @@ export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> 
 
     if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
+        const hint =
+            res.status === 401
+                ? " (liquidity-guard requires an API key: set LIQUIDITY_GUARD_API_KEY)"
+                : "";
         throw new Error(
-            `HTTP ${res.status}: ${JSON.stringify(errBody, null, 2)}`
+            `HTTP ${res.status}${hint}: ${JSON.stringify(errBody, null, 2)}`
         );
     }
 

@@ -13,6 +13,7 @@ import {
 } from "@solana/spl-token";
 import assert from "assert";
 import { CheckResult, fetchJson, sleep, waitForLiquidityGuardReady } from "./2_quote.spec";
+import { liquidityGuardHeaders, liquidityGuardURL } from "./utils/liquidityGuard";
 import { waitForChainTime } from "./utils/time";
 import { slashedBondsTrackerPda, uuidBytes } from "./1_rfq.spec";
 import { expectedSlashedAmount } from "./utils/slashing";
@@ -21,7 +22,6 @@ anchor.setProvider(anchor.AnchorProvider.env());
 const provider = anchor.getProvider() as anchor.AnchorProvider;
 const program = anchor.workspace.SettlementEngine as Program<SettlementEngine>;
 
-const liquidityGuardURL = "https://liquidity-guard-devnet-skip-c644b6411603.herokuapp.com";
 const liquidityGuard = new PublicKey("5gfPFweV3zJovznZqBra3rv5tWJ5EHVzQY1PqvNA4HGg");
 const DEFAULT_QUOTE_AMOUNT = 1_000_000_001;
 const DEFAULT_BASE_AMOUNT = 1_000_000_000;
@@ -98,9 +98,7 @@ const provideLiquidityGuardAttestation = async (taker: anchor.web3.Keypair,
 
     const response = await fetchJson<CheckResult>(`${liquidityGuardURL}/check`, {
         method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
+        headers: liquidityGuardHeaders(),
         body: JSON.stringify(payload),
     });
     if ("error" in response) {

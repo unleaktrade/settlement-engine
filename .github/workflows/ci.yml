@@ -41,6 +41,10 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    env:
+      # Sent as X-API-Key on liquidity-guard /check (tests/utils/liquidityGuard.ts)
+      # once the guard runs with API_KEYS. Empty on forks = no header.
+      LIQUIDITY_GUARD_API_KEY: ${{ secrets.LIQUIDITY_GUARD_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
