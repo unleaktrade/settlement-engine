@@ -39,6 +39,39 @@ jobs:
       - name: Unit tests (no validator)
         run: yarn test:unit
 
+  sbf-stack-guard:
+    name: SBF stack guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: solana-developers/github-actions/extract-versions@v0.2.5
+        id: versions
+
+      - uses: solana-developers/github-actions/setup-all@v0.2.5
+        with:
+          solana_version: ${{ steps.versions.outputs.solana_version }}
+          node_version: 20
+
+      - run: yarn install --frozen-lockfile
+
+      # LLVM reports "Stack offset of N exceeded max offset of 4096" while it
+      # generates code, but cargo-build-sbf still exits 0 and emits a .so with
+      # undefined behavior. Capture the log so the next step can fail on it.
+      # No target/ cache here on purpose: the program crate must be recompiled
+      # for the diagnostic to be printed (the check step enforces it).
+      - name: Build program (SBF) and capture LLVM diagnostics
+        run: |
+          set -o pipefail
+          cargo build-sbf --manifest-path programs/settlement-engine/Cargo.toml 2>&1 | tee sbf-build.log
+
+      - name: Fail on SBF stack frame overflow
+        run: yarn -s sbf-stack check sbf-build.log
+
+      - name: Stack usage report
+        if: always() && hashFiles('target/sbpf-solana-solana/release/settlement_engine.so') != ''
+        run: yarn -s sbf-stack report target/sbpf-solana-solana/release/settlement_engine.so --summary "$GITHUB_STEP_SUMMARY"
+
   test:
     runs-on: ubuntu-latest
     env:
