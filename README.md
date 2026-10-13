@@ -30,7 +30,7 @@ It enforces trustless settlement, manages USDC bonds and quote-token fees, and e
   - PDA: `["commit-guard", commit_hash]`
 - **Settlement**
   - Snapshot created at selection (amounts, mints, vaults, participants); the economic terms are fixed from then on.
-  - `complete_settlement` fills in the completion fields (`completed_at`, `taker_funded_at`, taker token accounts); `close_incomplete` closes the account.
+  - `fund_settlement` sets `taker_funded_at` and `taker_quote_account`; `complete_settlement` sets `completed_at` and `taker_base_account`; `close_incomplete` closes the account.
   - PDA: `["settlement", rfq]`
 - **SlashedBondsTracker**
   - Tracks bond seizures into treasury for a given RFQ.
@@ -190,7 +190,7 @@ Each RFQ passes through the following **states**. Nothing is automatic: every tr
 | Commit | Takers commit hashed quotes | `Committed` |
 | Reveal | Takers reveal quotes for validation | `Revealed` |
 | Select | Maker selects the winning quote and deposits base | `Selected` |
-| Settle | Taker deposits quote + fee; swap and refunds execute | `Settled` |
+| Settle | Taker sends **one transaction** with `fund_settlement` (quote + fee) immediately followed by `complete_settlement` (base delivery, bond refunds, slashing) | `Settled` |
 | Timeout | RFQ exceeds a deadline without completion | `Expired` / `Ignored` / `Incomplete` |
 
 Terminal timeout states and the instruction that records each:
@@ -205,7 +205,7 @@ Phase windows:
 - `commit_quote`: until the commit deadline.
 - `reveal_quote`: only after the commit deadline, until the reveal deadline.
 - `select_quote`: only after the reveal deadline, until the selection deadline.
-- `complete_settlement`: until the funding deadline.
+- `fund_settlement` + `complete_settlement` (same transaction): until the funding deadline.
 
 Funding deadline behavior:
 - If a quote is selected: funding deadline = `selected_at + fund_ttl_secs`.
@@ -273,13 +273,14 @@ sequenceDiagram
     Note over Maker: Selection + funding
     Maker->>SE: select_quote + deposit base to vault
 
-    Note over Taker1: Complete settlement (if selected)
-    Taker1->>SE: complete_settlement (deposit quote + fee in quote tokens)
+    Note over Taker1: Settlement (if selected) — ONE transaction, two instructions
+    Taker1->>SE: fund_settlement (quote + fee in quote tokens)
     SE-->>Maker: Transfer quote asset
+    SE-->>Treas: Collect treasury fee share (quote tokens)
+    Taker1->>SE: complete_settlement (must immediately follow fund_settlement)
     SE-->>Taker1: Transfer base asset
     SE-->>Maker: Refund maker bond (USDC)
     SE-->>Taker1: Refund taker bond (USDC)
-    SE-->>Treas: Collect treasury fee share (quote tokens)
 
     alt Optional facilitator fee (rfq.facilitator == quote.facilitator)
         SE-->>SE: Retain facilitator share in fee escrow (quote tokens)
@@ -292,6 +293,23 @@ sequenceDiagram
         Taker2->>SE: refund_quote_bonds (post-deadline)
     end
 ```
+
+## 🤝 Settlement: `fund_settlement` + `complete_settlement`
+
+The taker settles with a single transaction containing, in this order:
+
+1. *(optional)* `ComputeBudgetProgram.setComputeUnitLimit` (400k is plenty)
+2. `fund_settlement` — everything paid in the quote mint: quote amount to the maker, treasury share of the fee, facilitator share into the fee escrow; creates `FeesTracker` and sets `settlement.taker_funded_at`.
+3. `complete_settlement` — bond refunds (maker + taker), base asset from the vault to the taker, seizure of unrevealed bonds, `Settled` state.
+
+The program enforces the pairing:
+
+- `fund_settlement` fails with `CompleteSettlementMustFollow` unless it is a **top-level** instruction (not a CPI) and the **very next** instruction is `complete_settlement` of this program for the **same** `rfq` / `settlement` accounts (instructions sysvar). A transaction either runs both or neither, back to back, so a taker can never pay without receiving the base asset and nothing can run in between.
+- `complete_settlement` fails with `SettlementNotFunded` unless `settlement.taker_funded_at` is set, which only `fund_settlement` does.
+
+Why two instructions? Anchor deserializes and validates every account of an instruction in one `try_accounts` stack frame (4 KiB on SBF). The former single `complete_settlement` needed 24 accounts and sat at ~91% of that frame, which blocked any new account. Split, each half is around 70% (platform-tools v1.48: `FundSettlement` ≈ 2.9 KiB, `CompleteSettlement` ≈ 2.8 KiB), leaving room to grow.
+
+`quote` and `slashed_bonds_tracker` are regular named accounts of `complete_settlement` again (no more `remaining_accounts`); they are validated in the handler rather than by Anchor constraints, for the same stack reason.
 
 ## 💰 Bonds, Fees, and Slashing
 
@@ -354,7 +372,8 @@ off-chain verification with on-chain enforcement.
 | `set_quote_facilitator` | taker | `Draft` to `Selected` | Sets the quote facilitator |
 | `reveal_quote` | taker | `Committed` / `Revealed`, reveal window | Reveals salt and amount, → `Revealed` |
 | `select_quote` | maker | `Revealed`, selection window | Locks the base asset, creates Settlement, → `Selected` |
-| `complete_settlement` | selected taker | `Selected`, before the funding deadline | Swap, fees, bond refunds, → `Settled` |
+| `fund_settlement` | selected taker | `Selected`, before the funding deadline; top-level, immediately followed by `complete_settlement` | Pays the quote amount to the maker and the fees (treasury + fee escrow), creates FeesTracker |
+| `complete_settlement` | selected taker | `Selected`, before the funding deadline, after `fund_settlement` in the same transaction | Delivers the base asset, refunds both bonds, slashes unrevealed bonds, → `Settled` |
 | `close_expired` | maker | `Open` / `Committed`, no quote revealed, after the reveal deadline | Refunds the maker bond, slashes unrevealed bonds, → `Expired` |
 | `close_incomplete` | maker | `Selected`, after the funding deadline | Returns the base asset and maker bond, slashes the selected taker, → `Incomplete` |
 | `refund_quote_bonds` | taker (revealed, not selected) | `Revealed` or later, after the funding deadline | Refunds that taker's bond; on a `Revealed` RFQ it also slashes the maker bond and unrevealed bonds, → `Ignored` |
