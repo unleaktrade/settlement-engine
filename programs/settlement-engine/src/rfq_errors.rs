@@ -120,4 +120,9 @@ pub enum RfqError {
     MissingSlashedBondsTrackerAccount,
     #[msg("Quote account missing")]
     MissingQuoteAccount,
+    // --- fund_settlement / complete_settlement split (append-only: keeps existing codes stable) ---
+    #[msg("fund_settlement must be a top-level instruction immediately followed by complete_settlement for the same RFQ")]
+    CompleteSettlementMustFollow,
+    #[msg("Settlement has not been funded: run fund_settlement first, in the same transaction")]
+    SettlementNotFunded,
 }

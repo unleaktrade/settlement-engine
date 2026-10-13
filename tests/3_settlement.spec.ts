@@ -17,6 +17,13 @@ import { liquidityGuardHeaders, liquidityGuardURL } from "./utils/liquidityGuard
 import { waitForChainTime } from "./utils/time";
 import { slashedBondsTrackerPda, uuidBytes } from "./1_rfq.spec";
 import { expectedSlashedAmount } from "./utils/slashing";
+import {
+    completeSettlementIx,
+    expectProgramError,
+    fundSettlementIx,
+    SettlementAccounts,
+    settlementTx,
+} from "./utils/settlement";
 
 anchor.setProvider(anchor.AnchorProvider.env());
 const provider = anchor.getProvider() as anchor.AnchorProvider;
@@ -520,44 +527,65 @@ describe("COMPLETE_SETTLEMENT", () => {
             getAndLogBalance("After selecting quote", "RFQ Vault Base", baseVault),
         ]);
 
-        // remaining_accounts order should be irrelevant
-        const completeSettlementIx = await program.methods.completeSettlement()
-            .accounts({
-                taker: taker.publicKey,
-                config: configPda,
-                treasuryWallet: treasury.publicKey,
-                rfq: rfqPDA,
-                settlement: settlementPDA,
-                usdcMint,
-                baseMint,
-                quoteMint,
-                takerPaymentAccount,
-                makerPaymentAccount,
-                vaultBaseAta: baseVault,
-                takerBaseAccount,
-                makerQuoteAccount,
-                takerQuoteAccount,
-                feesTracker: feesTrackerPDA,
-                treasuryAta: treasuryPaymentAccount,
-                treasuryQuoteAta,
-                feeEscrow,
-                bondsEscrow,
-            })
-            .remainingAccounts([{
-                pubkey: quotePda,
-                isSigner: false,
-                isWritable: true,
-            }, {
-                pubkey: slashedBondsTrackerPDA,
-                isSigner: false,
-                isWritable: true,
-            }])
-            .instruction();
+        const settlementAccounts: SettlementAccounts = {
+            taker: taker.publicKey,
+            config: configPda,
+            treasuryWallet: treasury.publicKey,
+            rfq: rfqPDA,
+            settlement: settlementPDA,
+            quote: quotePda,
+            slashedBondsTracker: slashedBondsTrackerPDA,
+            feesTracker: feesTrackerPDA,
+            usdcMint,
+            baseMint,
+            quoteMint,
+            takerPaymentAccount,
+            makerPaymentAccount,
+            vaultBaseAta: baseVault,
+            takerBaseAccount,
+            makerQuoteAccount,
+            takerQuoteAccount,
+            treasuryAta: treasuryPaymentAccount,
+            treasuryQuoteAta,
+            feeEscrow,
+            bondsEscrow,
+        };
 
-        const completeTx = new anchor.web3.Transaction();
-        completeTx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }));
-        completeTx.add(completeSettlementIx);
-        await provider.sendAndConfirm(completeTx, [taker]);
+        // fund_settlement checks the next instruction's accounts by position
+        // (COMPLETE_SETTLEMENT_RFQ_INDEX / _SETTLEMENT_INDEX in the program).
+        const completeIdlAccounts = program.idl.instructions
+            .find((ix) => ix.name === "completeSettlement")!
+            .accounts.map((a) => a.name);
+        assert.strictEqual(completeIdlAccounts[3], "rfq", "complete_settlement: rfq must stay at index 3");
+        assert.strictEqual(completeIdlAccounts[4], "settlement", "complete_settlement: settlement must stay at index 4");
+
+        // fund_settlement and complete_settlement are only valid together, in
+        // this order, in one transaction. Every other combination must revert.
+        const fundIx = await fundSettlementIx(program, settlementAccounts);
+        const completeIx = await completeSettlementIx(program, settlementAccounts);
+        const cuLimit = () => ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 });
+        const send = (...ixs: anchor.web3.TransactionInstruction[]) =>
+            provider.sendAndConfirm(new anchor.web3.Transaction().add(cuLimit(), ...ixs), [taker]);
+
+        // fund alone: the taker would pay without receiving the base asset
+        await expectProgramError(send(fundIx), "CompleteSettlementMustFollow");
+        // complete alone: nothing was paid
+        await expectProgramError(send(completeIx), "SettlementNotFunded");
+        // wrong order
+        await expectProgramError(send(completeIx, fundIx), "SettlementNotFunded");
+        // fund must be *immediately* followed by complete
+        await expectProgramError(
+            send(fundIx, ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 }), completeIx),
+            "CompleteSettlementMustFollow"
+        );
+        // complete must target the same RFQ as fund
+        const completeOtherRfqIx = await completeSettlementIx(program, {
+            ...settlementAccounts,
+            rfq: Keypair.generate().publicKey,
+        });
+        await expectProgramError(send(fundIx, completeOtherRfqIx), "CompleteSettlementMustFollow");
+
+        await provider.sendAndConfirm(await settlementTx(program, settlementAccounts), [taker]);
 
         const [rfq, settlement, feesTracker, slashedBondsTracker, quote, quote2] = await Promise.all([
             program.account.rfq.fetch(rfqPDA),
@@ -860,29 +888,30 @@ describe("COMPLETE_SETTLEMENT", () => {
             .signers([maker])
             .rpc();
 
-        // COMPLETE SETTLEMENT
-        const completeIx = await program.methods.completeSettlement()
-            .accounts({
-                taker: taker.publicKey, config: configPda,
-                treasuryWallet: treasury.publicKey,
-                rfq: rfqPDA, settlement: settlementPDA,
-                usdcMint, baseMint, quoteMint,
-                takerPaymentAccount, makerPaymentAccount,
-                vaultBaseAta: baseVault, takerBaseAccount,
-                makerQuoteAccount, takerQuoteAccount,
-                feesTracker: feesTrackerPDA,
-                treasuryAta: treasuryPaymentAccount,
-                treasuryQuoteAta, feeEscrow, bondsEscrow,
-            })
-            .remainingAccounts([
-                { pubkey: quotePda, isSigner: false, isWritable: true },
-                { pubkey: slashedBondsTrackerPDA, isSigner: false, isWritable: true },
-            ])
-            .instruction();
-
-        const tx = new anchor.web3.Transaction();
-        tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }));
-        tx.add(completeIx);
+        // FUND + COMPLETE SETTLEMENT (one transaction)
+        const tx = await settlementTx(program, {
+            taker: taker.publicKey,
+            config: configPda,
+            treasuryWallet: treasury.publicKey,
+            rfq: rfqPDA,
+            settlement: settlementPDA,
+            quote: quotePda,
+            slashedBondsTracker: slashedBondsTrackerPDA,
+            feesTracker: feesTrackerPDA,
+            usdcMint,
+            baseMint,
+            quoteMint,
+            takerPaymentAccount,
+            makerPaymentAccount,
+            vaultBaseAta: baseVault,
+            takerBaseAccount,
+            makerQuoteAccount,
+            takerQuoteAccount,
+            treasuryAta: treasuryPaymentAccount,
+            treasuryQuoteAta,
+            feeEscrow,
+            bondsEscrow,
+        });
         await provider.sendAndConfirm(tx, [taker]);
 
         const feesTracker = await program.account.feesTracker.fetch(feesTrackerPDA);

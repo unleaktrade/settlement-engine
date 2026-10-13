@@ -156,9 +156,15 @@ pub mod settlement_engine {
         select_quote::select_quote_handler(ctx)
     }
 
-    pub fn complete_settlement<'info>(
-        ctx: Context<'_, '_, 'info, 'info, CompleteSettlement<'info>>,
-    ) -> Result<()> {
+    /// Taker pays the quote amount and the fees. Must be immediately followed
+    /// by `complete_settlement` (same RFQ) in the same transaction.
+    pub fn fund_settlement(ctx: Context<FundSettlement>) -> Result<()> {
+        fund_settlement::fund_settlement_handler(ctx)
+    }
+
+    /// Refunds bonds, delivers the base asset and settles the RFQ. Requires
+    /// `fund_settlement` to have run earlier in the same transaction.
+    pub fn complete_settlement(ctx: Context<CompleteSettlement>) -> Result<()> {
         complete_settlement::complete_settlement_handler(ctx)
     }
 

@@ -1,30 +1,44 @@
 use crate::rfq_errors::RfqError;
-use crate::state::rfq::{Rfq, RfqState};
 use crate::slashing::compute_slashed_amount;
-use crate::state::{Config, FeesTracker, Quote, Settlement, SlashedBondsTracker};
+use crate::state::rfq::{Rfq, RfqState};
+use crate::state::{Config, Quote, Settlement, SlashedBondsTracker};
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
     token::{self, Mint, Token, TokenAccount, Transfer},
 };
 
+/// Position of `rfq` / `settlement` in `CompleteSettlement` (0-based, in field
+/// order). `fund_settlement` reads them from the next instruction to make sure
+/// both halves of the settlement target the same RFQ — keep in sync with the
+/// struct below.
+pub const COMPLETE_SETTLEMENT_RFQ_INDEX: usize = 3;
+pub const COMPLETE_SETTLEMENT_SETTLEMENT_INDEX: usize = 4;
+
+/// Second half of the taker's settlement, run right after `fund_settlement` in
+/// the same transaction: refunds both bonds, delivers the base asset from the
+/// vault to the taker, seizes unrevealed bonds, and marks the RFQ settled.
 #[derive(Accounts)]
 pub struct CompleteSettlement<'info> {
+    // index 0
     #[account(mut)]
     pub taker: Signer<'info>,
 
+    // index 1
     #[account(
         seeds = [Config::SEED_PREFIX],
         bump = config.bump,
     )]
     pub config: Box<Account<'info, Config>>,
 
+    // index 2
     #[account(
         mut,
         address = rfq.treasury_wallet,
     )]
     pub treasury_wallet: SystemAccount<'info>,
 
+    // index 3 == COMPLETE_SETTLEMENT_RFQ_INDEX
     #[account(
         mut,
         seeds = [Rfq::SEED_PREFIX, rfq.maker.key().as_ref(), rfq.uuid.as_ref()],
@@ -32,22 +46,32 @@ pub struct CompleteSettlement<'info> {
     )]
     pub rfq: Box<Account<'info, Rfq>>,
 
-    //quote provided in remaining_accounts
+    // index 4 == COMPLETE_SETTLEMENT_SETTLEMENT_INDEX
     #[account(
         mut,
         seeds = [Settlement::SEED_PREFIX, rfq.key().as_ref()],
-        bump,
+        bump = settlement.bump,
     )]
     pub settlement: Box<Account<'info, Settlement>>,
+
+    /// CHECK: selected Quote PDA. Validated in `load_quote` (address ==
+    /// settlement.quote, program-owned, Quote discriminator, selected) rather
+    /// than by Anchor constraints, to keep `try_accounts` well under the 4 KiB
+    /// SBF stack frame.
+    #[account(mut)]
+    pub quote: UncheckedAccount<'info>,
+
+    /// CHECK: SlashedBondsTracker PDA (["slashed_bonds_tracker", rfq]).
+    /// Validated in `load_slashed_bonds_tracker` (program-owned, discriminator,
+    /// PDA re-derived from the stored bump, usdc_mint / treasury_wallet match).
+    #[account(mut)]
+    pub slashed_bonds_tracker: UncheckedAccount<'info>,
 
     #[account(address = rfq.usdc_mint)]
     pub usdc_mint: Box<Account<'info, Mint>>,
 
     #[account(address = settlement.base_mint)]
     pub base_mint: Box<Account<'info, Mint>>,
-
-    #[account(address = settlement.quote_mint)]
-    pub quote_mint: Box<Account<'info, Mint>>,
 
     /// USDC treasury ATA – receives slashed bonds only
     #[account(
@@ -58,30 +82,12 @@ pub struct CompleteSettlement<'info> {
     )]
     pub treasury_ata: Box<Account<'info, TokenAccount>>,
 
-    /// Quote-mint treasury ATA – receives the treasury's share of the taker fee
-    #[account(
-        init_if_needed,
-        payer = taker,
-        associated_token::mint = quote_mint,
-        associated_token::authority = treasury_wallet,
-    )]
-    pub treasury_quote_ata: Box<Account<'info, TokenAccount>>,
-
     /// USDC bonds escrow (bonds only, no fees)
     #[account(
         mut,
         address = settlement.bonds_escrow,
     )]
     pub bonds_escrow: Box<Account<'info, TokenAccount>>,
-
-    /// Quote-mint fee escrow – holds facilitator share until withdraw_reward
-    #[account(
-        init_if_needed,
-        payer = taker,
-        associated_token::mint = quote_mint,
-        associated_token::authority = rfq,
-    )]
-    pub fee_escrow: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -110,40 +116,76 @@ pub struct CompleteSettlement<'info> {
     )]
     pub taker_base_account: Box<Account<'info, TokenAccount>>,
 
-    #[account(
-        mut,
-        address = settlement.maker_quote_account,
-    )]
-    pub maker_quote_account: Box<Account<'info, TokenAccount>>,
-
-    #[account(
-        mut,
-        token::mint = quote_mint,
-        token::authority = taker,
-    )]
-    pub taker_quote_account: Box<Account<'info, TokenAccount>>,
-
-    #[account(
-        init,
-        payer = taker,
-        space = 8 + FeesTracker::INIT_SPACE,
-        seeds = [FeesTracker::SEED_PREFIX, rfq.key().as_ref()],
-        bump,
-    )]
-    pub fees_tracker: Box<Account<'info, FeesTracker>>,
-
-    // slashed_bonds_tracker provided in remaining_accounts
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
-pub fn complete_settlement_handler<'info>(
-    ctx: Context<'_, '_, 'info, 'info, CompleteSettlement<'info>>,
-) -> Result<()> {
+/// Deserialize and validate the selected quote (see `CompleteSettlement::quote`).
+#[inline(never)]
+fn load_quote(info: &AccountInfo, settlement: &Settlement) -> Result<Quote> {
+    require_keys_eq!(*info.key, settlement.quote, RfqError::InvalidQuote);
+    require_keys_eq!(*info.owner, crate::ID, RfqError::InvalidOwner);
+    // checks the Quote discriminator
+    let quote = Quote::try_deserialize(&mut &info.try_borrow_data()?[..])?;
+    require_keys_eq!(quote.rfq, settlement.rfq, RfqError::InvalidRfqAssociation);
+    require_keys_eq!(quote.taker, settlement.taker, RfqError::InvalidTaker);
+    require!(quote.selected, RfqError::InvalidQuoteState);
+    Ok(quote)
+}
+
+/// Deserialize and validate the RFQ's slashed-bonds tracker
+/// (see `CompleteSettlement::slashed_bonds_tracker`).
+#[inline(never)]
+fn load_slashed_bonds_tracker(
+    info: &AccountInfo,
+    rfq: &Pubkey,
+    usdc_mint: &Pubkey,
+    treasury_wallet: &Pubkey,
+) -> Result<SlashedBondsTracker> {
+    require_keys_eq!(*info.owner, crate::ID, RfqError::InvalidOwner);
+    // checks the SlashedBondsTracker discriminator
+    let tracker = SlashedBondsTracker::try_deserialize(&mut &info.try_borrow_data()?[..])?;
+    let expected = Pubkey::create_program_address(
+        &[
+            SlashedBondsTracker::SEED_PREFIX,
+            rfq.as_ref(),
+            &[tracker.bump],
+        ],
+        &crate::ID,
+    )
+    .map_err(|_| error!(RfqError::PdaMismatch))?;
+    require_keys_eq!(*info.key, expected, RfqError::PdaMismatch);
+    require_keys_eq!(tracker.rfq, *rfq, RfqError::InvalidRfq);
+    require_keys_eq!(tracker.usdc_mint, *usdc_mint, RfqError::InvalidParams);
+    require_keys_eq!(
+        tracker.treasury_wallet,
+        *treasury_wallet,
+        RfqError::InvalidParams
+    );
+    Ok(tracker)
+}
+
+/// Write a handler-managed account back (discriminator + Borsh), like Anchor's
+/// `Account::exit` does for typed accounts.
+#[inline(never)]
+fn store<T: AccountSerialize>(info: &AccountInfo, value: &T) -> Result<()> {
+    let mut data = info.try_borrow_mut_data()?;
+    let mut writer: &mut [u8] = &mut data;
+    value.try_serialize(&mut writer)
+}
+
+pub fn complete_settlement_handler(ctx: Context<CompleteSettlement>) -> Result<()> {
+    let mut quote = load_quote(&ctx.accounts.quote, &ctx.accounts.settlement)?;
+    let mut slashed_bonds_tracker = load_slashed_bonds_tracker(
+        &ctx.accounts.slashed_bonds_tracker,
+        &ctx.accounts.rfq.key(),
+        &ctx.accounts.usdc_mint.key(),
+        &ctx.accounts.treasury_wallet.key(),
+    )?;
+
     let rfq = &mut ctx.accounts.rfq;
     let settlement = &mut ctx.accounts.settlement;
-    let fees_tracker = &mut ctx.accounts.fees_tracker;
 
     let Some(funding_deadline) = rfq.funding_deadline() else {
         return err!(RfqError::InvalidRfqState);
@@ -167,53 +209,22 @@ pub fn complete_settlement_handler<'info>(
         settlement.taker_payment_account == ctx.accounts.taker_payment_account.key(),
         RfqError::InvalidTakerPaymentAccount
     );
-
-    // resolve quote and slashed_bonds_tracker from remaining_accounts (order-agnostic)
+    // Only fund_settlement sets taker_funded_at, and it requires this
+    // instruction to follow it in the same transaction: Some(_) here means the
+    // quote amount and fees were paid moments ago, atomically with this call.
     require!(
-        ctx.remaining_accounts.len() >= 2,
-        RfqError::MissingQuoteAccount
+        settlement.taker_funded_at.is_some(),
+        RfqError::SettlementNotFunded
     );
 
-    let quote_seeds: &[&[u8]] = &[
-        Quote::SEED_PREFIX,
-        settlement.rfq.as_ref(),
-        settlement.taker.as_ref(),
-    ];
-    let (quote_expected_pda, quote_bump) = Pubkey::find_program_address(quote_seeds, &crate::ID);
-
-    let slashed_bonds_tracker_seeds: &[&[u8]] =
-        &[SlashedBondsTracker::SEED_PREFIX, settlement.rfq.as_ref()];
-    let (slashed_bonds_tracker_expected_pda, slashed_bonds_tracker_bump) =
-        Pubkey::find_program_address(slashed_bonds_tracker_seeds, &crate::ID);
-
-    let mut quote_ai: Option<&AccountInfo<'info>> = None;
-    let mut slashed_ai: Option<&AccountInfo<'info>> = None;
-    for ai in ctx.remaining_accounts.iter() {
-        if ai.key() == quote_expected_pda {
-            quote_ai = Some(ai);
-        } else if ai.key() == slashed_bonds_tracker_expected_pda {
-            slashed_ai = Some(ai);
-        }
-    }
-
-    let quote_ai = quote_ai.ok_or(RfqError::MissingQuoteAccount)?;
-    let slashed_ai = slashed_ai.ok_or(RfqError::MissingSlashedBondsTrackerAccount)?;
-
-    require_keys_eq!(*quote_ai.owner, crate::ID, RfqError::InvalidOwner);
-    require_keys_eq!(*slashed_ai.owner, crate::ID, RfqError::InvalidOwner);
-
-    let mut quote: Account<'info, Quote> = Account::try_from(quote_ai)?;
-    require_eq!(quote_bump, quote.bump, RfqError::BumpMismatch);
-    require_eq!(quote.key(), settlement.quote, RfqError::InvalidQuote);
-    require!(quote.selected, RfqError::InvalidQuoteState);
-
-    // Refund maker's bond (USDC)
     let seeds_rfq: &[&[u8]] = &[
         Rfq::SEED_PREFIX,
         rfq.maker.as_ref(),
         rfq.uuid.as_ref(),
         &[rfq.bump],
     ];
+
+    // Refund maker's bond (USDC)
     token::transfer(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
@@ -241,47 +252,6 @@ pub fn complete_settlement_handler<'info>(
         settlement.bond_amount,
     )?;
 
-    // --- Fee collection (paid in quote_mint tokens) ---
-    let total_fee = settlement.compute_total_fee()?;
-    let facilitator_share: u64 =
-        if rfq.facilitator.is_some() && rfq.facilitator == quote.facilitator {
-            settlement.compute_facilitator_share(total_fee, rfq.facilitator_fee_bps)?
-        } else {
-            0
-        };
-    let treasury_share = total_fee
-        .checked_sub(facilitator_share)
-        .ok_or(RfqError::ArithmeticOverflow)?;
-
-    // Treasury share → treasury_quote_ata (in quote_mint tokens)
-    if treasury_share > 0 {
-        token::transfer(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.taker_quote_account.to_account_info(),
-                    to: ctx.accounts.treasury_quote_ata.to_account_info(),
-                    authority: ctx.accounts.taker.to_account_info(),
-                },
-            ),
-            treasury_share,
-        )?;
-    }
-    // Facilitator share → fee_escrow (in quote_mint tokens, claimed via withdraw_reward)
-    if facilitator_share > 0 {
-        token::transfer(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.taker_quote_account.to_account_info(),
-                    to: ctx.accounts.fee_escrow.to_account_info(),
-                    authority: ctx.accounts.taker.to_account_info(),
-                },
-            ),
-            facilitator_share,
-        )?;
-    }
-
     // Deliver base asset from vault to taker
     token::transfer(
         CpiContext::new_with_signer(
@@ -295,27 +265,6 @@ pub fn complete_settlement_handler<'info>(
         ),
         settlement.base_amount,
     )?;
-
-    // Deliver quote asset from taker to maker
-    token::transfer(
-        CpiContext::new(
-            ctx.accounts.token_program.to_account_info(),
-            Transfer {
-                from: ctx.accounts.taker_quote_account.to_account_info(),
-                to: ctx.accounts.maker_quote_account.to_account_info(),
-                authority: ctx.accounts.taker.to_account_info(),
-            },
-        ),
-        settlement.quote_amount,
-    )?;
-
-    let mut slashed_bonds_tracker: Account<'info, SlashedBondsTracker> =
-        Account::try_from(slashed_ai)?;
-    require_eq!(
-        slashed_bonds_tracker_bump,
-        slashed_bonds_tracker.bump,
-        RfqError::BumpMismatch
-    );
 
     if !slashed_bonds_tracker.is_resolved() {
         // Seize only unrevealed bonds (USDC) and send them to the treasury
@@ -338,28 +287,18 @@ pub fn complete_settlement_handler<'info>(
 
         slashed_bonds_tracker.amount = Some(seized_amount);
         slashed_bonds_tracker.seized_at = Some(now);
-        slashed_bonds_tracker.exit(ctx.program_id)?; // persist modifications
+        store(&ctx.accounts.slashed_bonds_tracker, &slashed_bonds_tracker)?;
     }
 
     // update rfq
     rfq.state = RfqState::Settled;
     rfq.completed_at = Some(now);
-    //update settlement
+    // update settlement (taker_funded_at / taker_quote_account set by fund_settlement)
     settlement.completed_at = Some(now);
-    settlement.taker_funded_at = Some(now);
     settlement.taker_base_account = Some(ctx.accounts.taker_base_account.key());
-    settlement.taker_quote_account = Some(ctx.accounts.taker_quote_account.key());
-    // fill fees tracker
-    fees_tracker.rfq = settlement.rfq;
-    fees_tracker.taker = settlement.taker;
-    fees_tracker.quote_mint = rfq.quote_mint;
-    fees_tracker.treasury_wallet = rfq.treasury_wallet;
-    fees_tracker.amount = treasury_share;
-    fees_tracker.payed_at = now;
-    fees_tracker.bump = ctx.bumps.fees_tracker;
 
     quote.bonds_refunded_at = Some(now);
-    quote.exit(ctx.program_id)?; // persist modifications
+    store(&ctx.accounts.quote, &quote)?;
 
     Ok(())
 }
