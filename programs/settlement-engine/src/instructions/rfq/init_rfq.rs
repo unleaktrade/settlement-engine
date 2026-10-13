@@ -19,11 +19,11 @@ pub struct InitRfq<'info> {
         seeds = [Config::SEED_PREFIX],
         bump = config.bump,
     )]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
 
     // Must be an account field (not just a Pubkey) for `associated_token::mint`
     #[account(address = config.usdc_mint)]
-    pub usdc_mint: Account<'info, Mint>,
+    pub usdc_mint: Box<Account<'info, Mint>>,
 
     #[account(
         init,
@@ -32,7 +32,7 @@ pub struct InitRfq<'info> {
         seeds = [Rfq::SEED_PREFIX, maker.key().as_ref(), uuid.as_ref()],
         bump,
     )]
-    pub rfq: Account<'info, Rfq>,
+    pub rfq: Box<Account<'info, Rfq>>,
 
     /// Create RFQ-owned USDC ATA for bonds
     #[account(
@@ -41,7 +41,7 @@ pub struct InitRfq<'info> {
         associated_token::mint = usdc_mint,
         associated_token::authority = rfq,
     )]
-    pub bonds_escrow: Account<'info, TokenAccount>,
+    pub bonds_escrow: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -49,7 +49,7 @@ pub struct InitRfq<'info> {
         token::authority = maker,
         constraint =!maker_payment_account.is_frozen() @ RfqError::MakerPaymentAccountClosed,
     )]
-    pub maker_payment_account: Account<'info, TokenAccount>,
+    pub maker_payment_account: Box<Account<'info, TokenAccount>>,
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,

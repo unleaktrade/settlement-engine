@@ -15,7 +15,7 @@ pub struct CloseConfig<'info> {
         bump = config.bump,
         has_one = admin @ RfqError::Unauthorized,
     )]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
 }
 
 pub fn close_config_handler(_ctx: Context<CloseConfig>) -> Result<()> {

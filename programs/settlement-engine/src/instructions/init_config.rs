@@ -16,7 +16,7 @@ pub struct InitConfig<'info> {
         seeds = [Config::SEED_PREFIX],
         bump,
     )]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
 
     pub system_program: Program<'info, System>,
 }

@@ -14,7 +14,7 @@ pub struct CancelRfq<'info> {
         bump = rfq.bump,
         has_one = maker,
         constraint = matches!(rfq.state, RfqState::Draft) @ RfqError::InvalidRfqState,)]
-    pub rfq: Account<'info, Rfq>,
+    pub rfq: Box<Account<'info, Rfq>>,
 }
 
 pub fn cancel_rfq_handler(_ctx: Context<CancelRfq>) -> Result<()> {

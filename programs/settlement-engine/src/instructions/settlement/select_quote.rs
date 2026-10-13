@@ -42,7 +42,7 @@ pub struct SelectQuote<'info> {
         seeds = [Settlement::SEED_PREFIX, rfq.key().as_ref()],
         bump,
     )]
-    pub settlement: Account<'info, Settlement>,
+    pub settlement: Box<Account<'info, Settlement>>,
 
     #[account()]
     pub quote_mint: Box<Account<'info, Mint>>,
@@ -53,7 +53,7 @@ pub struct SelectQuote<'info> {
         associated_token::mint = quote_mint,
         associated_token::authority = maker,
     )]
-    pub maker_quote_account: Account<'info, TokenAccount>,
+    pub maker_quote_account: Box<Account<'info, TokenAccount>>,
 
     #[account()]
     pub base_mint: Box<Account<'info, Mint>>,
@@ -64,7 +64,7 @@ pub struct SelectQuote<'info> {
         associated_token::mint = base_mint,
         associated_token::authority = rfq,
     )]
-    pub vault_base_ata: Account<'info, TokenAccount>,
+    pub vault_base_ata: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,

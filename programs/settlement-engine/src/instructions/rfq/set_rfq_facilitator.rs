@@ -20,7 +20,7 @@ pub struct SetRfqFacilitator<'info> {
                 | RfqState::Revealed
         ) @ RfqError::InvalidRfqState,
     )]
-    pub rfq: Account<'info, Rfq>,
+    pub rfq: Box<Account<'info, Rfq>>,
 }
 
 pub fn set_rfq_facilitator_handler(

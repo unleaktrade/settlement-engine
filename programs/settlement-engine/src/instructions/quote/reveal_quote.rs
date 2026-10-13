@@ -18,7 +18,7 @@ pub struct RevealQuote<'info> {
         seeds = [Config::SEED_PREFIX],
         bump = config.bump,
     )]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
 
     #[account(
         mut,
@@ -37,7 +37,7 @@ pub struct RevealQuote<'info> {
         has_one = taker,
         constraint = !quote.is_revealed() @ RfqError::QuoteAlreadyRevealed,
     )]
-    pub quote: Account<'info, Quote>,
+    pub quote: Box<Account<'info, Quote>>,
 }
 
 pub fn reveal_quote_handler(
