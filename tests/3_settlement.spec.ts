@@ -528,6 +528,7 @@ describe("COMPLETE_SETTLEMENT", () => {
                 treasuryWallet: treasury.publicKey,
                 rfq: rfqPDA,
                 settlement: settlementPDA,
+                maker: maker.publicKey,
                 usdcMint,
                 baseMint,
                 quoteMint,
@@ -865,7 +866,7 @@ describe("COMPLETE_SETTLEMENT", () => {
             .accounts({
                 taker: taker.publicKey, config: configPda,
                 treasuryWallet: treasury.publicKey,
-                rfq: rfqPDA, settlement: settlementPDA,
+                rfq: rfqPDA, settlement: settlementPDA, maker: maker.publicKey,
                 usdcMint, baseMint, quoteMint,
                 takerPaymentAccount, makerPaymentAccount,
                 vaultBaseAta: baseVault, takerBaseAccount,

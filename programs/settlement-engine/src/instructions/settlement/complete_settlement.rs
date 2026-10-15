@@ -4,7 +4,7 @@ use crate::slashing::compute_slashed_amount;
 use crate::state::{Config, FeesTracker, Quote, Settlement, SlashedBondsTracker};
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    associated_token::AssociatedToken,
+    associated_token::{self, AssociatedToken, Create},
     token::{self, Mint, Token, TokenAccount, Transfer},
 };
 
@@ -39,6 +39,10 @@ pub struct CompleteSettlement<'info> {
         bump,
     )]
     pub settlement: Box<Account<'info, Settlement>>,
+
+    /// CHECK: authority of the maker's payout ATAs, only used to re-create them
+    #[account(address = settlement.maker)]
+    pub maker: UncheckedAccount<'info>,
 
     #[account(address = rfq.usdc_mint)]
     pub usdc_mint: Box<Account<'info, Mint>>,
@@ -90,11 +94,13 @@ pub struct CompleteSettlement<'info> {
     )]
     pub taker_payment_account: Box<Account<'info, TokenAccount>>,
 
+    /// CHECK: maker's USDC ATA (enforced by init_rfq); re-created if the maker closed it.
+    /// Left unchecked so a maker cannot block settlement by closing it or changing its owner.
     #[account(
         mut,
         address = settlement.maker_payment_account,
     )]
-    pub maker_payment_account: Box<Account<'info, TokenAccount>>,
+    pub maker_payment_account: UncheckedAccount<'info>,
 
     #[account(
         mut,
@@ -110,11 +116,13 @@ pub struct CompleteSettlement<'info> {
     )]
     pub taker_base_account: Box<Account<'info, TokenAccount>>,
 
+    /// CHECK: maker's quote-mint ATA (created by select_quote); re-created if the maker closed it.
+    /// Left unchecked so a maker cannot block settlement by closing it or changing its owner.
     #[account(
         mut,
         address = settlement.maker_quote_account,
     )]
-    pub maker_quote_account: Box<Account<'info, TokenAccount>>,
+    pub maker_quote_account: UncheckedAccount<'info>,
 
     #[account(
         mut,
@@ -138,9 +146,42 @@ pub struct CompleteSettlement<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
+/// Re-creates one of the maker's payout ATAs if the maker closed it after selection.
+fn recreate_maker_ata_if_closed<'info>(
+    accounts: &CompleteSettlement<'info>,
+    ata: &UncheckedAccount<'info>,
+    mint: &Account<'info, Mint>,
+) -> Result<()> {
+    if !ata.data_is_empty() {
+        return Ok(());
+    }
+    associated_token::create(CpiContext::new(
+        accounts.associated_token_program.to_account_info(),
+        Create {
+            payer: accounts.taker.to_account_info(),
+            associated_token: ata.to_account_info(),
+            authority: accounts.maker.to_account_info(),
+            mint: mint.to_account_info(),
+            system_program: accounts.system_program.to_account_info(),
+            token_program: accounts.token_program.to_account_info(),
+        },
+    ))
+}
+
 pub fn complete_settlement_handler<'info>(
     ctx: Context<'_, '_, 'info, 'info, CompleteSettlement<'info>>,
 ) -> Result<()> {
+    recreate_maker_ata_if_closed(
+        &ctx.accounts,
+        &ctx.accounts.maker_payment_account,
+        &ctx.accounts.usdc_mint,
+    )?;
+    recreate_maker_ata_if_closed(
+        &ctx.accounts,
+        &ctx.accounts.maker_quote_account,
+        &ctx.accounts.quote_mint,
+    )?;
+
     let rfq = &mut ctx.accounts.rfq;
     let settlement = &mut ctx.accounts.settlement;
     let fees_tracker = &mut ctx.accounts.fees_tracker;

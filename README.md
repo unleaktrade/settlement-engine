@@ -299,6 +299,7 @@ sequenceDiagram
 - Maker and each taker post a **USDC bond** into the RFQ-owned `bonds_escrow`.
 - Maker and taker bonds are the same per-RFQ `bond_amount`.
 - On successful settlement, the maker's and the selected taker's bonds are refunded by `complete_settlement`.
+- The maker's payout accounts (USDC payment account and quote-mint account) must be the maker's ATAs. If the maker closes either one after selection, `complete_settlement` re-creates it (taker pays the rent), so a maker cannot block settlement and get the taker's bond slashed.
 - Takers who revealed but were not selected reclaim their bond with `refund_quote_bonds` once the funding deadline has passed.
 - The maker's bond is also refunded on `Expired` and `Incomplete`.
 - Slashed bonds are sent **entirely to the treasury** in USDC: every committed quote that was never revealed, the selected taker's bond if they do not fund (`Incomplete`), and the maker's bond if they never select a revealed quote (`Ignored`).

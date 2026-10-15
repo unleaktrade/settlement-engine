@@ -43,10 +43,11 @@ pub struct InitRfq<'info> {
     )]
     pub bonds_escrow: Account<'info, TokenAccount>,
 
+    /// Must be the maker's USDC ATA so complete_settlement can re-create it if the maker closes it
     #[account(
         mut,
-        token::mint = usdc_mint,
-        token::authority = maker,
+        associated_token::mint = usdc_mint,
+        associated_token::authority = maker,
         constraint =!maker_payment_account.is_frozen() @ RfqError::MakerPaymentAccountClosed,
     )]
     pub maker_payment_account: Account<'info, TokenAccount>,
