@@ -391,3 +391,27 @@ The integration tests call a live Liquidity Guard (`POST /check`) to obtain comm
 | --- | --- |
 | `LIQUIDITY_GUARD_URL` | Guard base URL (default: the devnet `SKIP_FUND_CHECKS` instance) |
 | `LIQUIDITY_GUARD_API_KEY` | Sent as `X-API-Key` on `/check` when the guard runs with `API_KEYS`; unset = no header. CI reads it from the `LIQUIDITY_GUARD_API_KEY` repository secret |
+
+### 🧱 SBF stack guard
+
+Every SBF function runs in a fixed **4 KiB stack frame**. Anchor generates one `try_accounts` function per instruction that deserializes and validates *all* of its accounts, so large `Accounts` structs sit close to that limit. When a function needs more, LLVM prints
+
+```
+Error: Function <…> Stack offset of 4104 exceeded max offset of 4096 by 8 bytes, please minimize large stack variables.
+Estimated function frame size: 4160 bytes. Exceeding the maximum stack offset may cause undefined behavior during execution.
+```
+
+**but `anchor build` / `cargo build-sbf` still succeed and emit a `.so`.** Deploying it means silent memory corruption at runtime. `scripts/sbf-stack.ts` turns that diagnostic into a hard failure and reports how close each instruction is to the limit:
+
+```bash
+# Fail (exit 1) if the build printed a stack overflow (exit 2 if the program crate was not recompiled)
+cargo build-sbf --manifest-path programs/settlement-engine/Cargo.toml 2>&1 | tee sbf-build.log
+yarn sbf-stack check sbf-build.log
+
+# Approximate frame usage per try_accounts / handler / dispatch function (needs the unstripped .so)
+yarn sbf-stack report target/sbpf-solana-solana/release/settlement_engine.so
+```
+
+CI runs both in the `SBF stack guard` job: the check fails the PR, and the report is published in the job summary with a warning for anything at or above 90% of the frame.
+
+If a change trips the guard: `Box<Account<'info, T>>` the accounts of that instruction, move rarely-needed accounts out of the `Accounts` struct, or split the instruction.

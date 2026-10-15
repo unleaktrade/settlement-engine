@@ -6,7 +6,8 @@
     "init-config": "ts-node scripts/init-config-devnet.ts",
     "update-config": "ts-node scripts/update-config.ts",
     "get-config": "ts-node scripts/get-config.ts",
-    "test:unit": "ts-mocha -p ./tsconfig.json -t 60000 \"tests/unit/**/*.spec.ts\""
+    "test:unit": "ts-mocha -p ./tsconfig.json -t 60000 \"tests/unit/**/*.spec.ts\"",
+    "sbf-stack": "ts-node scripts/sbf-stack.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
