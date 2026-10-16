@@ -22,17 +22,17 @@ pub struct CloseExpired<'info> {
         seeds = [Config::SEED_PREFIX],
         bump = config.bump,
     )]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
 
     #[account(address = rfq.usdc_mint)]
-    pub usdc_mint: Account<'info, Mint>,
+    pub usdc_mint: Box<Account<'info, Mint>>,
 
     #[account(
         mut,
         associated_token::mint = usdc_mint,
         associated_token::authority = rfq,
     )]
-    pub bonds_escrow: Account<'info, TokenAccount>,
+    pub bonds_escrow: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -54,7 +54,7 @@ pub struct CloseExpired<'info> {
         token::authority = maker,
         constraint = rfq.maker_payment_account == maker_payment_account.key() @ RfqError::UnauthorizedMakerPaymentAccount,
     )]
-    pub maker_payment_account: Account<'info, TokenAccount>,
+    pub maker_payment_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -63,7 +63,7 @@ pub struct CloseExpired<'info> {
         has_one = usdc_mint,
         has_one = treasury_wallet,
     )]
-    pub slashed_bonds_tracker: Account<'info, SlashedBondsTracker>,
+    pub slashed_bonds_tracker: Box<Account<'info, SlashedBondsTracker>>,
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,

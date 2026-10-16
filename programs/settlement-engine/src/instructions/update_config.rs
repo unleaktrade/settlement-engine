@@ -12,7 +12,7 @@ pub struct UpdateConfig<'info> {
         bump = config.bump,
         has_one = admin @ RfqError::Unauthorized,
     )]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
 }
 
 pub fn update_config_handler(

@@ -13,7 +13,7 @@ pub struct UpdateRfq<'info> {
         bump = rfq.bump,
         has_one = maker,
         constraint = matches!(rfq.state, RfqState::Draft) @ RfqError::InvalidRfqState,)]
-    pub rfq: Account<'info, Rfq>,
+    pub rfq: Box<Account<'info, Rfq>>,
 }
 
 pub fn update_rfq_handler(

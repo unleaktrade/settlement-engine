@@ -25,7 +25,7 @@ pub struct SetQuoteFacilitator<'info> {
                 | RfqState::Selected
         ) @ RfqError::InvalidRfqState,
     )]
-    pub rfq: Account<'info, Rfq>,
+    pub rfq: Box<Account<'info, Rfq>>,
 
     #[account(
         mut,
@@ -34,7 +34,7 @@ pub struct SetQuoteFacilitator<'info> {
         has_one = rfq,
         has_one = taker,
     )]
-    pub quote: Account<'info, Quote>,
+    pub quote: Box<Account<'info, Quote>>,
 }
 
 pub fn set_quote_facilitator_handler(

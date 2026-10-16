@@ -21,18 +21,18 @@ pub struct OpenRfq<'info> {
         seeds = [Config::SEED_PREFIX],
         bump = config.bump,
     )]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
 
     // Must be an account field (not just a Pubkey) for `associated_token::mint`
     #[account(address = rfq.usdc_mint)]
-    pub usdc_mint: Account<'info, Mint>,
+    pub usdc_mint: Box<Account<'info, Mint>>,
 
     #[account(
         mut,
         associated_token::mint = usdc_mint,
         associated_token::authority = rfq,
     )]
-    pub bonds_escrow: Account<'info, TokenAccount>,
+    pub bonds_escrow: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -40,7 +40,7 @@ pub struct OpenRfq<'info> {
         token::authority = maker,
         constraint = rfq.maker_payment_account == maker_payment_account.key() @ RfqError::UnauthorizedMakerPaymentAccount,
     )]
-    pub maker_payment_account: Account<'info, TokenAccount>,
+    pub maker_payment_account: Box<Account<'info, TokenAccount>>,
 
     #[account(
         init,
@@ -49,7 +49,7 @@ pub struct OpenRfq<'info> {
         seeds = [SlashedBondsTracker::SEED_PREFIX, rfq.key().as_ref()],
         bump,
     )]
-    pub slashed_bonds_tracker: Account<'info, SlashedBondsTracker>,
+    pub slashed_bonds_tracker: Box<Account<'info, SlashedBondsTracker>>,
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,

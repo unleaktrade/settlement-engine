@@ -25,7 +25,7 @@ pub struct CommitQuote<'info> {
         seeds = [Config::SEED_PREFIX],
         bump = config.bump,
     )]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
 
     #[account(
         mut,
@@ -36,7 +36,7 @@ pub struct CommitQuote<'info> {
 
     /// USDC mint from config
     #[account(address = rfq.usdc_mint)]
-    pub usdc_mint: Account<'info, Mint>,
+    pub usdc_mint: Box<Account<'info, Mint>>,
 
     /// One Quote account per (rfq, taker)
     #[account(
@@ -46,7 +46,7 @@ pub struct CommitQuote<'info> {
         seeds = [Quote::SEED_PREFIX, rfq.key().as_ref(), taker.key().as_ref()],
         bump,
     )]
-    pub quote: Account<'info, Quote>,
+    pub quote: Box<Account<'info, Quote>>,
 
     /// Global guard against commit_hash reuse
     #[account(
@@ -56,14 +56,14 @@ pub struct CommitQuote<'info> {
         seeds = [CommitGuard::SEED_PREFIX, &commit_hash],
         bump,
     )]
-    pub commit_guard: Account<'info, CommitGuard>,
+    pub commit_guard: Box<Account<'info, CommitGuard>>,
 
     #[account(
         mut,
         associated_token::mint = usdc_mint,
         associated_token::authority = rfq,
     )]
-    pub bonds_escrow: Account<'info, TokenAccount>,
+    pub bonds_escrow: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -71,7 +71,7 @@ pub struct CommitQuote<'info> {
         token::authority = taker,
         constraint =!taker_payment_account.is_frozen() @ RfqError::TakerPaymentAccountClosed,
     )]
-    pub taker_payment_account: Account<'info, TokenAccount>,
+    pub taker_payment_account: Box<Account<'info, TokenAccount>>,
 
     /// Needed because we `init` PDAs (quote, commit_guard)
     pub system_program: Program<'info, System>,
